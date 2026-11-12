@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sitelens}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sitelens_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-sitelens}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sitelens} -d ${POSTGRES_DB:-sitelens}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sitelens}:${POSTGRES_PASSWORD:-sitelens_secret}@postgres:5432/${POSTGRES_DB:-sitelens}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+      UPLOAD_DIR: /data/uploads
+      RP_ID: ${RP_ID:-localhost}
+      RP_ORIGIN: ${RP_ORIGIN:-https://localhost}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-SiteLens Alerts <noreply@sitelens.local>}
+      WEBHOOK_URL: ${WEBHOOK_URL:-}
+    volumes:
+      - uploads_data:/data/uploads
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pg_data:
+  uploads_data:
+  caddy_data:
+  caddy_config:
+

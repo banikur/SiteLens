@@ -1,0 +1,5 @@
+{$SITE_DOMAIN:localhost} {
+	encode gzip zstd
+	reverse_proxy app:3000
+}
+

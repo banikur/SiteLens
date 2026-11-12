@@ -1,6 +1,19 @@
 {
   "name": "SiteLens - Precision Site Operations & Inspection Platform",
-  "description": "Configurable site operations, checklist builder, and inspection management platform for construction and industrial projects.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "shortName": "SiteLens",
+  "version": "0.1.0-pilot",
+  "description": "Dedicated self-hosted site operations, ISO/ASME/API-structured checklist master data, dynamic approval workflows, and field inspection platform for construction and industrial projects.",
+  "deploymentModel": "dedicated-self-hosted",
+  "requestFramePermissions": ["camera"],
+  "capabilities": [
+    "postgresql-drizzle-persistence",
+    "local-disk-media-storage",
+    "multi-mode-auth-password-pin-webauthn",
+    "offline-pwa-sync",
+    "dynamic-approval-workflows",
+    "iso-asme-api-template-master-data",
+    "offline-tesseract-ocr",
+    "optional-byok-gemini-ai",
+    "pdf-compliance-export"
+  ]
 }

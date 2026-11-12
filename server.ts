@@ -4,18 +4,25 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
+import { checkDbHealth } from './src/server/db/index.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+function getAiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+    return null;
+  }
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
     },
-  },
-});
+  });
+}
 
 async function startServer() {
   const app = express();
@@ -23,9 +30,32 @@ async function startServer() {
 
   app.use(express.json({ limit: '5mb' }));
 
+  app.get('/api/health', async (_req, res) => {
+    const dbStatus = await checkDbHealth();
+    const aiConfigured = Boolean(getAiClient());
+    res.status(dbStatus === 'error' ? 503 : 200).json({
+      status: dbStatus === 'error' ? 'degraded' : 'ok',
+      database: dbStatus,
+      aiConfigured,
+      timestamp: new Date().toISOString(),
+    });
+  });
+
+  app.get('/api/ai/status', (_req, res) => {
+    res.json({ enabled: Boolean(getAiClient()) });
+  });
+
   // AI Checklist Template Generator Endpoint
   app.post('/api/templates/generate', async (req, res) => {
     try {
+      const ai = getAiClient();
+      if (!ai) {
+        res.status(503).json({
+          code: 'AI_NOT_CONFIGURED',
+          error: 'GEMINI_API_KEY is not configured on this server. You can still build templates manually or use offline OCR.',
+        });
+        return;
+      }
       const {
         prompt,
         category = 'Safety & HSE',
