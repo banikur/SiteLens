@@ -53,6 +53,7 @@ import {
 import {
   apiDeleteInspection,
   apiDeleteTemplate,
+  apiImportTemplates,
   apiReviewInspection,
   apiSaveAction,
   apiSaveProject,
@@ -572,6 +573,18 @@ function SiteLensWorkspace() {
               }}
               onOpenAIGenerator={() => setAiModalOpen(true)}
               onOpenOcr={() => setOcrCloneModalOpen(true)}
+              onImportTemplates={async (imported) => {
+                if (authEnabled && authUser) {
+                  await apiImportTemplates(imported);
+                  await refreshAllData();
+                } else {
+                  let updated = templates;
+                  for (const tItem of imported) {
+                    updated = saveTemplate(tItem);
+                  }
+                  setTemplates(updated);
+                }
+              }}
             />
           ) : currentTab === 'inspections' ? (
             <InspectionList

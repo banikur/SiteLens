@@ -12,6 +12,7 @@ import {
   Wand2,
   Printer,
   ScanText,
+  Upload,
 } from 'lucide-react';
 import { ChecklistTemplate, ChecklistCategory } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -26,6 +27,7 @@ interface TemplateLibraryProps {
   onCreateNew: () => void;
   onOpenAIGenerator: () => void;
   onOpenOcr: () => void;
+  onImportTemplates?: (templates: ChecklistTemplate[]) => Promise<void> | void;
 }
 
 const CATEGORIES: ('All' | ChecklistCategory)[] = [
@@ -47,6 +49,7 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
   onCreateNew,
   onOpenAIGenerator,
   onOpenOcr,
+  onImportTemplates,
 }) => {
   const { lang, t, translateCategory, translateRole } = useLanguage();
   const [selectedCategory, setSelectedCategory] = useState<'All' | ChecklistCategory>('All');
@@ -76,6 +79,41 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
     downloadAnchor.remove();
   };
 
+  const handleExportPackJson = () => {
+    const dataStr =
+      'data:text/json;charset=utf-8,' +
+      encodeURIComponent(JSON.stringify({ templates }, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('download', 'sitelens_template_pack.json');
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const handleImportPackFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onImportTemplates) return;
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      const list: ChecklistTemplate[] = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed?.templates)
+        ? parsed.templates
+        : parsed?.title
+        ? [parsed]
+        : [];
+      if (list.length > 0) {
+        await onImportTemplates(list);
+      }
+    } catch {
+      alert(lang === 'id' ? 'File JSON template pack tidak valid.' : 'Invalid template pack JSON file.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header bar */}
@@ -87,6 +125,26 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
           <p className="text-xs text-slate-500 mt-1">{t.library.subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {onImportTemplates && (
+            <label className="px-3 py-2.5 rounded-lg bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-xs font-semibold transition-colors flex items-center cursor-pointer shadow-xs whitespace-nowrap">
+              <Upload className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+              {lang === 'id' ? 'Impor Pack' : 'Import Pack'}
+              <input
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                onChange={handleImportPackFile}
+              />
+            </label>
+          )}
+          <button
+            onClick={handleExportPackJson}
+            className="px-3 py-2.5 rounded-lg bg-white border border-slate-300 hover:border-slate-400 text-slate-700 text-xs font-semibold transition-colors flex items-center shadow-xs whitespace-nowrap"
+            title="Export all templates as JSON pack"
+          >
+            <Download className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+            {lang === 'id' ? 'Ekspor Pack' : 'Export Pack'}
+          </button>
           <button
             onClick={onOpenOcr}
             className="px-3.5 py-2.5 rounded-lg bg-white border border-slate-300 hover:border-slate-400 text-slate-800 text-xs font-bold transition-colors flex items-center shadow-xs whitespace-nowrap"

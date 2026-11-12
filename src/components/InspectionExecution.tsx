@@ -9,6 +9,7 @@ import {
   Send,
   ScanText,
   Sparkles,
+  Upload,
 } from 'lucide-react';
 import {
   ChecklistTemplate,
@@ -19,6 +20,7 @@ import {
 } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { OcrScannerModal } from './OcrScannerModal';
+import { uploadEvidencePhoto } from '../services/api';
 
 interface InspectionExecutionProps {
   template: ChecklistTemplate;
@@ -109,6 +111,21 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
       newEvidence,
     ]);
     handleAnswerChange(fieldId, chosenUrl);
+  };
+
+  const handlePhotoFileUpload = async (fieldId: string, file: File) => {
+    try {
+      const uploadedUrl = await uploadEvidencePhoto(file, file.name);
+      handleCapturePhoto(fieldId, uploadedUrl);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          handleCapturePhoto(fieldId, reader.result);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const calculateScore = () => {
@@ -389,11 +406,24 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                             {field.description}
                           </p>
                         )}
-                        {field.helpStandard && (
-                          <span className="inline-block text-[10px] font-mono text-slate-400 mt-1">
-                            {t.builder.standardLabel} {field.helpStandard}
-                          </span>
+                        {field.acceptanceCriteria && (
+                          <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200/80 rounded px-2 py-1 mt-1.5 inline-block">
+                            <strong>{lang === 'id' ? 'Kriteria:' : 'Criteria:'}</strong>{' '}
+                            {field.acceptanceCriteria}
+                          </p>
                         )}
+                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                          {field.inspectionPoint && (
+                            <span className="inline-block text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-900 text-amber-400 font-mono">
+                              ITP:{field.inspectionPoint}
+                            </span>
+                          )}
+                          {field.helpStandard && (
+                            <span className="inline-block text-[10px] font-mono text-slate-400">
+                              {t.builder.standardLabel} {field.helpStandard}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Field Input Control */}
@@ -487,22 +517,46 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                         )}
 
                         {field.type === 'number' && (
-                          <div className="flex items-center">
-                            <input
-                              type="number"
-                              value={answers[field.id] ?? ''}
-                              onChange={(e) =>
-                                handleAnswerChange(
-                                  field.id,
-                                  parseFloat(e.target.value) || 0
-                                )
-                              }
-                              className="border border-slate-300 rounded-l-lg px-3 py-1.5 text-xs w-28 font-mono focus:outline-none focus:ring-1 focus:ring-amber-500"
-                              placeholder="0.00"
-                            />
-                            <span className="bg-slate-100 border border-l-0 border-slate-300 px-3 py-1.5 rounded-r-lg text-xs font-mono text-slate-700 font-semibold">
-                              {field.unit || 'val'}
-                            </span>
+                          <div className="space-y-1">
+                            <div className="flex items-center">
+                              <input
+                                type="number"
+                                value={answers[field.id] ?? ''}
+                                onChange={(e) =>
+                                  handleAnswerChange(
+                                    field.id,
+                                    e.target.value === '' ? '' : parseFloat(e.target.value)
+                                  )
+                                }
+                                className="border border-slate-300 rounded-l-lg px-3 py-1.5 text-xs w-28 font-mono focus:outline-none focus:ring-1 focus:ring-amber-500"
+                                placeholder="0.00"
+                              />
+                              <span className="bg-slate-100 border border-l-0 border-slate-300 px-3 py-1.5 rounded-r-lg text-xs font-mono text-slate-700 font-semibold">
+                                {field.unit || 'val'}
+                              </span>
+                            </div>
+                            {(field.minThreshold !== undefined || field.maxThreshold !== undefined) && (
+                              <div className="text-[10px] font-mono">
+                                <span className="text-slate-500">
+                                  {field.minThreshold ?? '−∞'} .. {field.maxThreshold ?? '+∞'} {field.unit || ''}
+                                </span>
+                                {typeof answers[field.id] === 'number' && !Number.isNaN(answers[field.id]) && (
+                                  <span
+                                    className={`ml-2 font-bold ${
+                                      (field.minThreshold !== undefined && answers[field.id] < field.minThreshold) ||
+                                      (field.maxThreshold !== undefined && answers[field.id] > field.maxThreshold)
+                                        ? 'text-red-600'
+                                        : 'text-emerald-600'
+                                    }`}
+                                  >
+                                    {(field.minThreshold !== undefined && answers[field.id] < field.minThreshold) ||
+                                    (field.maxThreshold !== undefined && answers[field.id] > field.maxThreshold)
+                                      ? 'OUT OF SPEC'
+                                      : 'IN SPEC'}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -572,6 +626,20 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                               </div>
                             ) : (
                               <div className="flex items-center gap-2">
+                                <label className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center cursor-pointer transition-colors">
+                                  <Upload className="w-3.5 h-3.5 mr-1.5" />
+                                  {lang === 'id' ? 'Unggah / Kamera' : 'Upload / Camera'}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) void handlePhotoFileUpload(field.id, file);
+                                    }}
+                                  />
+                                </label>
                                 <button
                                   type="button"
                                   onClick={() => handleCapturePhoto(field.id)}
