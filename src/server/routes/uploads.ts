@@ -60,3 +60,4 @@ uploadsRouter.get('/:filename', requireAuth, (req: Request, res: Response) => {
   }
   res.sendFile(fullPath);
 });
+
