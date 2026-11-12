@@ -15,30 +15,20 @@ import type {
   ActionSeverity,
   ActionStatus,
   ProjectZone,
+  StandardBody,
+  InspectionPointType,
+  WorkflowTrigger,
+  WorkflowStep,
+  ApprovalDecision,
 } from '../../types/index.ts';
 
-export type StandardBody = 'ISO' | 'ASME' | 'API' | 'SNI' | 'OSHA' | 'Custom';
-export type InspectionPointType = 'H' | 'W' | 'R' | 'S';
-export type WorkflowTrigger = 'always' | 'on_fail' | 'on_critical';
-
-export interface WorkflowStep {
-  order: number;
-  label: string;
-  role: UserRole;
-  trigger: WorkflowTrigger;
-  requiresSignature: boolean;
-}
-
-export interface ApprovalDecision {
-  stepOrder: number;
-  stepLabel: string;
-  role: UserRole;
-  actorId: string;
-  actorName: string;
-  decision: 'approved' | 'rejected';
-  notes?: string;
-  decidedAt: string;
-}
+export type {
+  StandardBody,
+  InspectionPointType,
+  WorkflowTrigger,
+  WorkflowStep,
+  ApprovalDecision,
+};
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),

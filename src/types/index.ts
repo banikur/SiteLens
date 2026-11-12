@@ -38,6 +38,29 @@ export interface FieldCondition {
   value: string | boolean;
 }
 
+export type StandardBody = 'ISO' | 'ASME' | 'API' | 'SNI' | 'OSHA' | 'Custom';
+export type InspectionPointType = 'H' | 'W' | 'R' | 'S';
+export type WorkflowTrigger = 'always' | 'on_fail' | 'on_critical';
+
+export interface WorkflowStep {
+  order: number;
+  label: string;
+  role: UserRole;
+  trigger: WorkflowTrigger;
+  requiresSignature: boolean;
+}
+
+export interface ApprovalDecision {
+  stepOrder: number;
+  stepLabel: string;
+  role: UserRole;
+  actorId: string;
+  actorName: string;
+  decision: 'approved' | 'rejected';
+  notes?: string;
+  decidedAt: string;
+}
+
 export interface ChecklistField {
   id: string;
   type: FieldType;
@@ -49,6 +72,10 @@ export interface ChecklistField {
   defaultValue?: string | number | boolean;
   condition?: FieldCondition;
   helpStandard?: string; // e.g. "BS EN 12079 / ACI 318"
+  inspectionPoint?: InspectionPointType; // ITP Hold / Witness / Review / Surveillance
+  acceptanceCriteria?: string;
+  minThreshold?: number;
+  maxThreshold?: number;
 }
 
 export interface ChecklistSection {
@@ -72,10 +99,15 @@ export interface ChecklistTemplate {
   category: ChecklistCategory;
   description: string;
   version: string;
+  standardBody?: StandardBody;
+  standardCode?: string;
+  documentControlNo?: string;
+  isMasterTemplate?: boolean;
   projectId?: string; // Optional target project scope, or general
   targetRole?: UserRole;
   requiresApproval: boolean;
   approvalRole?: UserRole;
+  workflowSteps?: WorkflowStep[];
   estimatedMinutes: number;
   sections: ChecklistSection[];
   tags: string[];
@@ -113,6 +145,9 @@ export interface InspectionRecord {
   inspectorName: string;
   inspectorRole: UserRole;
   status: InspectionStatus;
+  clientMutationId?: string;
+  currentStepIndex?: number;
+  approvalHistory?: ApprovalDecision[];
   answers: Record<string, any>; // fieldId -> answered value
   evidencePhotos: InspectionEvidence[];
   signatureData?: {

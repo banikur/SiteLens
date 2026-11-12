@@ -15,6 +15,8 @@ import {
   X,
   Wand2,
   Globe,
+  Shield,
+  LogOut,
 } from 'lucide-react';
 import { User } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -41,6 +43,9 @@ interface NavigationProps {
   pendingReviewsCount: number;
   openActionsCount: number;
   totalTemplatesCount: number;
+  authEnabled?: boolean;
+  onOpenSecurity?: () => void;
+  onLogout?: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -55,6 +60,9 @@ export const Navigation: React.FC<NavigationProps> = ({
   pendingReviewsCount,
   openActionsCount,
   totalTemplatesCount,
+  authEnabled = false,
+  onOpenSecurity,
+  onLogout,
 }) => {
   const { lang, setLang, t, translateRole } = useLanguage();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -328,12 +336,18 @@ export const Navigation: React.FC<NavigationProps> = ({
             className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-800/70 transition-colors text-left"
           >
             <div className="flex items-center space-x-2.5 overflow-hidden">
-              <img
-                src={activeUser.avatar}
-                alt={activeUser.name}
-                referrerPolicy="no-referrer"
-                className="w-8 h-8 rounded-full border border-slate-700 object-cover flex-shrink-0"
-              />
+              {activeUser.avatar ? (
+                <img
+                  src={activeUser.avatar}
+                  alt={activeUser.name}
+                  referrerPolicy="no-referrer"
+                  className="w-8 h-8 rounded-full border border-slate-700 object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full border border-slate-700 bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                  {activeUser.name.slice(0, 2).toUpperCase()}
+                </div>
+              )}
               <div className="overflow-hidden">
                 <div className="text-xs font-semibold text-white truncate leading-tight">
                   {activeUser.name}
@@ -346,8 +360,38 @@ export const Navigation: React.FC<NavigationProps> = ({
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 ml-1" />
           </button>
 
-          {/* Persona Switcher Dropdown */}
-          {userDropdownOpen && (
+          {/* Persona Switcher or Authenticated Account Menu */}
+          {userDropdownOpen && authEnabled && (
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-xs">
+              <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                {lang === 'id' ? 'Akun & Keamanan' : 'Account & Security'}
+              </div>
+              <div className="p-1.5 space-y-1">
+                <button
+                  onClick={() => {
+                    onOpenSecurity?.();
+                    setUserDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg flex items-center space-x-2 text-slate-200 hover:bg-slate-800 transition-colors"
+                >
+                  <Shield className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{lang === 'id' ? 'PIN & Sidik Jari' : 'PIN & Biometrics'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    onLogout?.();
+                    setUserDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 rounded-lg flex items-center space-x-2 text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>{lang === 'id' ? 'Keluar' : 'Sign Out'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {userDropdownOpen && !authEnabled && (
             <div className="absolute bottom-full left-3 right-3 mb-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-xs">
               <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                 <span>{t.nav.switchPersona}</span>

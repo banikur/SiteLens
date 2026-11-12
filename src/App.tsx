@@ -42,6 +42,25 @@ import { AnalyticsReports } from './components/AnalyticsReports';
 import { TeamManagement } from './components/TeamManagement';
 import { AITemplateGeneratorModal } from './components/AITemplateGeneratorModal';
 import { OcrScannerModal } from './components/OcrScannerModal';
+import { AuthScreen } from './components/AuthScreen';
+import { SecuritySettingsModal } from './components/SecuritySettingsModal';
+import {
+  AuthenticatedUser,
+  fetchCurrentUser,
+  fetchHealth,
+  logoutSession,
+} from './services/authClient';
+import {
+  apiDeleteInspection,
+  apiDeleteTemplate,
+  apiReviewInspection,
+  apiSaveAction,
+  apiSaveProject,
+  apiSaveTemplate,
+  apiSubmitInspection,
+  apiUpdateActionStatus,
+  fetchAllAppData,
+} from './services/api';
 
 function SiteLensWorkspace() {
   const { lang, t } = useLanguage();
@@ -62,8 +81,46 @@ function SiteLensWorkspace() {
     useState<InspectionRecord | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [ocrCloneModalOpen, setOcrCloneModalOpen] = useState(false);
+  const [authEnabled, setAuthEnabled] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+  const [authUser, setAuthUser] = useState<AuthenticatedUser | null>(null);
+  const [securityModalOpen, setSecurityModalOpen] = useState(false);
 
-  const refreshAllData = () => {
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const health = await fetchHealth();
+      if (!active) return;
+      if (health?.database === 'connected') {
+        setAuthEnabled(true);
+        const me = await fetchCurrentUser();
+        if (!active) return;
+        if (me) {
+          setAuthUser(me);
+          setCurrentUser(me);
+        }
+      }
+      setAuthChecking(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const refreshAllData = async () => {
+    if (authEnabled && authUser) {
+      try {
+        const data = await fetchAllAppData();
+        setTemplates(data.templates);
+        setInspections(data.inspections);
+        setActions(data.actions);
+        setProjects(data.projects);
+        setUsers(data.users);
+        return;
+      } catch (err) {
+        console.error('Failed to fetch data from server:', err);
+      }
+    }
     setTemplates(getStoredTemplates());
     setInspections(getStoredInspections());
     setActions(getStoredActions());
@@ -72,11 +129,14 @@ function SiteLensWorkspace() {
     setCurrentUser(getActiveUser());
   };
 
-  // Load from Storage on mount and when language changes
+  // Load from Storage / API on mount and when auth or language changes
   useEffect(() => {
-    syncBuiltInDataLanguage(lang);
-    refreshAllData();
-  }, [lang]);
+    if (authChecking) return;
+    if (!authEnabled) {
+      syncBuiltInDataLanguage(lang);
+    }
+    void refreshAllData();
+  }, [lang, authChecking, authEnabled, authUser?.id]);
 
   // User Switcher Handler
   const handleSwitchUser = (userId: string) => {
@@ -97,14 +157,38 @@ function SiteLensWorkspace() {
   };
 
   // Template Handlers
-  const handleSaveTemplate = (template: ChecklistTemplate) => {
-    const updated = saveTemplate(template);
-    setTemplates(updated);
+  const handleSaveTemplate = async (template: ChecklistTemplate) => {
+    if (authEnabled && authUser) {
+      const saved = await apiSaveTemplate(template);
+      setTemplates((prev) => {
+        const idx = prev.findIndex((t) => t.id === saved.id);
+        return idx >= 0 ? prev.map((t) => (t.id === saved.id ? saved : t)) : [saved, ...prev];
+      });
+    } else {
+      const updated = saveTemplate(template);
+      setTemplates(updated);
+    }
     setEditingTemplate(null);
     setCurrentTab('templates');
   };
 
-  const handleDuplicateTemplate = (id: string) => {
+  const handleDuplicateTemplate = async (id: string) => {
+    if (authEnabled && authUser) {
+      const orig = templates.find((t) => t.id === id);
+      if (!orig) return;
+      const copy: ChecklistTemplate = {
+        ...orig,
+        id: `tmpl-${Date.now()}`,
+        title: `${orig.title} (Copy)`,
+        authorName: currentUser.name,
+        authorRole: currentUser.role,
+      };
+      const saved = await apiSaveTemplate(copy);
+      setTemplates((prev) => [saved, ...prev]);
+      setEditingTemplate(saved);
+      setCurrentTab('builder');
+      return;
+    }
     const { templates: updated, newTemplate } = duplicateTemplate(id);
     setTemplates(updated);
     if (newTemplate) {
@@ -113,7 +197,12 @@ function SiteLensWorkspace() {
     }
   };
 
-  const handleDeleteTemplate = (id: string) => {
+  const handleDeleteTemplate = async (id: string) => {
+    if (authEnabled && authUser) {
+      await apiDeleteTemplate(id);
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+      return;
+    }
     const updated = deleteTemplate(id);
     setTemplates(updated);
   };
@@ -123,54 +212,81 @@ function SiteLensWorkspace() {
   };
 
   // Inspection Handlers
-  const handleCompleteInspection = (
+  const handleCompleteInspection = async (
     record: InspectionRecord,
     failedItemsCount: number
   ) => {
-    const updated = saveInspection(record);
-    setInspections(updated);
+    let savedRecord = record;
+    if (authEnabled && authUser) {
+      savedRecord = await apiSubmitInspection(record);
+      setInspections((prev) => [savedRecord, ...prev]);
+    } else {
+      const updated = saveInspection(record);
+      setInspections(updated);
+    }
 
     if (failedItemsCount > 0) {
       const newAction: CorrectiveAction = {
         id: `act-${Math.floor(100 + Math.random() * 900)}`,
-        inspectionId: record.id,
-        inspectionTitle: record.templateTitle,
-        projectId: record.projectId,
-        projectName: record.projectName,
-        siteZone: record.siteZone,
+        inspectionId: savedRecord.id,
+        inspectionTitle: savedRecord.templateTitle,
+        projectId: savedRecord.projectId,
+        projectName: savedRecord.projectName,
+        siteZone: savedRecord.siteZone,
         fieldLabel:
           lang === 'id'
-            ? `Temuan ketidaksesuaian pada ${record.templateTitle}`
-            : `Non-conformance flagged in ${record.templateTitle}`,
+            ? `Temuan ketidaksesuaian pada ${savedRecord.templateTitle}`
+            : `Non-conformance flagged in ${savedRecord.templateTitle}`,
         issueDescription:
-          record.notes ||
+          savedRecord.notes ||
           (lang === 'id'
             ? `${failedItemsCount} poin pemeriksaan ditandai GAGAL saat inspeksi lapangan. Diperlukan tindakan perbaikan sebelum verifikasi ulang engineer.`
             : `${failedItemsCount} checkpoint(s) marked as FAIL during field inspection. Remedial rectification required before engineer re-inspection.`),
-        severity: 'high',
+        severity: failedItemsCount >= 3 ? 'critical' : 'high',
         assignedToName:
           lang === 'id' ? 'Mandor Pelaksana Terkait' : 'Assigned Site Trade Lead',
         assignedToRole: 'Subcontractor Foreman',
         dueDate: new Date(Date.now() + 4 * 86400000).toISOString().split('T')[0],
         status: 'open',
-        createdAt: new Date().toLocaleDateString(),
-        evidencePhotoUrl: record.evidencePhotos[0]?.url,
+        createdAt: new Date().toISOString(),
+        evidencePhotoUrl: savedRecord.evidencePhotos[0]?.url,
       };
-      const updatedActions = saveAction(newAction);
-      setActions(updatedActions);
+      if (authEnabled && authUser) {
+        const savedAction = await apiSaveAction(newAction);
+        setActions((prev) => [savedAction, ...prev]);
+      } else {
+        const updatedActions = saveAction(newAction);
+        setActions(updatedActions);
+      }
     }
 
     setExecutingTemplate(null);
     setCurrentTab('inspections');
   };
 
-  const handleDeleteInspection = (id: string) => {
+  const handleDeleteInspection = async (id: string) => {
+    if (authEnabled && authUser) {
+      await apiDeleteInspection(id);
+      setInspections((prev) => prev.filter((i) => i.id !== id));
+      return;
+    }
     const updated = deleteInspection(id);
     setInspections(updated);
   };
 
   // Verification & Sign-off Handlers
-  const handleApproveInspection = (id: string, notes: string) => {
+  const handleApproveInspection = async (id: string, notes: string) => {
+    if (authEnabled && authUser) {
+      try {
+        const updatedRecord = await apiReviewInspection(id, 'approved', notes);
+        setInspections((prev) => prev.map((i) => (i.id === id ? updatedRecord : i)));
+        setSelectedInspectionForReview(null);
+      } catch (err: any) {
+        alert(err?.message || 'Approval failed.');
+      }
+      return;
+    }
+
     const target = inspections.find((i) => i.id === id);
     if (!target) return;
 
@@ -197,7 +313,18 @@ function SiteLensWorkspace() {
     setSelectedInspectionForReview(null);
   };
 
-  const handleRejectInspection = (id: string, notes: string) => {
+  const handleRejectInspection = async (id: string, notes: string) => {
+    if (authEnabled && authUser) {
+      try {
+        const updatedRecord = await apiReviewInspection(id, 'rejected', notes);
+        setInspections((prev) => prev.map((i) => (i.id === id ? updatedRecord : i)));
+        setSelectedInspectionForReview(null);
+      } catch (err: any) {
+        alert(err?.message || 'Rejection failed.');
+      }
+      return;
+    }
+
     const target = inspections.find((i) => i.id === id);
     if (!target) return;
 
@@ -225,22 +352,37 @@ function SiteLensWorkspace() {
   };
 
   // Action Items Handlers
-  const handleUpdateActionStatus = (
+  const handleUpdateActionStatus = async (
     id: string,
     status: ActionStatus,
     notes?: string
   ) => {
+    if (authEnabled && authUser) {
+      const updatedAction = await apiUpdateActionStatus(id, status, notes);
+      setActions((prev) => prev.map((a) => (a.id === id ? updatedAction : a)));
+      return;
+    }
     const updated = updateActionStatus(id, status, notes);
     setActions(updated);
   };
 
-  const handleAddAction = (action: CorrectiveAction) => {
+  const handleAddAction = async (action: CorrectiveAction) => {
+    if (authEnabled && authUser) {
+      const saved = await apiSaveAction(action);
+      setActions((prev) => [saved, ...prev]);
+      return;
+    }
     const updated = saveAction(action);
     setActions(updated);
   };
 
   // Project Handlers
-  const handleAddProject = (project: Project) => {
+  const handleAddProject = async (project: Project) => {
+    if (authEnabled && authUser) {
+      const saved = await apiSaveProject(project);
+      setProjects((prev) => [saved, ...prev]);
+      return;
+    }
     const updated = saveProject(project);
     setProjects(updated);
   };
@@ -258,6 +400,25 @@ function SiteLensWorkspace() {
       return t.nav.checklistDesigner;
     return (t.nav as Record<string, string>)[currentTab] || currentTab;
   };
+
+  if (authChecking) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-300 text-xs font-medium">
+        Loading SiteLens...
+      </div>
+    );
+  }
+
+  if (authEnabled && !authUser) {
+    return (
+      <AuthScreen
+        onAuthenticated={(user) => {
+          setAuthUser(user);
+          setCurrentUser(user);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row text-slate-800 font-sans antialiased">
@@ -282,6 +443,12 @@ function SiteLensWorkspace() {
         pendingReviewsCount={pendingReviewsCount}
         openActionsCount={openActionsCount}
         totalTemplatesCount={templates.length}
+        authEnabled={authEnabled}
+        onOpenSecurity={() => setSecurityModalOpen(true)}
+        onLogout={async () => {
+          await logoutSession();
+          setAuthUser(null);
+        }}
       />
 
       {/* MAIN VIEW CONTAINER */}
@@ -476,6 +643,15 @@ function SiteLensWorkspace() {
           setEditingTemplate(clonedTpl);
           setExecutingTemplate(null);
           setCurrentTab('builder');
+        }}
+      />
+      {/* SECURITY & BIOMETRICS MODAL */}
+      <SecuritySettingsModal
+        isOpen={securityModalOpen}
+        user={authUser}
+        onClose={() => setSecurityModalOpen(false)}
+        onUpdated={(updates) => {
+          setAuthUser((prev) => (prev ? { ...prev, ...updates } : prev));
         }}
       />
     </div>
