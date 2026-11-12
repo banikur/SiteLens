@@ -21,6 +21,7 @@ import {
 import { useLanguage } from '../i18n/LanguageContext';
 import { OcrScannerModal } from './OcrScannerModal';
 import { uploadEvidencePhoto } from '../services/api';
+import { queueOfflinePhoto } from '../services/offlineQueue';
 
 interface InspectionExecutionProps {
   template: ChecklistTemplate;
@@ -114,18 +115,17 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
   };
 
   const handlePhotoFileUpload = async (fieldId: string, file: File) => {
-    try {
-      const uploadedUrl = await uploadEvidencePhoto(file, file.name);
-      handleCapturePhoto(fieldId, uploadedUrl);
-    } catch {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          handleCapturePhoto(fieldId, reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (navigator.onLine) {
+      try {
+        const uploadedUrl = await uploadEvidencePhoto(file, file.name);
+        handleCapturePhoto(fieldId, uploadedUrl);
+        return;
+      } catch {
+        // Fall through to offline queue
+      }
     }
+    const offlineRef = await queueOfflinePhoto(file, file.name);
+    handleCapturePhoto(fieldId, offlineRef);
   };
 
   const calculateScore = () => {

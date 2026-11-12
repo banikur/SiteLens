@@ -17,6 +17,10 @@ import {
   Globe,
   Shield,
   LogOut,
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  Settings,
 } from 'lucide-react';
 import { User } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -29,7 +33,8 @@ export type ActiveTab =
   | 'actions'
   | 'projects'
   | 'analytics'
-  | 'team';
+  | 'team'
+  | 'settings';
 
 interface NavigationProps {
   currentTab: ActiveTab;
@@ -46,6 +51,9 @@ interface NavigationProps {
   authEnabled?: boolean;
   onOpenSecurity?: () => void;
   onLogout?: () => void;
+  isOnline?: boolean;
+  pendingSyncCount?: number;
+  onSyncNow?: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -63,6 +71,9 @@ export const Navigation: React.FC<NavigationProps> = ({
   authEnabled = false,
   onOpenSecurity,
   onLogout,
+  isOnline = true,
+  pendingSyncCount = 0,
+  onSyncNow,
 }) => {
   const { lang, setLang, t, translateRole } = useLanguage();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -112,6 +123,15 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: t.nav.team,
       icon: Users,
     },
+    ...(authEnabled && ['Site Manager', 'Site Engineer', 'HSE Officer'].includes(activeUser.role)
+      ? [
+          {
+            id: 'settings' as ActiveTab,
+            label: lang === 'id' ? 'Notifikasi & Audit' : 'Alerts & Audit',
+            icon: Settings,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -328,6 +348,33 @@ export const Navigation: React.FC<NavigationProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Offline / Sync Status Pill */}
+        {authEnabled && (
+          <div className="px-3 py-2 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between text-[11px]">
+            <div className="flex items-center space-x-1.5">
+              {isOnline ? (
+                <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <WifiOff className="w-3.5 h-3.5 text-amber-400" />
+              )}
+              <span className={isOnline ? 'text-emerald-400 font-medium' : 'text-amber-400 font-semibold'}>
+                {isOnline ? (lang === 'id' ? 'Online' : 'Online') : lang === 'id' ? 'Mode Offline' : 'Offline Mode'}
+              </span>
+            </div>
+            {pendingSyncCount > 0 && (
+              <button
+                type="button"
+                onClick={onSyncNow}
+                disabled={!isOnline}
+                className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 disabled:opacity-50 flex items-center space-x-1 font-mono text-[10px]"
+              >
+                <RefreshCw className="w-2.5 h-2.5" />
+                <span>{pendingSyncCount}</span>
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Active Persona & User Switcher Card */}
         <div className="p-3 border-t border-slate-800 relative bg-slate-950/60">

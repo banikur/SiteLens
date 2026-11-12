@@ -12,6 +12,7 @@ import {
 } from '../db/schema.ts';
 import { hashSecret } from '../auth/crypto.ts';
 import { requireAuth, requireRole } from '../auth/middleware.ts';
+import { dispatchNotification } from '../services/notifications.ts';
 import type {
   ApprovalDecision,
   ChecklistTemplate,
@@ -459,6 +460,15 @@ apiRouter.post('/inspections', async (req: Request, res: Response) => {
     applicableSteps: applicableSteps.length,
   });
 
+  if (saved.status === 'under_review') {
+    void dispatchNotification({
+      eventType: 'approval',
+      title: `Approval Required: ${saved.templateTitle}`,
+      message: `${saved.inspectorName} submitted an inspection for ${saved.projectName} (${saved.siteZone}). Score: ${saved.scorePercent}%.`,
+      metadata: { inspectionId: saved.id, projectId: saved.projectId },
+    });
+  }
+
   res.status(201).json({
     inspection: {
       ...saved,
@@ -558,6 +568,13 @@ apiRouter.post('/inspections/:id/review', async (req: Request, res: Response) =>
     { step: entry.stepLabel, nextStatus }
   );
 
+  void dispatchNotification({
+    eventType: 'approval',
+    title: `Inspection ${nextStatus.toUpperCase()}: ${updated.templateTitle}`,
+    message: `${req.authUser.name} (${req.authUser.role}) marked "${entry.stepLabel}" as ${decision}.`,
+    metadata: { inspectionId: updated.id, nextStatus },
+  });
+
   res.json({
     inspection: {
       ...updated,
@@ -637,6 +654,15 @@ apiRouter.post('/actions', async (req: Request, res: Response) => {
   await logAudit(req.authUser.id, req.authUser.name, 'CREATE_CAPA', 'corrective_action', saved.id, {
     severity: saved.severity,
   });
+
+  if (saved.severity === 'critical' || saved.severity === 'high') {
+    void dispatchNotification({
+      eventType: 'critical_capa',
+      title: `[${saved.severity.toUpperCase()}] CAPA Raised: ${saved.projectName}`,
+      message: `${saved.fieldLabel} (${saved.siteZone}) — ${saved.issueDescription}`,
+      metadata: { actionId: saved.id, inspectionId: saved.inspectionId },
+    });
+  }
 
   res.status(201).json({
     action: {

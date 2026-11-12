@@ -44,6 +44,7 @@ import { AITemplateGeneratorModal } from './components/AITemplateGeneratorModal'
 import { OcrScannerModal } from './components/OcrScannerModal';
 import { AuthScreen } from './components/AuthScreen';
 import { SecuritySettingsModal } from './components/SecuritySettingsModal';
+import { SettingsView } from './components/SettingsView';
 import {
   AuthenticatedUser,
   fetchCurrentUser,
@@ -62,6 +63,13 @@ import {
   apiUpdateActionStatus,
   fetchAllAppData,
 } from './services/api';
+import {
+  cacheReferenceData,
+  getCachedReferenceData,
+  getPendingSyncCount,
+  queueOfflineInspection,
+  syncOfflineQueue,
+} from './services/offlineQueue';
 
 function SiteLensWorkspace() {
   const { lang, t } = useLanguage();
@@ -86,6 +94,10 @@ function SiteLensWorkspace() {
   const [authChecking, setAuthChecking] = useState(true);
   const [authUser, setAuthUser] = useState<AuthenticatedUser | null>(null);
   const [securityModalOpen, setSecurityModalOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [pendingSyncCount, setPendingSyncCount] = useState<number>(0);
 
   useEffect(() => {
     let active = true;
@@ -117,9 +129,16 @@ function SiteLensWorkspace() {
         setActions(data.actions);
         setProjects(data.projects);
         setUsers(data.users);
+        await cacheReferenceData(data.templates, data.projects);
+        setPendingSyncCount(await getPendingSyncCount());
         return;
       } catch (err) {
-        console.error('Failed to fetch data from server:', err);
+        console.error('Failed to fetch data from server, falling back to offline cache:', err);
+        const cached = await getCachedReferenceData();
+        if (cached.templates.length > 0) setTemplates(cached.templates);
+        if (cached.projects.length > 0) setProjects(cached.projects);
+        setPendingSyncCount(await getPendingSyncCount());
+        return;
       }
     }
     setTemplates(getStoredTemplates());
@@ -129,6 +148,29 @@ function SiteLensWorkspace() {
     setUsers(getStoredUsers());
     setCurrentUser(getActiveUser());
   };
+
+  const handleSyncOfflineQueue = async () => {
+    if (!authEnabled || !authUser || !navigator.onLine) return;
+    const { synced } = await syncOfflineQueue();
+    setPendingSyncCount(await getPendingSyncCount());
+    if (synced > 0) {
+      await refreshAllData();
+    }
+  };
+
+  useEffect(() => {
+    const onOnline = () => {
+      setIsOnline(true);
+      void handleSyncOfflineQueue();
+    };
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, [authEnabled, authUser?.id]);
 
   // Load from Storage / API on mount and when auth or language changes
   useEffect(() => {
@@ -219,8 +261,25 @@ function SiteLensWorkspace() {
   ) => {
     let savedRecord = record;
     if (authEnabled && authUser) {
-      savedRecord = await apiSubmitInspection(record);
-      setInspections((prev) => [savedRecord, ...prev]);
+      if (!navigator.onLine) {
+        savedRecord = await queueOfflineInspection(record, failedItemsCount);
+        setInspections((prev) => [savedRecord, ...prev]);
+        setPendingSyncCount(await getPendingSyncCount());
+        setExecutingTemplate(null);
+        setCurrentTab('inspections');
+        return;
+      }
+      try {
+        savedRecord = await apiSubmitInspection(record);
+        setInspections((prev) => [savedRecord, ...prev]);
+      } catch {
+        savedRecord = await queueOfflineInspection(record, failedItemsCount);
+        setInspections((prev) => [savedRecord, ...prev]);
+        setPendingSyncCount(await getPendingSyncCount());
+        setExecutingTemplate(null);
+        setCurrentTab('inspections');
+        return;
+      }
     } else {
       const updated = saveInspection(record);
       setInspections(updated);
@@ -450,6 +509,9 @@ function SiteLensWorkspace() {
           await logoutSession();
           setAuthUser(null);
         }}
+        isOnline={isOnline}
+        pendingSyncCount={pendingSyncCount}
+        onSyncNow={() => void handleSyncOfflineQueue()}
       />
 
       {/* MAIN VIEW CONTAINER */}
@@ -612,6 +674,8 @@ function SiteLensWorkspace() {
               actions={actions}
               projects={projects}
             />
+          ) : currentTab === 'settings' ? (
+            <SettingsView currentUser={currentUser} />
           ) : (
             <TeamManagement
               users={users}
