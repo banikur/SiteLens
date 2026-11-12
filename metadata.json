@@ -1,0 +1,6 @@
+{
+  "name": "SiteLens - Precision Site Operations & Inspection Platform",
+  "description": "Configurable site operations, checklist builder, and inspection management platform for construction and industrial projects.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
