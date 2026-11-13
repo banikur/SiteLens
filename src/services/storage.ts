@@ -164,7 +164,7 @@ export const updateActionStatus = (
         ...a,
         status,
         resolutionNotes: notes !== undefined ? notes : a.resolutionNotes,
-        resolvedAt: status === 'resolved' || status === 'verified' ? new Date().toLocaleString() : a.resolvedAt,
+        resolvedAt: status === 'CLOSED' || status === 'PENDING_VERIFICATION' || status === 'EFFECTIVENESS_MONITORING' ? new Date().toLocaleString() : a.resolvedAt,
       };
     }
     return a;

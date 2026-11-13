@@ -33,10 +33,10 @@ export const AnalyticsReports: React.FC<AnalyticsReportsProps> = ({
   const avgCompliance = total > 0 ? Math.round(totalScores / total) : 100;
 
   const resolvedActions = actions.filter(
-    (a) => a.status === 'resolved' || a.status === 'verified'
+    (a) => a.status === 'CLOSED' || a.status === 'EFFECTIVENESS_MONITORING'
   ).length;
   const openActions = actions.filter(
-    (a) => a.status === 'open' || a.status === 'in_remediation'
+    (a) => a.status === 'OPEN' || a.status === 'IN_PROGRESS' || a.status === 'PENDING_VERIFICATION'
   ).length;
   const actionResolutionRate =
     actions.length > 0
@@ -144,7 +144,7 @@ export const AnalyticsReports: React.FC<AnalyticsReportsProps> = ({
                   (i) => i.projectId === p.id
                 );
                 const projActions = actions.filter(
-                  (a) => a.projectId === p.id && a.status !== 'verified'
+                  (a) => a.projectId === p.id && a.status !== 'CLOSED'
                 );
                 return (
                   <tr key={p.id} className="hover:bg-slate-50">

@@ -55,7 +55,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const totalInspections = inspections.length;
   const underReviewCount = inspections.filter((i) => i.status === 'under_review').length;
   const openActions = actions.filter(
-    (a) => a.status === 'open' || a.status === 'in_remediation'
+    (a) => a.status === 'OPEN' || a.status === 'IN_PROGRESS' || a.status === 'PENDING_VERIFICATION'
   );
   const criticalActionsCount = openActions.filter(
     (a) => a.severity === 'critical' || a.severity === 'high'

@@ -68,7 +68,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
       assignedToName: newAssignee,
       assignedToRole: 'Lead Contractor',
       dueDate: newDueDate,
-      status: 'open',
+      status: 'OPEN',
       createdAt: new Date().toLocaleDateString(),
     };
 
@@ -112,7 +112,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
             {t.actions.openPending}
           </span>
           <span className="text-2xl font-bold text-rose-600 font-mono tabular-nums mt-1 block">
-            {actions.filter((a) => a.status === 'open').length}
+            {actions.filter((a) => a.status === 'OPEN').length}
           </span>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -120,7 +120,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
             {t.actions.inRemediation}
           </span>
           <span className="text-2xl font-bold text-amber-600 font-mono tabular-nums mt-1 block">
-            {actions.filter((a) => a.status === 'in_remediation').length}
+            {actions.filter((a) => a.status === 'IN_PROGRESS' || a.status === 'PENDING_VERIFICATION').length}
           </span>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -128,7 +128,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
             {t.actions.verifiedClosed}
           </span>
           <span className="text-2xl font-bold text-emerald-600 font-mono tabular-nums mt-1 block">
-            {actions.filter((a) => a.status === 'verified').length}
+            {actions.filter((a) => a.status === 'CLOSED').length}
           </span>
         </div>
       </div>
@@ -260,12 +260,12 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
                 }
                 className="text-xs font-bold border border-slate-300 rounded px-2.5 py-1 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
               >
-                <option value="open">{translateStatus('open')}</option>
-                <option value="in_remediation">
-                  {translateStatus('in_remediation')}
-                </option>
-                <option value="resolved">{translateStatus('resolved')}</option>
-                <option value="verified">{translateStatus('verified')}</option>
+                <option value="OPEN">{translateStatus('OPEN')}</option>
+                <option value="IN_PROGRESS">{translateStatus('IN_PROGRESS')}</option>
+                <option value="PENDING_VERIFICATION">{translateStatus('PENDING_VERIFICATION')}</option>
+                <option value="EFFECTIVENESS_MONITORING">{translateStatus('EFFECTIVENESS_MONITORING')}</option>
+                <option value="CLOSED">{translateStatus('CLOSED')}</option>
+                <option value="REJECTED">{translateStatus('REJECTED')}</option>
               </select>
             </div>
           </div>

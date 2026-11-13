@@ -16,6 +16,14 @@ function hashPassword(password: string): string {
   return `${salt}:${derived}`;
 }
 
+function toUuid(id: string): string {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return id;
+  }
+  const hex = crypto.createHash('sha256').update(id).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 async function seed() {
   const db = getDb();
   if (!db) {
@@ -29,7 +37,7 @@ async function seed() {
     const adminPassword = process.env.ADMIN_PASSWORD || 'SiteLens#Pilot2026';
 
     await db.insert(users).values({
-      id: 'usr-admin-1',
+      id: toUuid('usr-admin-1'),
       username: adminUsername,
       name: 'SiteLens Admin',
       email: 'admin@sitelens.local',
@@ -37,7 +45,7 @@ async function seed() {
       role: 'HSE / Quality Manager & Tenant Admin',
       title: 'HSE & Quality Director / Tenant Admin',
       avatar: '',
-      assignedProjects: ['proj-1', 'proj-2'],
+      assignedProjects: ['proj-1', 'proj-2'].map(toUuid),
       certifications: ['ISO 9001 Lead Auditor', 'ISO 45001 Lead Auditor', 'AK3 Umum'],
       isActive: true,
     });
@@ -50,7 +58,7 @@ async function seed() {
   if (projectCount === 0) {
     await db.insert(projects).values(
       seedData.projects.map((p) => ({
-        id: p.id,
+        id: toUuid(p.id),
         name: p.name,
         code: p.code,
         client: p.client,
@@ -69,7 +77,7 @@ async function seed() {
   if (templateCount === 0) {
     await db.insert(checklistTemplates).values(
       seedData.templates.map((t) => ({
-        id: t.id,
+        id: toUuid(t.id),
         title: t.title,
         category: t.category,
         description: t.description,
@@ -82,7 +90,7 @@ async function seed() {
           ? ('SNI' as const)
           : ('Custom' as const),
         standardCode: t.tags.find((tag) => /ISO|ASME|API|SNI|OSHA|ACI/.test(tag)) || null,
-        projectId: t.projectId || null,
+        projectId: t.projectId ? toUuid(t.projectId) : null,
         targetRole: t.targetRole || null,
         requiresApproval: t.requiresApproval,
         approvalRole: t.approvalRole || null,
@@ -101,6 +109,7 @@ async function seed() {
         sections: t.sections,
         tags: t.tags,
         isMasterTemplate: true,
+        authorId: toUuid('usr-admin-1'),
         authorName: t.authorName,
         authorRole: t.authorRole,
       }))

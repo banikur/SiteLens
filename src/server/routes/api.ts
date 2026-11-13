@@ -36,7 +36,6 @@ async function logAudit(
   if (!db) return;
   try {
     await db.insert(auditLogs).values({
-      id: `aud-${crypto.randomUUID()}`,
       actorId,
       actorName,
       action,
@@ -98,7 +97,7 @@ apiRouter.get('/projects', async (_req: Request, res: Response) => {
   const enriched = allProjects.map((p) => {
     const pInspections = allInspections.filter((i) => i.projectId === p.id);
     const pActions = allActions.filter(
-      (a) => a.projectId === p.id && (a.status === 'open' || a.status === 'in_remediation')
+      (a) => a.projectId === p.id && (a.status === 'OPEN' || a.status === 'IN_PROGRESS' || a.status === 'PENDING_VERIFICATION')
     );
     const avgScore =
       pInspections.length > 0
@@ -644,10 +643,11 @@ apiRouter.post('/actions', async (req: Request, res: Response) => {
       fieldLabel: a.fieldLabel,
       issueDescription: a.issueDescription,
       severity: a.severity || 'medium',
+      assigneeId: a.assigneeId || null,
       assignedToName: a.assignedToName,
       assignedToRole: a.assignedToRole,
       dueDate: a.dueDate,
-      status: a.status || 'open',
+      status: a.status || 'OPEN',
       resolutionNotes: a.resolutionNotes || null,
       evidencePhotoUrl: a.evidencePhotoUrl || null,
     })
@@ -683,7 +683,11 @@ apiRouter.patch('/actions/:id', async (req: Request, res: Response) => {
   }
 
   const { status, resolutionNotes } = req.body ?? {};
-  const isResolved = status === 'resolved' || status === 'verified';
+  const isResolved =
+    status === 'CLOSED' ||
+    status === 'EFFECTIVENESS_MONITORING' ||
+    status === 'resolved' ||
+    status === 'verified';
 
   // Four-Eyes Principle Enforcement (PRD Section 1 & 7.2)
   const [existingCapa] = await db
@@ -698,11 +702,12 @@ apiRouter.patch('/actions/:id', async (req: Request, res: Response) => {
   }
 
   // Action Owner cannot self-verify or close their own corrective action
-  if (status === 'verified') {
-    if (
-      existingCapa.assignedToName.toLowerCase() === req.authUser.name.toLowerCase() &&
-      req.authUser.role !== 'HSE / Quality Manager & Tenant Admin'
-    ) {
+  if (status === 'CLOSED' || status === 'verified') {
+    const isOwner =
+      (existingCapa.assigneeId && existingCapa.assigneeId === req.authUser.id) ||
+      existingCapa.assignedToName.toLowerCase() === req.authUser.name.toLowerCase();
+
+    if (isOwner && req.authUser.role !== 'HSE / Quality Manager & Tenant Admin') {
       res.status(403).json({
         error: 'Four-eyes violation: Action Owner is strictly prohibited from verifying or closing their own action.',
       });
@@ -845,7 +850,7 @@ apiRouter.post('/users', requireRole(['HSE / Quality Manager & Tenant Admin']), 
   const [created] = await db
     .insert(users)
     .values({
-      id: `usr-${crypto.randomUUID().slice(0, 8)}`,
+      id: crypto.randomUUID(),
       username: String(username).trim(),
       name: String(name).trim(),
       email: String(email).trim(),
