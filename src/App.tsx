@@ -681,6 +681,7 @@ function SiteLensWorkspace() {
               users={users}
               activeUser={currentUser}
               onSwitchUser={handleSwitchUser}
+              onRefreshData={() => void refreshAllData()}
             />
           )}
         </main>

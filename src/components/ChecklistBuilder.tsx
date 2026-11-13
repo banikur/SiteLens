@@ -190,8 +190,8 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
     version: '1.0',
     estimatedMinutes: 20,
     requiresApproval: true,
-    approvalRole: 'Site Engineer',
-    targetRole: 'QC Inspector',
+    approvalRole: 'Authorized Inspector (API 510/570) & Verifikator K3',
+    targetRole: 'Field Inspector / Petugas K3',
     tags: ['Civil', 'Inspection', 'Standard'],
     createdAt: new Date().toISOString().split('T')[0],
     updatedAt: new Date().toISOString().split('T')[0],
@@ -1073,7 +1073,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                         {t.builder.signoffRoleAuth}
                       </label>
                       <select
-                        value={template.approvalRole || 'Site Engineer'}
+                        value={template.approvalRole || 'Authorized Inspector (API 510/570) & Verifikator K3'}
                         onChange={(e) =>
                           setTemplate({
                             ...template,
@@ -1084,10 +1084,9 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                       >
                         {(
                           [
-                            'Site Engineer',
-                            'HSE Officer',
-                            'Site Manager',
-                            'QC Inspector',
+                            'Authorized Inspector (API 510/570) & Verifikator K3',
+                            'HSE / Quality Manager & Tenant Admin',
+                            'Office / Integrity Engineer',
                           ] as UserRole[]
                         ).map((r) => (
                           <option key={r} value={r}>
@@ -1104,7 +1103,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                     {t.builder.targetUserPersona}
                   </label>
                   <select
-                    value={template.targetRole || 'QC Inspector'}
+                    value={template.targetRole || 'Field Inspector / Petugas K3'}
                     onChange={(e) =>
                       setTemplate({
                         ...template,
@@ -1115,13 +1114,11 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                   >
                     {(
                       [
-                        'Site Supervisor',
-                        'Site Engineer',
-                        'Equipment Operator',
-                        'HSE Officer',
-                        'QC Inspector',
-                        'Environmental Officer',
-                        'Site Manager',
+                        'Field Inspector / Petugas K3',
+                        'Action Owner / Pelaksana Perbaikan',
+                        'Office / Integrity Engineer',
+                        'Authorized Inspector (API 510/570) & Verifikator K3',
+                        'HSE / Quality Manager & Tenant Admin',
                       ] as UserRole[]
                     ).map((r) => (
                       <option key={r} value={r}>

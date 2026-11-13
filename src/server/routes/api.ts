@@ -17,6 +17,7 @@ import type {
   ApprovalDecision,
   ChecklistTemplate,
   InspectionStatus,
+  UserRole,
   WorkflowStep,
 } from '../../types/index.ts';
 
@@ -119,7 +120,7 @@ apiRouter.get('/projects', async (_req: Request, res: Response) => {
 
 apiRouter.post(
   '/projects',
-  requireRole(['Site Manager', 'Site Engineer']),
+  requireRole(['HSE / Quality Manager & Tenant Admin', 'Office / Integrity Engineer']),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -515,10 +516,11 @@ apiRouter.post('/inspections/:id/review', async (req: Request, res: Response) =>
   if (
     currentStep &&
     req.authUser.role !== currentStep.role &&
-    req.authUser.role !== 'Site Manager'
+    req.authUser.role !== 'HSE / Quality Manager & Tenant Admin' &&
+    req.authUser.role !== 'Authorized Inspector (API 510/570) & Verifikator K3'
   ) {
     res.status(403).json({
-      error: `Step "${currentStep.label}" requires role ${currentStep.role} (or Site Manager).`,
+      error: `Step "${currentStep.label}" requires role ${currentStep.role} (or Authorized Inspector / Tenant Admin).`,
     });
     return;
   }
@@ -683,6 +685,41 @@ apiRouter.patch('/actions/:id', async (req: Request, res: Response) => {
   const { status, resolutionNotes } = req.body ?? {};
   const isResolved = status === 'resolved' || status === 'verified';
 
+  // Four-Eyes Principle Enforcement (PRD Section 1 & 7.2)
+  const [existingCapa] = await db
+    .select()
+    .from(correctiveActions)
+    .where(eq(correctiveActions.id, req.params.id))
+    .limit(1);
+
+  if (!existingCapa) {
+    res.status(404).json({ error: 'Corrective action not found.' });
+    return;
+  }
+
+  // Action Owner cannot self-verify or close their own corrective action
+  if (status === 'verified') {
+    if (
+      existingCapa.assignedToName.toLowerCase() === req.authUser.name.toLowerCase() &&
+      req.authUser.role !== 'HSE / Quality Manager & Tenant Admin'
+    ) {
+      res.status(403).json({
+        error: 'Four-eyes violation: Action Owner is strictly prohibited from verifying or closing their own action.',
+      });
+      return;
+    }
+    const verifierRoles: UserRole[] = [
+      'Authorized Inspector (API 510/570) & Verifikator K3',
+      'HSE / Quality Manager & Tenant Admin',
+    ];
+    if (!verifierRoles.includes(req.authUser.role)) {
+      res.status(403).json({
+        error: 'Only an Authorized Inspector (API 510/570) or HSE / Quality Manager can verify and close a CAPA.',
+      });
+      return;
+    }
+  }
+
   const [updated] = await db
     .update(correctiveActions)
     .set({
@@ -737,7 +774,61 @@ apiRouter.get('/users', async (_req: Request, res: Response) => {
   });
 });
 
-apiRouter.post('/users', requireRole(['Site Manager']), async (req: Request, res: Response) => {
+apiRouter.patch(
+  '/users/:id',
+  requireRole(['HSE / Quality Manager & Tenant Admin']),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const { role, title, isActive, assignedProjects, certifications, password } = req.body ?? {};
+    const updates: Record<string, any> = {};
+
+    if (role) updates.role = role;
+    if (typeof title === 'string') updates.title = title;
+    if (typeof isActive === 'boolean') updates.isActive = isActive;
+    if (Array.isArray(assignedProjects)) updates.assignedProjects = assignedProjects;
+    if (Array.isArray(certifications)) updates.certifications = certifications;
+    if (typeof password === 'string' && password.trim()) {
+      updates.passwordHash = hashSecret(password.trim());
+    }
+
+    const [updated] = await db
+      .update(users)
+      .set(updates)
+      .where(eq(users.id, req.params.id))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_USER', 'user', updated.id, {
+      updatedFields: Object.keys(updates),
+    });
+
+    res.json({
+      user: {
+        id: updated.id,
+        username: updated.username,
+        name: updated.name,
+        email: updated.email,
+        role: updated.role,
+        title: updated.title,
+        avatar: updated.avatar,
+        assignedProjects: updated.assignedProjects,
+        certifications: updated.certifications,
+        isActive: updated.isActive,
+      },
+    });
+  }
+);
+
+apiRouter.post('/users', requireRole(['HSE / Quality Manager & Tenant Admin']), async (req: Request, res: Response) => {
   const db = getDb();
   if (!db || !req.authUser) {
     res.status(503).json({ error: 'Database not configured.' });
@@ -790,7 +881,11 @@ apiRouter.post('/users', requireRole(['Site Manager']), async (req: Request, res
 
 apiRouter.get(
   '/audit-logs',
-  requireRole(['Site Manager', 'Site Engineer', 'HSE Officer']),
+  requireRole([
+    'HSE / Quality Manager & Tenant Admin',
+    'Authorized Inspector (API 510/570) & Verifikator K3',
+    'Office / Integrity Engineer',
+  ]),
   async (_req: Request, res: Response) => {
     const db = getDb();
     if (!db) {

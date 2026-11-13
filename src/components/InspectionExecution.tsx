@@ -748,7 +748,7 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
             {template.requiresApproval
               ? t.execution.submitRequiresApproval.replace(
                   '{role}',
-                  translateRole(template.approvalRole || 'Site Engineer')
+                  translateRole(template.approvalRole || 'Authorized Inspector (API 510/570) & Verifikator K3')
                 )
               : t.execution.submitDirectSignoff}
           </p>

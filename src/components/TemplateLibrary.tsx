@@ -286,7 +286,7 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
                       <span className="text-amber-700 font-medium">
                         {t.library.verificationRequiredBy.replace(
                           '{role}',
-                          translateRole(tpl.approvalRole || 'Site Engineer')
+                          translateRole(tpl.approvalRole || 'Authorized Inspector (API 510/570) & Verifikator K3')
                         )}
                       </span>
                     ) : (

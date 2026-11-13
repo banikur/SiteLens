@@ -123,7 +123,7 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: t.nav.team,
       icon: Users,
     },
-    ...(authEnabled && ['Site Manager', 'Site Engineer', 'HSE Officer'].includes(activeUser.role)
+    ...(authEnabled && ['HSE / Quality Manager & Tenant Admin', 'Office / Integrity Engineer'].includes(activeUser.role)
       ? [
           {
             id: 'settings' as ActiveTab,

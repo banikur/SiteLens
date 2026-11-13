@@ -1,11 +1,9 @@
 export type UserRole =
-  | 'Site Supervisor'
-  | 'Site Engineer'
-  | 'Equipment Operator'
-  | 'HSE Officer'
-  | 'QC Inspector'
-  | 'Environmental Officer'
-  | 'Site Manager';
+  | 'Field Inspector / Petugas K3'
+  | 'Action Owner / Pelaksana Perbaikan'
+  | 'Office / Integrity Engineer'
+  | 'Authorized Inspector (API 510/570) & Verifikator K3'
+  | 'HSE / Quality Manager & Tenant Admin';
 
 export interface User {
   id: string;
@@ -16,6 +14,7 @@ export interface User {
   avatar: string;
   assignedProjects: string[];
   certifications: string[];
+  isActive?: boolean;
 }
 
 export type FieldType =

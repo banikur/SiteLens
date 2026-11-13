@@ -10,7 +10,7 @@ import {
 
 export const notificationsRouter = Router();
 notificationsRouter.use(requireAuth);
-notificationsRouter.use(requireRole(['Site Manager']));
+notificationsRouter.use(requireRole(['HSE / Quality Manager & Tenant Admin']));
 
 const MASKED_PASS = '••••••••';
 

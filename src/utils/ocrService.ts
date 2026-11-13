@@ -300,15 +300,15 @@ export function parseOcrIntoTemplate(
       ? `Protokol hasil kloning dokumen fisik via OCR. Berisi ${fieldCounter} poin verifikasi.`
       : `Cloned from physical paper form via local OCR. Contains ${fieldCounter} checkpoints.`,
     version: '1.0',
-    targetRole: 'QC Inspector',
+    targetRole: 'Field Inspector / Petugas K3',
     requiresApproval: true,
-    approvalRole: 'Site Engineer',
+    approvalRole: 'Authorized Inspector (API 510/570) & Verifikator K3',
     estimatedMinutes: Math.min(60, Math.max(15, Math.round(fieldCounter * 2.5))),
     tags: ['OCR Cloned', 'Paper Form', 'SiteLens Vision'],
     createdAt: today,
     updatedAt: today,
     authorName,
-    authorRole: 'QC Inspector',
+    authorRole: 'Office / Integrity Engineer',
     sections,
   };
 }

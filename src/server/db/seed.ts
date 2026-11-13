@@ -34,11 +34,11 @@ async function seed() {
       name: 'SiteLens Admin',
       email: 'admin@sitelens.local',
       passwordHash: hashPassword(adminPassword),
-      role: 'Site Manager',
-      title: 'Project Director / System Admin',
+      role: 'HSE / Quality Manager & Tenant Admin',
+      title: 'HSE & Quality Director / Tenant Admin',
       avatar: '',
       assignedProjects: ['proj-1', 'proj-2'],
-      certifications: ['ISO 9001 Lead Auditor', 'HSE Management'],
+      certifications: ['ISO 9001 Lead Auditor', 'ISO 45001 Lead Auditor', 'AK3 Umum'],
       isActive: true,
     });
     console.log(`Seeded admin user "${adminUsername}"`);

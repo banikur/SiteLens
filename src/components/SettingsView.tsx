@@ -32,7 +32,7 @@ interface AuditLogEntry {
 export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser }) => {
   const { lang } = useLanguage();
   const isId = lang === 'id';
-  const isAdmin = currentUser.role === 'Site Manager';
+  const isAdmin = currentUser.role === 'HSE / Quality Manager & Tenant Admin';
 
   const [config, setConfig] = useState<NotificationConfig>({
     smtpHost: '',

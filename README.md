@@ -1,99 +1,103 @@
-# SiteLens — Precision Site Operations & Inspection Platform
+# SiteLens — Platform Inspeksi Lapangan, Master-Data Checklist, dan CAPA Self-Hosted
 
-SiteLens is a **dedicated, self-hosted** field inspection, checklist master-data, and corrective action (CAPA) platform built for construction and industrial operations.
+SiteLens adalah platform perangkat lunak **dedicated dan self-hosted (single-tenant)** yang dirancang untuk menyatukan inspeksi lapangan, master-data daftar periksa (checklist), kalkulasi rekayasa integritas peralatan bertekanan (API 510, API 570, ASME), serta siklus penanganan Tindakan Korektif dan Preventif (CAPA) *closed-loop* untuk sektor konstruksi, migas, dan industri proses.
 
-It is designed for single-tenant pilot and production deployments where field inspectors and office engineers collaborate across web and mobile devices.
+Platform ini mengadopsi prinsip **keterlacakan independen dan four-eyes principle** (ISO 9001:2015 Klausul 10.2, ISO 45001:2018, API 510/570) serta kepatuhan ganda regulasi K3 nasional Indonesia (**SMK3 PP No. 50/2012** dan **Bahan Kimia Berbahaya Kepmenaker 187/1999**).
 
 ---
 
-## Core Capabilities
+## 5 Peran Resmi Sistem (Enterprise RBAC)
 
-- **Template Master Data (ISO / ASME / API Formats):** Structured checklist templates supporting standard body metadata (`ISO`, `ASME`, `API`, `SNI`, `OSHA`), document control numbers, ITP inspection points (`H`/`W`/`R`/`S`), acceptance criteria, and numeric tolerance thresholds.
-- **Dynamic Multi-Step Approval Workflows:** Configurable per-template approval stages by role and trigger condition (`always`, `on_fail`, `on_critical`).
-- **Field Inspection & Evidence Capture:** Bilingual (`EN` / `ID`) inspection execution with conditional fields, photo evidence, digital signatures, and automated PDF compliance reports (`jsPDF`).
-- **Corrective Actions (CAPA):** Track open findings, severity levels, assignees, due dates, and resolution evidence.
-- **Offline OCR & Optional BYOK AI:**
-  - **Tesseract.js OCR** runs 100% locally in the browser with zero API cost.
-  - **Gemini AI Template Generator** is optional (Bring Your Own Key via `GEMINI_API_KEY`); the server and app run cleanly without it.
-- **Self-Hosted Infrastructure:** Docker Compose stack with **PostgreSQL 16** (Drizzle ORM), local disk media volume (`/data/uploads`), and **Caddy** reverse proxy with automatic HTTPS.
+Mengacu pada Bagian 1 Dokumen Spesifikasi Produk (PRD), SiteLens menegakkan 5 peran resmi beserta batas wewenang ketat di lapisan backend:
+
+1. **`Field Inspector / Petugas K3`** (Mobile & Web)  
+   Menjalankan sesi inspeksi, merekam bukti foto ber-geotag GPS dan hash SHA-256, mencatat pembacaan ketebalan UT, dan memicu *Stop Work Authority* (SWA) untuk temuan kritikal. *Tidak dapat menutup CAPA sendiri atau mengubah rumus rekayasa.*
+2. **`Action Owner / Pelaksana Perbaikan`** (Mobile & Web)  
+   Menerima tindakan koreksi segera (*containment/ICA*) dan rencana korektif permanen (*PCA*), memperbarui progres kerja, dan mengunggah foto pasca-perbaikan. *Dilarang keras memverifikasi atau menutup tindakannya sendiri.*
+3. **`Office / Integrity Engineer`** (Web)  
+   Mengelola sirkuit perpipaan, bejana tekan, dan CML; memvalidasi laju korosi (*governing rate*); mengevaluasi batas ketebalan minimum ($t_{min}$), Fitness-For-Service (FFS API 579-1), rerating, dan peninjauan deferral.
+4. **`Authorized Inspector (API 510/570) & Verifikator K3`** (Web & Mobile)  
+   Mengesahkan laporan inspeksi integritas bertekanan, melakukan verifikasi fisik implementasi perbaikan (*four-eyes check*), dan mengevaluasi efektivitas pasca-jendela pemantauan 30–90 hari.
+5. **`HSE / Quality Manager & Tenant Admin`** (Web)  
+   Mengonfigurasi profil tenant (target tingkat SMK3 & status Major Hazard), mengelola master template ISO/ASME/API, provisioning user, dan memantau KPI keselamatan (FR, SR, tren CAPA).
+
+---
+
+## Kemampuan Utama Sesuai PRD
+
+- **Dual-Compliance Mechanism:** Otomatis memetakan temuan inspeksi ke 12 Elemen Audit SMK3 (PP No. 50/2012) dan Klausul ISO 45001:2018, dilengkapi deteksi Instalasi Potensi Bahaya Besar (Major Hazard) berbasis Nilai Ambang Kuantitas (NAK Kepmenaker 187/1999).
+- **Master-Data Aset Fisik & Registri Legalitas:**
+  - **Piping Circuit & CML (API 570 / API RP 574):** Seed dimensi ASME B36.10M (NPS 1/8 s.d. NPS 36), batas toleransi pabrik -12.5%, dan alert thickness.
+  - **Bejana Tekan (API 510 / ASME BPVC Section VIII Div. 1):** Komponen shell, head elipsoidal 2:1, nozzle, dan efisiensi sambungan las (UW-12).
+  - **Registri PAA & Lisensi Personel:** Pelacakan masa berlaku Suket K3/SIA Kemnaker (Permenaker 8/2020), SILO Migas, dan SIO Operator dengan penguncian operasional otomatis (`PROHIBITED_DO_NOT_OPERATE`) jika kedaluwarsa.
+  - **Soft Archive & Restore:** Mencegah perusakan riwayat audit dan pemeliharaan historis.
+- **Engine Rekayasa Integritas Deterministik:**
+  - Laju korosi jangka panjang ($CR_{LT}$), jangka pendek ($CR_{ST}$), laju penentu $CR_{gov} = \max(CR_{LT}, CR_{ST})$, dan Coefficient of Variation ($COV > 10\%$).
+  - Perhitungan $t_{min}$ (ASME B31.3 & UG-27) dan Remaining Life ($RL$).
+  - Proyeksi MAWP berlanjut dengan aturan korosi ganda ($2 \cdot CR \cdot I$) dan pembesaran jari-jari dalam terkorosi ($R_{corr}$).
+  - Validator 3-syarat *Widely Scattered Pitting* (API 510 Par. 7.4.3).
+- **Tata Kelola Bukti Anti-Tampering:**
+  - Komputasi hash SHA-256 (`file_hash_sha256`) langsung di browser/PWA via Web Crypto API.
+  - Perekaman koordinat GPS (latitude, longitude) dan stempel waktu ISO 8601 UTC (`captured_at`).
+  - Verifikasi ulang nilai hash oleh server saat pengunggahan untuk mencegah pemalsuan foto bukti.
+- **State Machine CAPA Closed-Loop:**
+  - Transisi status: `OPEN` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `PENDING_VERIFICATION` $\rightarrow$ `EFFECTIVENESS_MONITORING` (30–90 hari) $\rightarrow$ `CLOSED`.
+  - Penegakan **Four-Eyes Principle**: Pemisahan tegas penanggung jawab perbaikan dan verifikator independen.
+  - SLA otomatis berbasis Matriks Risiko $5 \times 5$: Critical (1x24 jam), High (3x24 jam), Medium (7 hari), Low (14 hari).
+  - Kalkulator metrik keselamatan kerja: Frequency Rate (FR) dan Severity Rate (SR) per 1.000.000 jam kerja.
 
 ---
 
 ## Tech Stack
 
-- **Frontend:** React 19, Vite 8, Tailwind CSS v4, Motion, Lucide Icons, `jspdf`, `tesseract.js`
-- **Backend:** Express, Node.js 22 (`tsx`), Drizzle ORM, `@google/genai` (optional)
-- **Database & Infra:** PostgreSQL 16, Docker Compose, Caddy 2 (auto-HTTPS)
+- **Frontend:** React 19, Vite 8, Tailwind CSS v4, Motion, Lucide Icons, `jspdf`, `tesseract.js`, `idb`, `vite-plugin-pwa`
+- **Backend:** Express, Node.js 22 (`tsx`), Drizzle ORM, PostgreSQL 16, `@simplewebauthn` (Passkey/Biometric), `nodemailer`, `@google/genai` (opsional BYOK)
+- **Infrastruktur:** Docker Compose (`app`, `postgres`, `caddy` reverse-proxy auto-HTTPS)
 
 ---
 
-## Quick Start
+## Panduan Cepat (Quick Start)
 
-### 1. Local Development
+### 1. Pengembangan Lokal (Development)
 
 ```bash
-# Install dependencies
+# Instal dependensi
 npm install --legacy-peer-deps
 
-# Copy environment template
+# Siapkan berkas environment
 cp .env.example .env
 
-# Run dev server (Express + Vite middleware on http://localhost:3000)
+# Jalankan pengujian unit rekayasa & otentikasi
+npm test
+
+# Jalankan server pengembangan (port 3000)
 npm run dev
 ```
 
-### 2. Self-Hosted Pilot (Docker Compose)
-
-1. Copy `.env.example` to `.env` and update `POSTGRES_PASSWORD`, `SESSION_SECRET`, `SITE_DOMAIN`, `RP_ID`, and `RP_ORIGIN`.
-2. Build and start the stack (`postgres`, `app`, `caddy`):
+### 2. Deployment Single-Tenant (Docker Compose)
 
 ```bash
+# Bangun dan jalankan seluruh container (postgres, app, caddy)
 docker compose up -d --build
-```
 
-3. Push the Drizzle schema and seed initial master data + admin account:
-
-```bash
+# Terapkan skema database Drizzle & seed data awal
 docker compose exec app npm run db:push
 docker compose exec app npm run db:seed
-```
 
-4. Check server health:
-
-```bash
+# Periksa status kesehatan sistem
 curl -k https://localhost/api/health
 ```
 
 ---
 
-## Database & Useful Scripts
+## Perintah Kerja (Scripts)
 
-| Script | Description |
+| Perintah | Deskripsi |
 |---|---|
-| `npm run dev` | Start Express + Vite dev server on port `3000` |
-| `npm run build` | Build production frontend bundle to `dist/` |
-| `npm run lint` | Run TypeScript type check (`tsc --noEmit`) |
-| `npm run db:generate` | Generate Drizzle SQL migrations into `drizzle/` |
-| `npm run db:push` | Push Drizzle schema directly to PostgreSQL |
-| `npm run db:seed` | Seed default admin user, sample projects, and master templates |
-
----
-
-## Project Structure
-
-```text
-├── server.ts                  # Express server, API routes, Vite/static serving
-├── docker-compose.yml         # PostgreSQL, App, and Caddy auto-HTTPS stack
-├── Dockerfile                 # Multi-stage production container build
-├── Caddyfile                  # Reverse proxy & automatic TLS configuration
-├── drizzle.config.ts          # Drizzle Kit configuration
-├── drizzle/                   # Generated PostgreSQL SQL migrations
-└── src/
-    ├── server/db/             # Drizzle schema, DB pool, and seed script
-    ├── components/            # React UI modules (Dashboard, Builder, Execution, CAPA, etc.)
-    ├── services/              # Client storage & API services
-    ├── i18n/                  # English & Bahasa Indonesia translations
-    ├── types/                 # Shared TypeScript domain types
-    └── utils/                 # PDF generator & local Tesseract OCR service
-```
-
+| `npm run dev` | Menjalankan server dev Express + Vite PWA |
+| `npm run build` | Kompilasi bundle produksi & Service Worker PWA ke `dist/` |
+| `npm run lint` | Pemeriksaan tipe statis TypeScript (`tsc --noEmit`) |
+| `npm test` | Menjalankan suite pengujian unit deterministik (`tsx --test`) |
+| `npm run db:generate` | Menghasilkan berkas migrasi SQL Drizzle ke `drizzle/` |
+| `npm run db:push` | Mendorong perubahan skema secara langsung ke database PostgreSQL |
+| `npm run db:seed` | Mengisi data pengguna default, proyek, dan master template |

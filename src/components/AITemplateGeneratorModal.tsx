@@ -99,7 +99,7 @@ export const AITemplateGeneratorModal: React.FC<AITemplateGeneratorModalProps> =
           authorName: currentUser.name,
           authorRole: currentUser.role,
           targetRole: currentUser.role,
-          approvalRole: 'Site Engineer',
+          approvalRole: 'Authorized Inspector (API 510/570) & Verifikator K3',
         }),
       });
 

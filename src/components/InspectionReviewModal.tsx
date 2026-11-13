@@ -227,7 +227,7 @@ export const InspectionReviewModal: React.FC<InspectionReviewModalProps> = ({
                     .replace('{name}', inspection.reviewedBy)
                     .replace(
                       '{role}',
-                      translateRole(inspection.reviewedRole || 'HSE Officer')
+                      translateRole(inspection.reviewedRole || 'Authorized Inspector (API 510/570) & Verifikator K3')
                     )}
                 </span>
                 <span className="font-mono text-[10px] text-emerald-800">
