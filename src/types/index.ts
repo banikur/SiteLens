@@ -169,18 +169,28 @@ export interface InspectionRecord {
 }
 
 export type ActionSeverity = 'low' | 'medium' | 'high' | 'critical';
-export type ActionStatus = 'open' | 'in_remediation' | 'resolved' | 'verified';
+
+export type ActionStatus =
+  | 'OPEN'
+  | 'IN_PROGRESS'
+  | 'PENDING_VERIFICATION'
+  | 'EFFECTIVENESS_MONITORING'
+  | 'CLOSED'
+  | 'REJECTED'
+  | 'REOPENED'
+  | 'CANCELLED';
 
 export interface CorrectiveAction {
-  id: string;
-  inspectionId: string;
+  id: string; // UUID
+  inspectionId: string; // UUID
   inspectionTitle: string;
-  projectId: string;
+  projectId: string; // UUID
   projectName: string;
   siteZone: string;
   fieldLabel: string;
   issueDescription: string;
   severity: ActionSeverity;
+  assigneeId?: string; // UUID of assigned user (PRD 6.1)
   assignedToName: string;
   assignedToRole: string;
   dueDate: string;

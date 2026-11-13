@@ -307,7 +307,7 @@ function SiteLensWorkspace() {
           lang === 'id' ? 'Mandor Pelaksana Terkait' : 'Assigned Site Trade Lead',
         assignedToRole: 'Subcontractor Foreman',
         dueDate: new Date(Date.now() + 4 * 86400000).toISOString().split('T')[0],
-        status: 'open',
+        status: 'OPEN',
         createdAt: new Date().toISOString(),
         evidencePhotoUrl: savedRecord.evidencePhotos[0]?.url,
       };
@@ -451,7 +451,7 @@ function SiteLensWorkspace() {
     (i) => i.status === 'under_review'
   ).length;
   const openActionsCount = actions.filter(
-    (a) => a.status === 'open' || a.status === 'in_remediation'
+    (a) => a.status === 'OPEN' || a.status === 'IN_PROGRESS' || a.status === 'PENDING_VERIFICATION'
   ).length;
 
   const currentTabLabel = () => {

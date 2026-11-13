@@ -5,6 +5,7 @@ import {
   integer,
   timestamp,
   jsonb,
+  uuid,
 } from 'drizzle-orm/pg-core';
 import type {
   UserRole,
@@ -31,7 +32,7 @@ export type {
 };
 
 export const users = pgTable('users', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   username: text('username').notNull().unique(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
@@ -47,8 +48,8 @@ export const users = pgTable('users', {
 });
 
 export const webauthnCredentials = pgTable('webauthn_credentials', {
-  id: text('id').primaryKey(),
-  userId: text('user_id')
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   credentialId: text('credential_id').notNull().unique(),
@@ -61,7 +62,7 @@ export const webauthnCredentials = pgTable('webauthn_credentials', {
 
 export const sessions = pgTable('sessions', {
   id: text('id').primaryKey(), // SHA-256 hash of opaque session token
-  userId: text('user_id')
+  userId: uuid('user_id')
     .notNull()
     .references(() => users.id, { onDelete: 'cascade' }),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -69,7 +70,7 @@ export const sessions = pgTable('sessions', {
 });
 
 export const projects = pgTable('projects', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   code: text('code').notNull().unique(),
   client: text('client').notNull(),
@@ -81,7 +82,7 @@ export const projects = pgTable('projects', {
 });
 
 export const checklistTemplates = pgTable('checklist_templates', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   title: text('title').notNull(),
   category: text('category').$type<ChecklistCategory>().notNull(),
   description: text('description').notNull(),
@@ -89,7 +90,7 @@ export const checklistTemplates = pgTable('checklist_templates', {
   standardBody: text('standard_body').$type<StandardBody>().notNull().default('Custom'),
   standardCode: text('standard_code'),
   documentControlNo: text('document_control_no'),
-  projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'set null' }),
   targetRole: text('target_role').$type<UserRole>(),
   requiresApproval: boolean('requires_approval').notNull().default(false),
   approvalRole: text('approval_role').$type<UserRole>(),
@@ -98,7 +99,7 @@ export const checklistTemplates = pgTable('checklist_templates', {
   sections: jsonb('sections').$type<ChecklistSection[]>().notNull().default([]),
   tags: jsonb('tags').$type<string[]>().notNull().default([]),
   isMasterTemplate: boolean('is_master_template').notNull().default(false),
-  authorId: text('author_id').references(() => users.id, { onDelete: 'set null' }),
+  authorId: uuid('author_id').references(() => users.id, { onDelete: 'set null' }),
   authorName: text('author_name').notNull(),
   authorRole: text('author_role').$type<UserRole>().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -106,19 +107,19 @@ export const checklistTemplates = pgTable('checklist_templates', {
 });
 
 export const inspections = pgTable('inspections', {
-  id: text('id').primaryKey(),
+  id: uuid('id').primaryKey().defaultRandom(),
   clientMutationId: text('client_mutation_id').unique(),
-  templateId: text('template_id')
+  templateId: uuid('template_id')
     .notNull()
     .references(() => checklistTemplates.id, { onDelete: 'restrict' }),
   templateTitle: text('template_title').notNull(),
   category: text('category').$type<ChecklistCategory>().notNull(),
-  projectId: text('project_id')
+  projectId: uuid('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'restrict' }),
   projectName: text('project_name').notNull(),
   siteZone: text('site_zone').notNull(),
-  inspectorId: text('inspector_id')
+  inspectorId: uuid('inspector_id')
     .notNull()
     .references(() => users.id, { onDelete: 'restrict' }),
   inspectorName: text('inspector_name').notNull(),
@@ -148,12 +149,12 @@ export const inspections = pgTable('inspections', {
 });
 
 export const correctiveActions = pgTable('corrective_actions', {
-  id: text('id').primaryKey(),
-  inspectionId: text('inspection_id')
+  id: uuid('id').primaryKey().defaultRandom(),
+  inspectionId: uuid('inspection_id')
     .notNull()
     .references(() => inspections.id, { onDelete: 'cascade' }),
   inspectionTitle: text('inspection_title').notNull(),
-  projectId: text('project_id')
+  projectId: uuid('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'restrict' }),
   projectName: text('project_name').notNull(),
@@ -161,10 +162,11 @@ export const correctiveActions = pgTable('corrective_actions', {
   fieldLabel: text('field_label').notNull(),
   issueDescription: text('issue_description').notNull(),
   severity: text('severity').$type<ActionSeverity>().notNull().default('medium'),
+  assigneeId: uuid('assignee_id').references(() => users.id, { onDelete: 'set null' }),
   assignedToName: text('assigned_to_name').notNull(),
   assignedToRole: text('assigned_to_role').notNull(),
   dueDate: text('due_date').notNull(),
-  status: text('status').$type<ActionStatus>().notNull().default('open'),
+  status: text('status').$type<ActionStatus>().notNull().default('OPEN'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   resolutionNotes: text('resolution_notes'),
@@ -172,8 +174,8 @@ export const correctiveActions = pgTable('corrective_actions', {
 });
 
 export const auditLogs = pgTable('audit_logs', {
-  id: text('id').primaryKey(),
-  actorId: text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  id: uuid('id').primaryKey().defaultRandom(),
+  actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
   actorName: text('actor_name').notNull(),
   action: text('action').notNull(),
   entityType: text('entity_type').notNull(),
