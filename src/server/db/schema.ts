@@ -21,6 +21,10 @@ import type {
   WorkflowTrigger,
   WorkflowStep,
   ApprovalDecision,
+  Smk3AuditLevel,
+  ChemicalHazardStatus,
+  ChemicalInventoryItem,
+  Smk3ElementMapping,
 } from '../../types/index.ts';
 
 export type {
@@ -195,6 +199,25 @@ export const notificationSettings = pgTable('notification_settings', {
   webhookType: text('webhook_type').$type<'slack' | 'telegram' | 'generic'>().default('generic'),
   notifyOnCriticalCapa: boolean('notify_on_critical_capa').notNull().default(true),
   notifyOnApproval: boolean('notify_on_approval').notNull().default(true),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const tenantProfiles = pgTable('tenant_profiles', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  companyName: text('company_name').notNull().default('SiteLens Enterprise Facilities'),
+  facilityLocation: text('facility_location').notNull().default('Balikpapan Process Terminal Sector 4'),
+  workforceCount: integer('workforce_count').notNull().default(150),
+  riskLevel: text('risk_level').$type<'LOW' | 'MEDIUM' | 'HIGH'>().notNull().default('HIGH'),
+  targetSmk3Level: text('target_smk3_level').$type<Smk3AuditLevel>().notNull().default('LANJUTAN_166'),
+  chemicalHazardStatus: text('chemical_hazard_status').$type<ChemicalHazardStatus>().notNull().default('POTENSI_BAHAYA_MENENGAH'),
+  chemicalInventory: jsonb('chemical_inventory').$type<ChemicalInventoryItem[]>().notNull().default([]),
+  majorHazardDocUploaded: boolean('major_hazard_doc_uploaded').notNull().default(false),
+  ahliK3KimiaCount: integer('ahli_k3_kimia_count').notNull().default(0),
+  petugasK3KimiaCount: integer('petugas_k3_kimia_count').notNull().default(0),
+  lastChemicalInspectionDate: timestamp('last_chemical_inspection_date', { withTimezone: true }),
+  nextEmergencyDrillDate: timestamp('next_emergency_drill_date', { withTimezone: true }),
+  expiryAlertDays: integer('expiry_alert_days').notNull().default(60),
+  smk3ElementsMap: jsonb('smk3_elements_map').$type<Smk3ElementMapping[]>().notNull().default([]),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

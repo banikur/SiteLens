@@ -45,6 +45,7 @@ import { OcrScannerModal } from './components/OcrScannerModal';
 import { AuthScreen } from './components/AuthScreen';
 import { SecuritySettingsModal } from './components/SecuritySettingsModal';
 import { SettingsView } from './components/SettingsView';
+import { TenantComplianceView } from './components/TenantComplianceView';
 import {
   AuthenticatedUser,
   fetchCurrentUser,
@@ -458,6 +459,8 @@ function SiteLensWorkspace() {
     if (executingTemplate) return t.nav.fieldExecution;
     if (editingTemplate || currentTab === 'builder')
       return t.nav.checklistDesigner;
+    if (currentTab === 'compliance')
+      return lang === 'id' ? 'Kepatuhan Ganda & Profil' : 'Dual-Compliance & Tenant Profile';
     return (t.nav as Record<string, string>)[currentTab] || currentTab;
   };
 
@@ -674,6 +677,8 @@ function SiteLensWorkspace() {
               actions={actions}
               projects={projects}
             />
+          ) : currentTab === 'compliance' ? (
+            <TenantComplianceView currentUserRole={currentUser.role} />
           ) : currentTab === 'settings' ? (
             <SettingsView currentUser={currentUser} />
           ) : (

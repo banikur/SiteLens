@@ -190,15 +190,15 @@ export interface CorrectiveAction {
   fieldLabel: string;
   issueDescription: string;
   severity: ActionSeverity;
-  assigneeId?: string; // UUID of assigned user (PRD 6.1)
+  assigneeId?: string | null; // UUID of assigned user (PRD 6.1)
   assignedToName: string;
   assignedToRole: string;
   dueDate: string;
   status: ActionStatus;
   createdAt: string;
-  resolvedAt?: string;
-  resolutionNotes?: string;
-  evidencePhotoUrl?: string;
+  resolvedAt?: string | null;
+  resolutionNotes?: string | null;
+  evidencePhotoUrl?: string | null;
 }
 
 export interface ProjectZone {
@@ -220,4 +220,62 @@ export interface Project {
   activeInspectionsCount: number;
   openIssuesCount: number;
   complianceRate: number;
+}
+
+// ---------------- DUAL-COMPLIANCE (SMK3 PP 50/2012 & ISO 45001) & TENANT TYPES ----------------
+
+export type Smk3AuditLevel = 'AWAL_64' | 'TRANSISI_122' | 'LANJUTAN_166';
+
+export type Smk3AwardStatus =
+  | 'MEMUASKAN_EMAS'
+  | 'BAIK_PERAK'
+  | 'KURANG'
+  | 'DISQUALIFIED_CRITICAL_FINDING';
+
+export type ChemicalHazardStatus = 'POTENSI_BAHAYA_MENENGAH' | 'POTENSI_BAHAYA_BESAR';
+
+export interface ChemicalInventoryItem {
+  id: string;
+  name: string;
+  casNumber?: string;
+  category: 'Toxic' | 'Flammable' | 'Explosive' | 'Oxidizing' | 'Corrosive' | 'Other';
+  quantityStoredKg: number;
+  thresholdNakKg: number;
+  ratio: number; // quantityStoredKg / thresholdNakKg
+}
+
+export interface Smk3ElementMapping {
+  elementNumber: number;
+  elementName: string;
+  iso45001Clause: string;
+  iso45001Title: string;
+  totalCriteriaAwal: number;
+  totalCriteriaTransisi: number;
+  totalCriteriaLanjutan: number;
+  criteriaActive: number;
+  passedCriteria: number;
+  failedCriteria: number;
+  complianceRate: number;
+}
+
+export interface TenantProfile {
+  id: string;
+  companyName: string;
+  facilityLocation: string;
+  workforceCount: number;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  targetSmk3Level: Smk3AuditLevel;
+  chemicalHazardStatus: ChemicalHazardStatus;
+  chemicalCumulativeRatio: number; // Sum of (qty / NAK)
+  chemicalInventory: ChemicalInventoryItem[];
+  majorHazardDocUploaded: boolean;
+  ahliK3KimiaCount: number;
+  petugasK3KimiaCount: number;
+  lastChemicalInspectionDate?: string;
+  nextEmergencyDrillDate?: string;
+  expiryAlertDays: number;
+  smk3AwardStatus: Smk3AwardStatus;
+  smk3OverallScorePercent: number;
+  smk3ElementsMap: Smk3ElementMapping[];
+  updatedAt: string;
 }

@@ -34,6 +34,7 @@ export type ActiveTab =
   | 'projects'
   | 'analytics'
   | 'team'
+  | 'compliance'
   | 'settings';
 
 interface NavigationProps {
@@ -122,6 +123,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       id: 'team' as ActiveTab,
       label: t.nav.team,
       icon: Users,
+    },
+    {
+      id: 'compliance' as ActiveTab,
+      label: lang === 'id' ? 'Kepatuhan & Profil' : 'Dual-Compliance',
+      icon: Shield,
     },
     ...(authEnabled && ['HSE / Quality Manager & Tenant Admin', 'Office / Integrity Engineer'].includes(activeUser.role)
       ? [
