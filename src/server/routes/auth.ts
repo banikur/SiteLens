@@ -34,14 +34,80 @@ const challengeStore = new Map<
   { challenge: string; userId?: string; expiresAt: number }
 >();
 
-// Rate limit store for PIN attempts (5 attempts / 5 minutes)
-const pinAttempts = new Map<string, { count: number; resetAt: number }>();
+interface AttemptWindow {
+  count: number;
+  resetAt: number;
+}
+
+// Failed-credential rate limits. Both maps are keyed by `${ip}:${username}` so a
+// single attacker cannot lock out other users from a shared proxy address, and
+// a distributed attacker on one IP cannot fan out across the whole user table.
+const pinAttempts = new Map<string, AttemptWindow>();
+const loginAttempts = new Map<string, AttemptWindow>();
+
+const PIN_ATTEMPT_LIMIT = 5;
+const LOGIN_ATTEMPT_LIMIT = 10;
+const ATTEMPT_WINDOW_MS = 5 * 60 * 1000;
+const ATTEMPT_SWEEP_THRESHOLD = 2000;
+
+// A dummy hash keeps failed logins costing the same scrypt work as real ones.
+// Without it, "username not found" returns measurably faster than "wrong
+// password" and the login endpoint becomes a user-enumeration oracle.
+const DUMMY_SECRET_HASH = hashSecret(crypto.randomBytes(32).toString('hex'));
+
+/**
+ * In-memory maps never shrink on their own, so an attacker could grow them
+ * without bound just by sending requests for random usernames. Sweep expired
+ * entries once the map gets large; the cost stays amortised and small.
+ */
+function sweepAttempts(map: Map<string, AttemptWindow>, now: number) {
+  if (map.size <= ATTEMPT_SWEEP_THRESHOLD) return;
+  for (const [key, entry] of map) {
+    if (entry.resetAt <= now) map.delete(key);
+  }
+}
+
+function sweepChallenges(now: number) {
+  if (challengeStore.size <= ATTEMPT_SWEEP_THRESHOLD) return;
+  for (const [key, entry] of challengeStore) {
+    if (entry.expiresAt <= now) challengeStore.delete(key);
+  }
+}
+
+function checkAttemptLimit(
+  map: Map<string, AttemptWindow>,
+  rateKey: string,
+  limit: number
+): { allowed: boolean; retryAfterSeconds: number } {
+  const now = Date.now();
+  sweepAttempts(map, now);
+
+  const entry = map.get(rateKey);
+  if (!entry || entry.resetAt <= now) {
+    map.set(rateKey, { count: 1, resetAt: now + ATTEMPT_WINDOW_MS });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+  if (entry.count >= limit) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
+    };
+  }
+  entry.count += 1;
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+function rateLimitKey(req: Request, username: string): string {
+  return `${req.ip}:${username.trim().toLowerCase()}`;
+}
 
 function storeChallenge(key: string, challenge: string, userId?: string) {
+  const now = Date.now();
+  sweepChallenges(now);
   challengeStore.set(key, {
     challenge,
     userId,
-    expiresAt: Date.now() + 5 * 60 * 1000,
+    expiresAt: now + 5 * 60 * 1000,
   });
 }
 
@@ -55,16 +121,59 @@ function consumeChallenge(key: string) {
 }
 
 function checkPinRateLimit(rateKey: string): boolean {
-  const now = Date.now();
-  const entry = pinAttempts.get(rateKey);
-  if (!entry || entry.resetAt < now) {
-    pinAttempts.set(rateKey, { count: 1, resetAt: now + 5 * 60 * 1000 });
-    return true;
-  }
-  if (entry.count >= 5) {
+  return checkAttemptLimit(pinAttempts, rateKey, PIN_ATTEMPT_LIMIT).allowed;
+}
+
+/**
+ * Step-up authentication for credential enrolment.
+ *
+ * A hijacked session cookie must not be enough to mint a new PIN or passkey:
+ * both are permanent login credentials that outlive the session that created
+ * them. Every enrolment therefore re-verifies the account password, and the
+ * attempts share the login bucket so this cannot become a password oracle.
+ */
+async function confirmAccountPassword(
+  req: Request,
+  res: Response,
+  password: unknown
+): Promise<boolean> {
+  const db = getDb();
+  if (!db || !req.authUser) {
+    res.status(503).json({ error: 'Database is not configured.' });
     return false;
   }
-  entry.count += 1;
+
+  if (typeof password !== 'string' || !password) {
+    res.status(401).json({
+      code: 'REAUTH_REQUIRED',
+      error: 'Confirm your account password before changing security settings.',
+    });
+    return false;
+  }
+
+  const rateKey = rateLimitKey(req, req.authUser.username);
+  const limit = checkAttemptLimit(loginAttempts, rateKey, LOGIN_ATTEMPT_LIMIT);
+  if (!limit.allowed) {
+    res.setHeader('Retry-After', String(limit.retryAfterSeconds));
+    res.status(429).json({ error: 'Too many password confirmations. Please retry later.' });
+    return false;
+  }
+
+  const [user] = await db
+    .select({ passwordHash: users.passwordHash, isActive: users.isActive })
+    .from(users)
+    .where(eq(users.id, req.authUser.id))
+    .limit(1);
+
+  if (!user || !user.isActive || !verifySecret(password, user.passwordHash)) {
+    res.status(401).json({
+      code: 'REAUTH_FAILED',
+      error: 'Password confirmation failed.',
+    });
+    return false;
+  }
+
+  loginAttempts.delete(rateKey);
   return true;
 }
 
@@ -142,17 +251,33 @@ authRouter.post('/login', async (req: Request, res: Response) => {
     return;
   }
 
+  // Checked before touching the database so a brute-force run costs us nothing
+  // but a map lookup, and failed attempts are counted per IP + username.
+  const rateKey = rateLimitKey(req, username);
+  const limit = checkAttemptLimit(loginAttempts, rateKey, LOGIN_ATTEMPT_LIMIT);
+  if (!limit.allowed) {
+    res.setHeader('Retry-After', String(limit.retryAfterSeconds));
+    res.status(429).json({ error: 'Too many login attempts. Please retry later.' });
+    return;
+  }
+
   const [user] = await db
     .select()
     .from(users)
     .where(eq(users.username, username.trim()))
     .limit(1);
 
-  if (!user || !user.isActive || !verifySecret(password, user.passwordHash)) {
+  // Always run the scrypt comparison, even for an unknown or inactive account,
+  // so response timing does not reveal which usernames exist.
+  const storedHash = user && user.isActive ? user.passwordHash : DUMMY_SECRET_HASH;
+  const passwordOk = verifySecret(password, storedHash);
+
+  if (!user || !user.isActive || !passwordOk) {
     res.status(401).json({ error: 'Invalid username or password.' });
     return;
   }
 
+  loginAttempts.delete(rateKey);
   await createSessionCookie(res, user.id);
   const creds = await db
     .select({ id: webauthnCredentials.id })
@@ -175,7 +300,7 @@ authRouter.post('/pin-login', async (req: Request, res: Response) => {
     return;
   }
 
-  const rateKey = `${req.ip}:${username.trim().toLowerCase()}`;
+  const rateKey = rateLimitKey(req, username);
   if (!checkPinRateLimit(rateKey)) {
     res.status(429).json({ error: 'Too many PIN attempts. Please wait 5 minutes or use password.' });
     return;
@@ -187,7 +312,11 @@ authRouter.post('/pin-login', async (req: Request, res: Response) => {
     .where(eq(users.username, username.trim()))
     .limit(1);
 
-  if (!user || !user.isActive || !verifySecret(pin, user.pinHash)) {
+  // Same timing-equalisation rationale as password login.
+  const storedPinHash = user && user.isActive && user.pinHash ? user.pinHash : DUMMY_SECRET_HASH;
+  const pinOk = verifySecret(pin, storedPinHash);
+
+  if (!user || !user.isActive || !user.pinHash || !pinOk) {
     res.status(401).json({ error: 'Invalid username or PIN.' });
     return;
   }
@@ -209,7 +338,9 @@ authRouter.post('/pin-setup', requireAuth, async (req: Request, res: Response) =
     return;
   }
 
-  const { pin } = req.body ?? {};
+  const { pin, password } = req.body ?? {};
+  if (!(await confirmAccountPassword(req, res, password))) return;
+
   if (typeof pin !== 'string' || !/^\d{4,6}$/.test(pin)) {
     res.status(400).json({ error: 'PIN must be 4 to 6 numeric digits.' });
     return;
@@ -238,6 +369,8 @@ authRouter.post('/webauthn/register-options', requireAuth, async (req: Request, 
     res.status(503).json({ error: 'Database is not configured.' });
     return;
   }
+
+  if (!(await confirmAccountPassword(req, res, req.body?.password))) return;
 
   const existingCreds = await db
     .select()

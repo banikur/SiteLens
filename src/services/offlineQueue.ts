@@ -5,7 +5,12 @@ import type {
   InspectionRecord,
   Project,
 } from '../types';
-import { apiSaveAction, apiSubmitInspection, uploadEvidencePhoto } from './api';
+import {
+  apiSaveAction,
+  apiSubmitInspection,
+  uploadEvidencePhotoDetailed,
+  type UploadedEvidence,
+} from './api';
 
 interface PendingInspectionItem {
   id: string;
@@ -130,6 +135,7 @@ export async function syncOfflineQueue(): Promise<{ synced: number; failed: numb
   for (const item of pending) {
     try {
       const urlMap = new Map<string, string>();
+      const integrityMap = new Map<string, UploadedEvidence['integrity']>();
       const updatedAnswers = { ...item.record.answers };
       const updatedPhotos = [...item.record.evidencePhotos];
 
@@ -142,13 +148,30 @@ export async function syncOfflineQueue(): Promise<{ synced: number; failed: numb
           if (!uploadedUrl) {
             const stored = await db.get('pending_photos', photoId);
             if (stored) {
-              uploadedUrl = await uploadEvidencePhoto(stored.blob, stored.filename);
+              const uploaded = await uploadEvidencePhotoDetailed(stored.blob, stored.filename);
+              uploadedUrl = uploaded.url;
               urlMap.set(photoId, uploadedUrl);
+              integrityMap.set(photoId, uploaded.integrity);
               await db.delete('pending_photos', photoId);
             }
           }
           if (uploadedUrl) {
-            updatedPhotos[i] = { ...photo, url: uploadedUrl };
+            const integrity = integrityMap.get(photoId);
+            updatedPhotos[i] = {
+              ...photo,
+              url: uploadedUrl,
+              ...(integrity
+                ? {
+                    sha256: integrity.sha256,
+                    sizeBytes: integrity.size,
+                    integrityVersion: 1,
+                    gps: integrity.gps,
+                    gpsSource: integrity.gpsSource,
+                    capturedAt: integrity.capturedAt,
+                    capturedAtSource: integrity.capturedAtSource,
+                  }
+                : {}),
+            };
           }
         }
       }

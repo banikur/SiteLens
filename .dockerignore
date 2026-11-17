@@ -4,4 +4,7 @@ dist
 .codegraph
 .env
 *.log
+uploads
+data
+*.manifest.json
 

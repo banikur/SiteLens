@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
-import { desc, eq } from 'drizzle-orm';
+import { and, desc, eq } from 'drizzle-orm';
 import { getDb } from '../db/index.ts';
 import {
   auditLogs,
@@ -13,13 +13,44 @@ import {
 import { hashSecret } from '../auth/crypto.ts';
 import { requireAuth, requireRole } from '../auth/middleware.ts';
 import { dispatchNotification } from '../services/notifications.ts';
+import {
+  extractEvidenceFilename,
+  getUploadDir,
+  verifyStoredEvidence,
+} from '../services/evidenceIntegrity.ts';
 import type {
   ApprovalDecision,
   ChecklistTemplate,
+  InspectionEvidence,
   InspectionStatus,
   UserRole,
   WorkflowStep,
 } from '../../types/index.ts';
+
+const VALID_ROLES: readonly UserRole[] = [
+  'Field Inspector / Petugas K3',
+  'Action Owner / Pelaksana Perbaikan',
+  'Office / Integrity Engineer',
+  'Authorized Inspector (API 510/570) & Verifikator K3',
+  'HSE / Quality Manager & Tenant Admin',
+];
+
+const MAX_BACKDATE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Offline inspections are legitimately submitted with a field timestamp, but a
+ * client must not be able to backdate evidence arbitrarily or stamp the future.
+ * Anything outside a sane window is replaced by server time.
+ */
+function resolveClientTimestamp(value: unknown, now: Date): Date {
+  if (typeof value !== 'string') return now;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return now;
+  const skew = now.getTime() - parsed.getTime();
+  if (skew < -5 * 60 * 1000 || skew > MAX_BACKDATE_MS) return now;
+  return parsed;
+}
+
 
 export const apiRouter = Router();
 apiRouter.use(requireAuth);
@@ -79,6 +110,129 @@ function resolveApplicableWorkflowSteps(
       return true;
     })
     .sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Scores an inspection from the template definition and the submitted answers.
+ * The client sends its own score, but that value is never trusted: a failing
+ * checklist must not be able to approve itself by claiming 100%.
+ */
+function computeInspectionScore(
+  template: typeof checklistTemplates.$inferSelect | undefined,
+  answers: Record<string, unknown> | null | undefined
+): {
+  scorePercent: number;
+  passedCount: number;
+  failedCount: number;
+  nonApplicableCount: number;
+} {
+  let totalPassFail = 0;
+  let passed = 0;
+  let failed = 0;
+  let na = 0;
+
+  const sections = Array.isArray(template?.sections) ? template!.sections : [];
+  for (const section of sections) {
+    const fields = Array.isArray(section?.fields) ? section.fields : [];
+    for (const field of fields) {
+      if (field?.type !== 'pass_fail') continue;
+      const raw = answers?.[field.id];
+      const value = typeof raw === 'string' ? raw.trim().toLowerCase() : raw;
+      if (value === 'pass') {
+        totalPassFail += 1;
+        passed += 1;
+      } else if (value === 'fail') {
+        totalPassFail += 1;
+        failed += 1;
+      } else if (value === 'na') {
+        na += 1;
+      }
+    }
+  }
+
+  return {
+    scorePercent: totalPassFail === 0 ? 100 : Math.round((passed / totalPassFail) * 100),
+    passedCount: passed,
+    failedCount: failed,
+    nonApplicableCount: na,
+  };
+}
+
+interface EvidenceIntegrityResult {
+  photos: InspectionEvidence[];
+  fatal: string[];
+  warnings: string[];
+}
+
+/**
+ * Rebuilds the evidence list from server-side truth. Client-supplied hashes,
+ * GPS and "verified" flags are discarded; only the manifest written at upload
+ * time is trusted. A file that is missing or whose bytes no longer match its
+ * manifest is fatal, because that is exactly the tampering this feature exists
+ * to detect.
+ */
+function applyEvidenceIntegrity(rawPhotos: unknown): EvidenceIntegrityResult {
+  const photos: InspectionEvidence[] = [];
+  const fatal: string[] = [];
+  const warnings: string[] = [];
+
+  if (!Array.isArray(rawPhotos)) return { photos, fatal, warnings };
+
+  const uploadDir = getUploadDir();
+
+  for (const raw of rawPhotos.slice(0, 50)) {
+    if (!raw || typeof raw !== 'object') continue;
+    const entry = raw as Record<string, unknown>;
+    const url = typeof entry.url === 'string' ? entry.url.trim() : '';
+    if (!url) continue;
+
+    const base: InspectionEvidence = {
+      fieldId: typeof entry.fieldId === 'string' ? entry.fieldId.slice(0, 200) : '',
+      url,
+      caption: typeof entry.caption === 'string' ? entry.caption.slice(0, 500) : '',
+      timestamp:
+        typeof entry.timestamp === 'string' ? entry.timestamp.slice(0, 100) : new Date().toISOString(),
+      location: typeof entry.location === 'string' ? entry.location.slice(0, 200) : undefined,
+    };
+
+    const filename = extractEvidenceFilename(url);
+    if (!filename) {
+      // Sample assets / external URLs cannot be integrity-checked, so they are
+      // retained but explicitly marked unverified instead of trusted.
+      photos.push({ ...base, integrityVerified: false, integrityReason: 'external_url' });
+      continue;
+    }
+
+    const check = verifyStoredEvidence(uploadDir, filename);
+    if (!check.ok) {
+      if (check.reason === 'missing_file' || check.reason === 'hash_mismatch') {
+        fatal.push(check.reason === 'missing_file' ? `missing_file:${filename}` : `hash_mismatch:${filename}`);
+        continue;
+      }
+      warnings.push(`${check.reason ?? 'unverified'}:${filename}`);
+      photos.push({
+        ...base,
+        integrityVerified: false,
+        integrityReason: check.reason ?? 'unverified',
+      });
+      continue;
+    }
+
+    const manifest = check.manifest!;
+    photos.push({
+      ...base,
+      sha256: manifest.sha256,
+      sizeBytes: manifest.size,
+      integrityVersion: manifest.integrityVersion,
+      integrityVerified: true,
+      gps: manifest.gps,
+      gpsSource: manifest.gpsSource,
+      capturedAt: manifest.capturedAt,
+      capturedAtSource: manifest.capturedAtSource,
+    });
+  }
+
+  return { photos, fatal, warnings };
 }
 
 // ---------------- PROJECTS ----------------
@@ -340,17 +494,35 @@ apiRouter.post('/templates/import', async (req: Request, res: Response) => {
   res.json({ importedCount });
 });
 
-apiRouter.delete('/templates/:id', async (req: Request, res: Response) => {
-  const db = getDb();
-  if (!db || !req.authUser) {
-    res.status(503).json({ error: 'Database not configured.' });
-    return;
-  }
+apiRouter.delete(
+  '/templates/:id',
+  requireRole(['HSE / Quality Manager & Tenant Admin', 'Office / Integrity Engineer']),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
 
-  await db.delete(checklistTemplates).where(eq(checklistTemplates.id, req.params.id));
-  await logAudit(req.authUser.id, req.authUser.name, 'DELETE_TEMPLATE', 'template', req.params.id);
-  res.json({ success: true });
-});
+    // Templates referenced by inspections are part of the audit record; deleting
+    // them would orphan the evidence trail, so the delete is refused instead.
+    const linked = await db
+      .select({ id: inspections.id })
+      .from(inspections)
+      .where(eq(inspections.templateId, req.params.id))
+      .limit(1);
+    if (linked.length > 0) {
+      res.status(409).json({
+        error: 'Template is referenced by existing inspections and cannot be deleted.',
+      });
+      return;
+    }
+
+    await db.delete(checklistTemplates).where(eq(checklistTemplates.id, req.params.id));
+    await logAudit(req.authUser.id, req.authUser.name, 'DELETE_TEMPLATE', 'template', req.params.id);
+    res.json({ success: true });
+  }
+);
 
 // ---------------- INSPECTIONS + DYNAMIC WORKFLOW ----------------
 
@@ -410,19 +582,32 @@ apiRouter.post('/inspections', async (req: Request, res: Response) => {
     .where(eq(checklistTemplates.id, body.templateId))
     .limit(1);
 
+  const answers =
+    body.answers && typeof body.answers === 'object' ? (body.answers as Record<string, unknown>) : {};
+
+  // The client-supplied score, counts and status are ignored. Everything that
+  // decides whether an inspection passes is recomputed here from the template.
+  const score = computeInspectionScore(tmpl, answers);
   const applicableSteps = resolveApplicableWorkflowSteps(
     tmpl,
-    Number(body.failedCount) || 0,
-    Number(body.scorePercent) || 0
+    score.failedCount,
+    score.scorePercent
   );
 
-  let initialStatus: InspectionStatus = body.status || 'submitted';
-  if (initialStatus === 'submitted' || initialStatus === 'under_review') {
-    initialStatus = applicableSteps.length > 0 ? 'under_review' : 'approved';
+  const initialStatus: InspectionStatus = applicableSteps.length > 0 ? 'under_review' : 'approved';
+
+  const evidence = applyEvidenceIntegrity(body.evidencePhotos);
+  if (evidence.fatal.length > 0) {
+    res.status(409).json({
+      error: 'Evidence integrity verification failed. Re-upload the affected photos.',
+      issues: evidence.fatal,
+    });
+    return;
   }
 
   const id = body.id || `insp-${crypto.randomUUID().slice(0, 8)}`;
   const now = new Date();
+  const submittedAt = resolveClientTimestamp(body.submittedAt, now);
 
   const [saved] = await db
     .insert(inspections)
@@ -430,8 +615,8 @@ apiRouter.post('/inspections', async (req: Request, res: Response) => {
       id,
       clientMutationId: body.clientMutationId || null,
       templateId: body.templateId,
-      templateTitle: body.templateTitle,
-      category: body.category,
+      templateTitle: tmpl?.title ?? body.templateTitle,
+      category: tmpl?.category ?? body.category,
       projectId: body.projectId,
       projectName: body.projectName,
       siteZone: body.siteZone,
@@ -440,17 +625,17 @@ apiRouter.post('/inspections', async (req: Request, res: Response) => {
       inspectorRole: req.authUser.role,
       status: initialStatus,
       currentStepIndex: 0,
-      approvalHistory: Array.isArray(body.approvalHistory) ? body.approvalHistory : [],
-      answers: body.answers || {},
-      evidencePhotos: Array.isArray(body.evidencePhotos) ? body.evidencePhotos : [],
+      approvalHistory: [],
+      answers,
+      evidencePhotos: evidence.photos,
       signatureData: body.signatureData || null,
-      scorePercent: Number(body.scorePercent) || 0,
-      passedCount: Number(body.passedCount) || 0,
-      failedCount: Number(body.failedCount) || 0,
-      nonApplicableCount: Number(body.nonApplicableCount) || 0,
-      notes: body.notes || null,
-      submittedAt: body.submittedAt ? new Date(body.submittedAt) : now,
-      createdAt: body.createdAt ? new Date(body.createdAt) : now,
+      scorePercent: score.scorePercent,
+      passedCount: score.passedCount,
+      failedCount: score.failedCount,
+      nonApplicableCount: score.nonApplicableCount,
+      notes: typeof body.notes === 'string' ? body.notes.slice(0, 4000) : null,
+      submittedAt,
+      createdAt: now,
     })
     .returning();
 
@@ -458,6 +643,9 @@ apiRouter.post('/inspections', async (req: Request, res: Response) => {
     templateTitle: saved.templateTitle,
     status: saved.status,
     applicableSteps: applicableSteps.length,
+    scorePercent: saved.scorePercent,
+    evidencePhotos: saved.evidencePhotos.length,
+    evidenceWarnings: evidence.warnings,
   });
 
   if (saved.status === 'under_review') {
@@ -586,17 +774,45 @@ apiRouter.post('/inspections/:id/review', async (req: Request, res: Response) =>
   });
 });
 
-apiRouter.delete('/inspections/:id', async (req: Request, res: Response) => {
-  const db = getDb();
-  if (!db || !req.authUser) {
-    res.status(503).json({ error: 'Database not configured.' });
-    return;
-  }
+apiRouter.delete(
+  '/inspections/:id',
+  requireRole(['HSE / Quality Manager & Tenant Admin']),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
 
-  await db.delete(inspections).where(eq(inspections.id, req.params.id));
-  await logAudit(req.authUser.id, req.authUser.name, 'DELETE_INSPECTION', 'inspection', req.params.id);
-  res.json({ success: true });
-});
+    const [existing] = await db
+      .select()
+      .from(inspections)
+      .where(eq(inspections.id, req.params.id))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ error: 'Inspection not found.' });
+      return;
+    }
+
+    // Approved inspections are signed audit evidence. They may be rejected or
+    // superseded, but never silently erased.
+    if (existing.status === 'approved') {
+      res.status(409).json({
+        error: 'Approved inspections are part of the audit record and cannot be deleted.',
+      });
+      return;
+    }
+
+    await db.delete(inspections).where(eq(inspections.id, req.params.id));
+    await logAudit(req.authUser.id, req.authUser.name, 'DELETE_INSPECTION', 'inspection', req.params.id, {
+      templateTitle: existing.templateTitle,
+      status: existing.status,
+      inspectorId: existing.inspectorId,
+    });
+    res.json({ success: true });
+  }
+);
 
 // ---------------- CORRECTIVE ACTIONS (CAPA) ----------------
 
@@ -792,12 +1008,53 @@ apiRouter.patch(
     const { role, title, isActive, assignedProjects, certifications, password } = req.body ?? {};
     const updates: Record<string, any> = {};
 
-    if (role) updates.role = role;
-    if (typeof title === 'string') updates.title = title;
+    if (role !== undefined && (typeof role !== 'string' || !VALID_ROLES.includes(role as UserRole))) {
+      res.status(400).json({ error: 'Invalid role.' });
+      return;
+    }
+
+    const [target] = await db.select().from(users).where(eq(users.id, req.params.id)).limit(1);
+    if (!target) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    const nextRole = (role as UserRole | undefined) ?? target.role;
+    const nextActive = typeof isActive === 'boolean' ? isActive : target.isActive;
+
+    // Never allow the last active administrator to be demoted or deactivated:
+    // doing so would lock every tenant administrator out permanently.
+    if (
+      target.role === 'HSE / Quality Manager & Tenant Admin' &&
+      (nextRole !== 'HSE / Quality Manager & Tenant Admin' || nextActive === false)
+    ) {
+      const admins = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.role, 'HSE / Quality Manager & Tenant Admin'),
+            eq(users.isActive, true)
+          )
+        );
+      if (admins.filter((a) => a.id !== target.id).length === 0) {
+        res.status(409).json({
+          error: 'Cannot remove the last active tenant administrator.',
+        });
+        return;
+      }
+    }
+
+    if (role) updates.role = nextRole;
+    if (typeof title === 'string') updates.title = title.slice(0, 120);
     if (typeof isActive === 'boolean') updates.isActive = isActive;
     if (Array.isArray(assignedProjects)) updates.assignedProjects = assignedProjects;
     if (Array.isArray(certifications)) updates.certifications = certifications;
     if (typeof password === 'string' && password.trim()) {
+      if (password.trim().length < 8) {
+        res.status(400).json({ error: 'Password must be at least 8 characters.' });
+        return;
+      }
       updates.passwordHash = hashSecret(password.trim());
     }
 
@@ -846,6 +1103,14 @@ apiRouter.post('/users', requireRole(['HSE / Quality Manager & Tenant Admin']), 
     res.status(400).json({ error: 'username, name, email, password, and role are required.' });
     return;
   }
+  if (typeof role !== 'string' || !VALID_ROLES.includes(role as UserRole)) {
+    res.status(400).json({ error: 'Invalid role.' });
+    return;
+  }
+  if (typeof password !== 'string' || password.length < 8) {
+    res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    return;
+  }
 
   const [created] = await db
     .insert(users)
@@ -855,7 +1120,7 @@ apiRouter.post('/users', requireRole(['HSE / Quality Manager & Tenant Admin']), 
       name: String(name).trim(),
       email: String(email).trim(),
       passwordHash: hashSecret(String(password)),
-      role,
+      role: role as UserRole,
       title: title || role,
       avatar: '',
       assignedProjects: Array.isArray(assignedProjects) ? assignedProjects : [],

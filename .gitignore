@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Uploaded evidence must never land in git. It lives on the uploads_data volume
+# in Docker, and is served only through the authenticated, integrity-checked
+# /api/uploads route.
+uploads/
+data/
+*.manifest.json

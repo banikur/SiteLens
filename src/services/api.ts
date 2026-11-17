@@ -125,9 +125,105 @@ export async function apiSaveProject(project: Project): Promise<Project> {
   return res.project;
 }
 
-export async function uploadEvidencePhoto(file: Blob, filename = 'evidence.jpg'): Promise<string> {
+export interface EvidenceGps {
+  latitude: number;
+  longitude: number;
+  accuracyMeters?: number;
+  altitudeMeters?: number;
+}
+
+export interface UploadedEvidence {
+  filename: string;
+  url: string;
+  size: number;
+  sha256: string;
+  integrityVersion: number;
+  manifestUrl?: string;
+  integrity: {
+    verified: boolean;
+    sha256: string;
+    size: number;
+    mimeType: string;
+    gps?: EvidenceGps;
+    gpsSource?: 'exif' | 'client' | 'none';
+    capturedAt?: string;
+    capturedAtSource?: 'exif' | 'client';
+    exif?: { make?: string; model?: string };
+    uploadedAt: string;
+  };
+}
+
+/**
+ * Computes SHA-256 of the exact bytes being uploaded so the server can reject a
+ * body that does not match the declared hash. WebCrypto needs a secure context;
+ * when it is unavailable we simply omit the claim and let the server hash it.
+ */
+async function sha256Hex(blob: Blob): Promise<string | null> {
+  try {
+    const subtle = globalThis.crypto?.subtle;
+    if (!subtle) return null;
+    const buffer = await blob.arrayBuffer();
+    const digest = await subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Best-effort GPS capture. The server treats EXIF GPS as authoritative and only
+ * uses this as a labelled fallback, so a denial or timeout is not an error.
+ */
+function readClientPosition(): Promise<EvidenceGps | null> {
+  return new Promise((resolve) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      resolve(null);
+      return;
+    }
+    let settled = false;
+    const finish = (value: EvidenceGps | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+    try {
+      navigator.geolocation.getCurrentPosition(
+        (pos) =>
+          finish({
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracyMeters: Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : undefined,
+          }),
+        () => finish(null),
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+      );
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+export async function uploadEvidencePhotoDetailed(
+  file: Blob,
+  filename = 'evidence.jpg'
+): Promise<UploadedEvidence> {
+  const [sha256, position] = await Promise.all([sha256Hex(file), readClientPosition()]);
+
   const form = new FormData();
   form.append('file', file, filename);
+  form.append('originalName', filename);
+  form.append('capturedAt', new Date().toISOString());
+  if (sha256) form.append('sha256', sha256);
+  if (position) {
+    form.append('lat', String(position.latitude));
+    form.append('lng', String(position.longitude));
+    if (position.accuracyMeters !== undefined) {
+      form.append('accuracy', String(position.accuracyMeters));
+    }
+  }
+
   const res = await fetch('/api/uploads', {
     method: 'POST',
     credentials: 'include',
@@ -137,6 +233,11 @@ export async function uploadEvidencePhoto(file: Blob, filename = 'evidence.jpg')
   if (!res.ok || !data.url) {
     throw new Error(data.error || 'Photo upload failed.');
   }
-  return data.url;
+  return data as UploadedEvidence;
+}
+
+export async function uploadEvidencePhoto(file: Blob, filename = 'evidence.jpg'): Promise<string> {
+  const uploaded = await uploadEvidencePhotoDetailed(file, filename);
+  return uploaded.url;
 }
 

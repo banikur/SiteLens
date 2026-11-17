@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Fingerprint, KeyRound, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Fingerprint, KeyRound, CheckCircle2, AlertCircle, Lock } from 'lucide-react';
 import {
   AuthenticatedUser,
   registerBiometric,
@@ -24,6 +24,7 @@ export const SecuritySettingsModal: React.FC<SecuritySettingsModalProps> = ({
   const isId = lang === 'id';
 
   const [pin, setPin] = useState('');
+  const [password, setPassword] = useState('');
   const [deviceName, setDeviceName] = useState('');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -35,10 +36,19 @@ export const SecuritySettingsModal: React.FC<SecuritySettingsModalProps> = ({
     e.preventDefault();
     setErrorMsg(null);
     setStatusMsg(null);
+    if (!password) {
+      setErrorMsg(
+        isId
+          ? 'Masukkan password akun untuk konfirmasi sebelum menyimpan PIN.'
+          : 'Enter your account password to confirm before saving a PIN.'
+      );
+      return;
+    }
     setBusy(true);
     try {
-      await setupPin(pin);
+      await setupPin(pin, password);
       setPin('');
+      setPassword('');
       onUpdated({ hasPin: true });
       setStatusMsg(isId ? 'PIN lapangan berhasil disimpan.' : 'Field PIN saved.');
     } catch (err: any) {
@@ -51,10 +61,19 @@ export const SecuritySettingsModal: React.FC<SecuritySettingsModalProps> = ({
   const handleRegisterBiometric = async () => {
     setErrorMsg(null);
     setStatusMsg(null);
+    if (!password) {
+      setErrorMsg(
+        isId
+          ? 'Masukkan password akun untuk konfirmasi sebelum mendaftarkan biometrik.'
+          : 'Enter your account password to confirm before registering a passkey.'
+      );
+      return;
+    }
     setBusy(true);
     try {
-      await registerBiometric(deviceName || undefined);
+      await registerBiometric(password, deviceName || undefined);
       setDeviceName('');
+      setPassword('');
       onUpdated({ passkeysCount: (user.passkeysCount || 0) + 1 });
       setStatusMsg(
         isId
@@ -101,6 +120,32 @@ export const SecuritySettingsModal: React.FC<SecuritySettingsModalProps> = ({
               <span>{errorMsg}</span>
             </div>
           )}
+
+          {/* Step-up re-authentication: both enrolments below mint a permanent
+              login credential, so the session cookie alone is not enough. */}
+          <div className="space-y-1.5 p-3 rounded-lg bg-slate-950/60 border border-slate-800">
+            <label
+              htmlFor="security-confirm-password"
+              className="text-xs font-semibold flex items-center space-x-1.5"
+            >
+              <Lock className="w-3.5 h-3.5 text-amber-400" />
+              <span>{isId ? 'Konfirmasi Password Akun' : 'Confirm Account Password'}</span>
+            </label>
+            <input
+              id="security-confirm-password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-white focus:outline-none focus:border-amber-500"
+            />
+            <p className="text-[10px] leading-relaxed text-slate-500">
+              {isId
+                ? 'Diperlukan sebelum menyimpan PIN atau mendaftarkan biometrik, agar sesi yang dibajak tidak bisa membuat kredensial login baru.'
+                : 'Required before saving a PIN or registering a passkey, so a hijacked session cannot mint a new login credential.'}
+            </p>
+          </div>
 
           {/* PIN Setup */}
           <form onSubmit={handleSavePin} className="space-y-2.5">

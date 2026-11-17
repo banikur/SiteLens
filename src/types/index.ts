@@ -124,12 +124,30 @@ export type InspectionStatus =
   | 'approved'
   | 'rejected';
 
+export interface EvidenceGpsMetadata {
+  latitude: number;
+  longitude: number;
+  altitudeMeters?: number;
+  accuracyMeters?: number;
+}
+
 export interface InspectionEvidence {
   fieldId: string;
   url: string;
   caption: string;
   timestamp: string;
   location?: string;
+  /** SHA-256 of the stored bytes, as recorded by the server manifest. */
+  sha256?: string;
+  sizeBytes?: number;
+  integrityVersion?: number;
+  /** Set by the server on submit; client-supplied values are overwritten. */
+  integrityVerified?: boolean;
+  integrityReason?: string;
+  gps?: EvidenceGpsMetadata;
+  gpsSource?: 'exif' | 'client' | 'none';
+  capturedAt?: string;
+  capturedAtSource?: 'exif' | 'client';
 }
 
 export interface InspectionRecord {

@@ -67,12 +67,12 @@ export async function loginWithPin(
   return data.user;
 }
 
-export async function setupPin(pin: string): Promise<void> {
+export async function setupPin(pin: string, password: string): Promise<void> {
   const res = await fetch('/api/auth/pin-setup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify({ pin }),
+    body: JSON.stringify({ pin, password }),
   });
   const data = await res.json();
   if (!res.ok) {
@@ -80,11 +80,15 @@ export async function setupPin(pin: string): Promise<void> {
   }
 }
 
-export async function registerBiometric(deviceName?: string): Promise<void> {
+export async function registerBiometric(
+  password: string,
+  deviceName?: string
+): Promise<void> {
   const optRes = await fetch('/api/auth/webauthn/register-options', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
+    body: JSON.stringify({ password }),
   });
   const options = await optRes.json();
   if (!optRes.ok) {

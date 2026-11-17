@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import { checkDbHealth } from './src/server/db/index.ts';
-import { attachSessionUser } from './src/server/auth/middleware.ts';
+import { attachSessionUser, requireAuth } from './src/server/auth/middleware.ts';
 import { authRouter } from './src/server/routes/auth.ts';
 import { apiRouter } from './src/server/routes/api.ts';
 import { uploadsRouter } from './src/server/routes/uploads.ts';
@@ -15,6 +15,39 @@ import { tenantRouter } from './src/server/routes/tenant.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const AI_GENERATE_LIMIT = 10;
+const AI_GENERATE_WINDOW_MS = 60 * 60 * 1000;
+const aiGenerateWindows = new Map<string, { count: number; resetAt: number }>();
+
+/**
+ * Per-user quota for the paid Gemini template generator. Without this an
+ * authenticated account could loop the endpoint and burn the tenant's API
+ * quota; a global limit would instead let one user lock everyone else out.
+ */
+function consumeAiGenerateQuota(userId: string): { allowed: boolean; retryAfterSeconds: number } {
+  const now = Date.now();
+
+  if (aiGenerateWindows.size > 5000) {
+    for (const [key, window] of aiGenerateWindows) {
+      if (window.resetAt <= now) aiGenerateWindows.delete(key);
+    }
+  }
+
+  const entry = aiGenerateWindows.get(userId);
+  if (!entry || entry.resetAt <= now) {
+    aiGenerateWindows.set(userId, { count: 1, resetAt: now + AI_GENERATE_WINDOW_MS });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+  if (entry.count >= AI_GENERATE_LIMIT) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.max(1, Math.ceil((entry.resetAt - now) / 1000)),
+    };
+  }
+  entry.count += 1;
+  return { allowed: true, retryAfterSeconds: 0 };
+}
 
 function getAiClient(): GoogleGenAI | null {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
@@ -34,6 +67,59 @@ function getAiClient(): GoogleGenAI | null {
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Behind Caddy/nginx the socket address is the proxy, not the client. Without
+  // this, every user shares one rate-limit bucket (pin/login) and one lockout.
+  const trustProxyEnv = process.env.TRUST_PROXY;
+  const trustProxy =
+    trustProxyEnv !== undefined
+      ? trustProxyEnv === 'false' || trustProxyEnv === '0'
+        ? false
+        : trustProxyEnv === 'true'
+        ? 1
+        : Number(trustProxyEnv) || 1
+      : process.env.NODE_ENV === 'production'
+      ? 1
+      : false;
+  app.set('trust proxy', trustProxy);
+  app.disable('x-powered-by');
+
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // The SPA is a Vite build that loads Google Fonts, so CSP must allow those
+  // hosts plus data:/blob: images (evidence photos and previews). Dev mode
+  // relaxes script-src and connect-src because Vite injects an inline HMR
+  // preamble and opens a WebSocket; production allows neither.
+  const contentSecurityPolicy = [
+    "default-src 'self'",
+    isProduction ? "script-src 'self'" : "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "img-src 'self' data: blob:",
+    isProduction ? "connect-src 'self'" : "connect-src 'self' ws: wss:",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    ...(isProduction ? ['upgrade-insecure-requests'] : []),
+  ].join('; ');
+
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(self), microphone=()');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+    res.setHeader('Content-Security-Policy', contentSecurityPolicy);
+    if (isProduction) {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
 
   app.use(express.json({ limit: '5mb' }));
   app.use(cookieParser());
@@ -60,8 +146,22 @@ async function startServer() {
   });
 
   // AI Checklist Template Generator Endpoint
-  app.post('/api/templates/generate', async (req, res) => {
+  app.post('/api/templates/generate', requireAuth, async (req, res) => {
     try {
+      if (!req.authUser) {
+        res.status(401).json({ error: 'Authentication required.' });
+        return;
+      }
+
+      const quota = consumeAiGenerateQuota(req.authUser.id);
+      if (!quota.allowed) {
+        res.setHeader('Retry-After', String(quota.retryAfterSeconds));
+        res.status(429).json({
+          error: 'AI template generation quota exceeded. Please retry later.',
+        });
+        return;
+      }
+
       const ai = getAiClient();
       if (!ai) {
         res.status(503).json({

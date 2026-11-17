@@ -20,7 +20,7 @@ import {
 } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { OcrScannerModal } from './OcrScannerModal';
-import { uploadEvidencePhoto } from '../services/api';
+import { uploadEvidencePhotoDetailed, type UploadedEvidence } from '../services/api';
 import { queueOfflinePhoto } from '../services/offlineQueue';
 
 interface InspectionExecutionProps {
@@ -86,7 +86,11 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
     },
   ];
 
-  const handleCapturePhoto = (fieldId: string, customUrl?: string) => {
+  const handleCapturePhoto = (
+    fieldId: string,
+    customUrl?: string,
+    integrity?: UploadedEvidence['integrity']
+  ) => {
     const chosenUrl =
       customUrl ||
       sampleEvidenceAssets[
@@ -105,6 +109,17 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
         minute: '2-digit',
       }),
       location: selectedZone,
+      ...(integrity
+        ? {
+            sha256: integrity.sha256,
+            sizeBytes: integrity.size,
+            integrityVersion: 1,
+            gps: integrity.gps,
+            gpsSource: integrity.gpsSource,
+            capturedAt: integrity.capturedAt,
+            capturedAtSource: integrity.capturedAtSource,
+          }
+        : {}),
     };
 
     setEvidencePhotos((prev) => [
@@ -117,8 +132,8 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
   const handlePhotoFileUpload = async (fieldId: string, file: File) => {
     if (navigator.onLine) {
       try {
-        const uploadedUrl = await uploadEvidencePhoto(file, file.name);
-        handleCapturePhoto(fieldId, uploadedUrl);
+        const uploaded = await uploadEvidencePhotoDetailed(file, file.name);
+        handleCapturePhoto(fieldId, uploaded.url, uploaded.integrity);
         return;
       } catch {
         // Fall through to offline queue
