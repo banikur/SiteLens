@@ -64,6 +64,11 @@ export const TRANSLATIONS = {
       'Site Logistics': 'Site Logistics',
     },
     roles: {
+      'Field / QC Inspector': 'Field / QC Inspector',
+      'Action Owner / Subcontractor': 'Action Owner / Subcontractor',
+      'Project / Site Engineer': 'Project / Site Engineer',
+      'QA/QC Lead / Owner Inspector': 'QA/QC Lead / Owner Inspector',
+      'Project Director & Tenant Admin': 'Project Director & Tenant Admin',
       'Field Inspector / Petugas K3': 'Field Inspector / Petugas K3',
       'Action Owner / Pelaksana Perbaikan': 'Action Owner / Pelaksana Perbaikan',
       'Office / Integrity Engineer': 'Office / Integrity Engineer',
@@ -446,6 +451,11 @@ export const TRANSLATIONS = {
       'Site Logistics': 'Logistik Proyek',
     },
     roles: {
+      'Field / QC Inspector': 'Inspektur Lapangan / QC',
+      'Action Owner / Subcontractor': 'Pelaksana / Subkontraktor',
+      'Project / Site Engineer': 'Project / Site Engineer',
+      'QA/QC Lead / Owner Inspector': 'QA/QC Lead / Pengawas Owner',
+      'Project Director & Tenant Admin': 'Project Director & Admin Tenant',
       'Field Inspector / Petugas K3': 'Petugas K3 / Inspektur Lapangan',
       'Action Owner / Pelaksana Perbaikan': 'Pelaksana Perbaikan (Action Owner)',
       'Office / Integrity Engineer': 'Insinyur Integritas (Integrity Engineer)',
