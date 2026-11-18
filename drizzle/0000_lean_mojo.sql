@@ -1,4 +1,4 @@
-CREATE TABLE "audit_logs" (
+cCREATE TABLE "audit_logs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"actor_id" text,
 	"actor_name" text NOT NULL,
@@ -8,6 +8,8 @@ CREATE TABLE "audit_logs" (
 	"metadata" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
+--> statement-breakpoint
+ALTER TABLE "audit_logs" ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 CREATE TABLE "checklist_templates" (
 	"id" text PRIMARY KEY NOT NULL,
@@ -34,6 +36,8 @@ CREATE TABLE "checklist_templates" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "checklist_templates" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE TABLE "corrective_actions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"inspection_id" text NOT NULL,
@@ -53,6 +57,8 @@ CREATE TABLE "corrective_actions" (
 	"resolution_notes" text,
 	"evidence_photo_url" text
 );
+--> statement-breakpoint
+ALTER TABLE "corrective_actions" ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 CREATE TABLE "inspections" (
 	"id" text PRIMARY KEY NOT NULL,
@@ -86,6 +92,8 @@ CREATE TABLE "inspections" (
 	CONSTRAINT "inspections_client_mutation_id_unique" UNIQUE("client_mutation_id")
 );
 --> statement-breakpoint
+ALTER TABLE "inspections" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE TABLE "notification_settings" (
 	"id" text PRIMARY KEY NOT NULL,
 	"smtp_host" text,
@@ -100,6 +108,8 @@ CREATE TABLE "notification_settings" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "notification_settings" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE TABLE "projects" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
@@ -113,12 +123,16 @@ CREATE TABLE "projects" (
 	CONSTRAINT "projects_code_unique" UNIQUE("code")
 );
 --> statement-breakpoint
+ALTER TABLE "projects" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE TABLE "sessions" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"expires_at" timestamp with time zone NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
+--> statement-breakpoint
+ALTER TABLE "sessions" ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 CREATE TABLE "users" (
 	"id" text PRIMARY KEY NOT NULL,
@@ -138,6 +152,8 @@ CREATE TABLE "users" (
 	CONSTRAINT "users_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
+ALTER TABLE "users" ENABLE ROW LEVEL SECURITY;
+--> statement-breakpoint
 CREATE TABLE "webauthn_credentials" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
@@ -149,6 +165,8 @@ CREATE TABLE "webauthn_credentials" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "webauthn_credentials_credential_id_unique" UNIQUE("credential_id")
 );
+--> statement-breakpoint
+ALTER TABLE "webauthn_credentials" ENABLE ROW LEVEL SECURITY;
 --> statement-breakpoint
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actor_id_users_id_fk" FOREIGN KEY ("actor_id") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "checklist_templates" ADD CONSTRAINT "checklist_templates_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "public"."projects"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint

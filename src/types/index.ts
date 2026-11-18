@@ -1,4 +1,10 @@
 export type UserRole =
+  | 'Field / QC Inspector'
+  | 'Action Owner / Subcontractor'
+  | 'Project / Site Engineer'
+  | 'QA/QC Lead / Owner Inspector'
+  | 'Project Director & Tenant Admin'
+  // Legacy aliases for backward compatibility
   | 'Field Inspector / Petugas K3'
   | 'Action Owner / Pelaksana Perbaikan'
   | 'Office / Integrity Engineer'

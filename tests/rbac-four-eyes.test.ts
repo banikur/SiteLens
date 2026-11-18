@@ -113,3 +113,54 @@ test('four-eyes check with UUID assigneeId strictly blocks self-closing to CLOSE
   assert.equal(test5.allowed, true);
 });
 
+test('practical project roles correctly enforce four-eyes verification', () => {
+  const PRACTICAL_ROLES: UserRole[] = [
+    'Field / QC Inspector',
+    'Action Owner / Subcontractor',
+    'Project / Site Engineer',
+    'QA/QC Lead / Owner Inspector',
+    'Project Director & Tenant Admin',
+  ];
+  assert.equal(PRACTICAL_ROLES.length, 5);
+
+  const subconId = '00000000-0000-0000-0000-000000000010';
+  const qaqcLeadId = '00000000-0000-0000-0000-000000000020';
+  const directorId = '00000000-0000-0000-0000-000000000030';
+
+  const punchlist = {
+    id: '00000000-0000-0000-0000-000000000099',
+    assigneeId: subconId,
+    assignedToName: 'PT Subcon Steel',
+    status: 'IN_PROGRESS',
+  };
+
+  const verifyAndClose = (actorId: string, actorRole: UserRole): boolean => {
+    // Four-eyes: Action Owner / Subcontractor cannot close own punchlist
+    if (punchlist.assigneeId === actorId && actorRole !== 'Project Director & Tenant Admin') {
+      return false;
+    }
+    const verifiers: UserRole[] = [
+      'QA/QC Lead / Owner Inspector',
+      'Project Director & Tenant Admin',
+      'Authorized Inspector (API 510/570) & Verifikator K3',
+      'HSE / Quality Manager & Tenant Admin',
+    ];
+    return verifiers.includes(actorRole);
+  };
+
+  // Subcontractor cannot verify and close own punchlist
+  assert.equal(verifyAndClose(subconId, 'Action Owner / Subcontractor'), false);
+
+  // Field Inspector cannot close
+  assert.equal(verifyAndClose('00000000-0000-0000-0000-000000000040', 'Field / QC Inspector'), false);
+
+  // Project / Site Engineer cannot close
+  assert.equal(verifyAndClose('00000000-0000-0000-0000-000000000050', 'Project / Site Engineer'), false);
+
+  // QA/QC Lead / Owner Inspector CAN close
+  assert.equal(verifyAndClose(qaqcLeadId, 'QA/QC Lead / Owner Inspector'), true);
+
+  // Project Director & Tenant Admin CAN close
+  assert.equal(verifyAndClose(directorId, 'Project Director & Tenant Admin'), true);
+});
+

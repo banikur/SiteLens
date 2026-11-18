@@ -13,3 +13,5 @@ coverage/
 uploads/
 data/
 *.manifest.json
+/docs
+/.codegraph

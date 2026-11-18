@@ -30,8 +30,8 @@ export async function attachSessionUser(
   req.authUser = null;
   req.sessionId = null;
 
-  const rawToken = req.cookies?.[SESSION_COOKIE_NAME];
-  if (!rawToken || typeof rawToken !== 'string') {
+  const sessionCookie = (req.cookies as Record<string, unknown> | undefined)?.[SESSION_COOKIE_NAME];
+  if (!sessionCookie || typeof sessionCookie !== 'string') {
     next();
     return;
   }
@@ -43,7 +43,7 @@ export async function attachSessionUser(
   }
 
   try {
-    const tokenHash = hashSessionToken(rawToken);
+    const tokenHash = hashSessionToken(sessionCookie);
     const now = new Date();
     const rows = await db
       .select({
@@ -86,13 +86,31 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
+const ROLE_EQUIVALENTS: Record<string, string[]> = {
+  'Project Director & Tenant Admin': ['Project Director & Tenant Admin', 'HSE / Quality Manager & Tenant Admin'],
+  'HSE / Quality Manager & Tenant Admin': ['Project Director & Tenant Admin', 'HSE / Quality Manager & Tenant Admin'],
+  'QA/QC Lead / Owner Inspector': ['QA/QC Lead / Owner Inspector', 'Authorized Inspector (API 510/570) & Verifikator K3'],
+  'Authorized Inspector (API 510/570) & Verifikator K3': ['QA/QC Lead / Owner Inspector', 'Authorized Inspector (API 510/570) & Verifikator K3'],
+  'Project / Site Engineer': ['Project / Site Engineer', 'Office / Integrity Engineer'],
+  'Office / Integrity Engineer': ['Project / Site Engineer', 'Office / Integrity Engineer'],
+  'Action Owner / Subcontractor': ['Action Owner / Subcontractor', 'Action Owner / Pelaksana Perbaikan'],
+  'Action Owner / Pelaksana Perbaikan': ['Action Owner / Subcontractor', 'Action Owner / Pelaksana Perbaikan'],
+  'Field / QC Inspector': ['Field / QC Inspector', 'Field Inspector / Petugas K3'],
+  'Field Inspector / Petugas K3': ['Field / QC Inspector', 'Field Inspector / Petugas K3'],
+};
+
 export function requireRole(allowedRoles: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.authUser) {
       res.status(401).json({ error: 'Authentication required.' });
       return;
     }
-    if (!allowedRoles.includes(req.authUser.role)) {
+    const userRole = req.authUser.role;
+    const allowed = allowedRoles.some((role) => {
+      const equivalents = ROLE_EQUIVALENTS[role] || [role];
+      return equivalents.includes(userRole);
+    });
+    if (!allowed) {
       res.status(403).json({ error: 'Insufficient role permissions.' });
       return;
     }

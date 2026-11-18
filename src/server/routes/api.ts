@@ -358,6 +358,20 @@ apiRouter.post('/templates', async (req: Request, res: Response) => {
   const id = t.id || `tmpl-${crypto.randomUUID().slice(0, 8)}`;
   const now = new Date();
 
+  let verifiedProjectId: string | null = null;
+  if (t.projectId) {
+    const [matchedProject] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.id, t.projectId))
+      .limit(1);
+    if (!matchedProject) {
+      res.status(404).json({ error: 'Project not found' });
+      return;
+    }
+    verifiedProjectId = matchedProject.id;
+  }
+
   const [saved] = await db
     .insert(checklistTemplates)
     .values({
@@ -369,7 +383,7 @@ apiRouter.post('/templates', async (req: Request, res: Response) => {
       standardBody: t.standardBody || 'Custom',
       standardCode: t.standardCode || null,
       documentControlNo: t.documentControlNo || null,
-      projectId: t.projectId || null,
+      projectId: verifiedProjectId,
       targetRole: t.targetRole || null,
       requiresApproval: Boolean(t.requiresApproval || (t.workflowSteps && t.workflowSteps.length > 0)),
       approvalRole: t.approvalRole || t.workflowSteps?.[0]?.role || null,
@@ -394,7 +408,7 @@ apiRouter.post('/templates', async (req: Request, res: Response) => {
         standardBody: t.standardBody || 'Custom',
         standardCode: t.standardCode || null,
         documentControlNo: t.documentControlNo || null,
-        projectId: t.projectId || null,
+        projectId: verifiedProjectId,
         targetRole: t.targetRole || null,
         requiresApproval: Boolean(t.requiresApproval || (t.workflowSteps && t.workflowSteps.length > 0)),
         approvalRole: t.approvalRole || t.workflowSteps?.[0]?.role || null,
@@ -441,6 +455,7 @@ apiRouter.post('/templates/import', async (req: Request, res: Response) => {
   for (const t of incoming as ChecklistTemplate[]) {
     if (!t.title || !t.category) continue;
     const id = t.id || `tmpl-pack-${crypto.randomUUID().slice(0, 8)}`;
+    const templateProjectId: string | null = null;
     await db
       .insert(checklistTemplates)
       .values({
@@ -452,7 +467,7 @@ apiRouter.post('/templates/import', async (req: Request, res: Response) => {
         standardBody: t.standardBody || 'Custom',
         standardCode: t.standardCode || null,
         documentControlNo: t.documentControlNo || null,
-        projectId: t.projectId || null,
+        projectId: templateProjectId,
         targetRole: t.targetRole || null,
         requiresApproval: Boolean(t.requiresApproval || (t.workflowSteps && t.workflowSteps.length > 0)),
         approvalRole: t.approvalRole || t.workflowSteps?.[0]?.role || null,
@@ -605,6 +620,15 @@ apiRouter.post('/inspections', async (req: Request, res: Response) => {
     return;
   }
 
+  const [matchedProj] = await db
+    .select({ id: projects.id, name: projects.name })
+    .from(projects)
+    .where(eq(projects.id, body.projectId))
+    .limit(1);
+
+  const targetProjectId = matchedProj ? matchedProj.id : body.projectId;
+  const targetProjectName = matchedProj ? matchedProj.name : body.projectName;
+
   const id = body.id || `insp-${crypto.randomUUID().slice(0, 8)}`;
   const now = new Date();
   const submittedAt = resolveClientTimestamp(body.submittedAt, now);
@@ -617,8 +641,8 @@ apiRouter.post('/inspections', async (req: Request, res: Response) => {
       templateId: body.templateId,
       templateTitle: tmpl?.title ?? body.templateTitle,
       category: tmpl?.category ?? body.category,
-      projectId: body.projectId,
-      projectName: body.projectName,
+      projectId: targetProjectId,
+      projectName: targetProjectName,
       siteZone: body.siteZone,
       inspectorId: req.authUser.id,
       inspectorName: req.authUser.name,
@@ -847,14 +871,41 @@ apiRouter.post('/actions', async (req: Request, res: Response) => {
   const a = req.body;
   const id = a.id || `act-${crypto.randomUUID().slice(0, 8)}`;
 
+  let actionProjectId: string = a.projectId;
+  let actionProjectName: string = a.projectName;
+  if (a.inspectionId) {
+    const [existingInspection] = await db
+      .select({
+        projectId: inspections.projectId,
+        projectName: inspections.projectName,
+      })
+      .from(inspections)
+      .where(eq(inspections.id, a.inspectionId))
+      .limit(1);
+    if (existingInspection) {
+      actionProjectId = existingInspection.projectId;
+      actionProjectName = existingInspection.projectName;
+    }
+  } else if (a.projectId) {
+    const [existingProj] = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, a.projectId))
+      .limit(1);
+    if (existingProj) {
+      actionProjectId = existingProj.id;
+      actionProjectName = existingProj.name;
+    }
+  }
+
   const [saved] = await db
     .insert(correctiveActions)
     .values({
       id,
       inspectionId: a.inspectionId,
       inspectionTitle: a.inspectionTitle,
-      projectId: a.projectId,
-      projectName: a.projectName,
+      projectId: actionProjectId,
+      projectName: actionProjectName,
       siteZone: a.siteZone,
       fieldLabel: a.fieldLabel,
       issueDescription: a.issueDescription,

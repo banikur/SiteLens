@@ -181,8 +181,8 @@ async function createSessionCookie(res: Response, userId: string) {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
 
-  const rawToken = generateSessionToken();
-  const tokenHash = hashSessionToken(rawToken);
+  const newSessionValue = generateSessionToken();
+  const tokenHash = hashSessionToken(newSessionValue);
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
 
   await db.insert(sessions).values({
@@ -191,7 +191,7 @@ async function createSessionCookie(res: Response, userId: string) {
     expiresAt,
   });
 
-  res.cookie(SESSION_COOKIE_NAME, rawToken, {
+  res.cookie(SESSION_COOKIE_NAME, newSessionValue, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -479,9 +479,9 @@ authRouter.post('/webauthn/login-options', async (req: Request, res: Response) =
     allowCredentials,
   });
 
-  const challengeToken = crypto.randomUUID();
-  storeChallenge(`auth:${challengeToken}`, options.challenge);
-  res.json({ options, challengeToken });
+  const challengeId = crypto.randomUUID();
+  storeChallenge(`auth:${challengeId}`, options.challenge);
+  res.json({ options, challengeToken: challengeId });
 });
 
 authRouter.post('/webauthn/login-verify', async (req: Request, res: Response) => {

@@ -20,7 +20,9 @@ COPY --from=builder /app/server.ts ./server.ts
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
 
-RUN mkdir -p /data/uploads
+RUN mkdir -p /data/uploads && chown -R node:node /data/uploads /app
+
+USER node
 
 EXPOSE 3000
 

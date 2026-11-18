@@ -24,6 +24,31 @@ const ROLE_DESCRIPTIONS_EN: Record<
   UserRole,
   { duties: string; primaryFocus: string }
 > = {
+  'Field / QC Inspector': {
+    duties:
+      'Executes field inspection sessions from active checklists, captures time-stamped photo evidence, marks checkpoints (Pass/Fail), and issues punchlist defects.',
+    primaryFocus: 'Field Quality Control, Mobile Checklists & Physical Verification',
+  },
+  'Action Owner / Subcontractor': {
+    duties:
+      'Receives punchlist assignments, implements physical rectifications on-site, and uploads post-repair photographic proof.',
+    primaryFocus: 'Physical Remediation Execution & Defect Rectification',
+  },
+  'Project / Site Engineer': {
+    duties:
+      'Manages milestone WBS in Project Setup Studio, coordinates schedule timelines and progress weights, and issues Requests for Inspection (RFI).',
+    primaryFocus: 'Milestone Planning, RFI Initiation & Progress Claim Coordination',
+  },
+  'QA/QC Lead / Owner Inspector': {
+    duties:
+      'Signs off joint inspection reports (four-eyes check), validates resolution of critical punchlist items, and officially certifies verified physical progress.',
+    primaryFocus: 'Independent Inspection Sign-off, Quality Gatekeeping & Progress Certification',
+  },
+  'Project Director & Tenant Admin': {
+    duties:
+      'Monitors Dual-Track S-Curve (Target vs Verified Progress), oversees Bottleneck Radar, governs project setup studios, and exports official weekly progress reports.',
+    primaryFocus: 'Executive Progress Governance, Bottleneck Removal & System Administration',
+  },
   'Field Inspector / Petugas K3': {
     duties:
       'Executes inspection sessions from active templates, records SHA-256 hashed and GPS geotagged photo evidence, captures field UT thickness readings, and exercises Stop Work Authority (SWA) for critical hazards.',
@@ -55,6 +80,31 @@ const ROLE_DESCRIPTIONS_ID: Record<
   UserRole,
   { duties: string; primaryFocus: string }
 > = {
+  'Field / QC Inspector': {
+    duties:
+      'Menjalankan sesi inspeksi lapangan, merekam foto bukti bertanda waktu, menandai poin pemeriksaan (Pass/Fail), dan menerbitkan temuan cacat (punchlist).',
+    primaryFocus: 'Kontrol Kualitas Lapangan, Checklist Seluler & Verifikasi Fisik',
+  },
+  'Action Owner / Subcontractor': {
+    duties:
+      'Menerima disposisi perbaikan punchlist, mengeksekusi perbaikan fisik di lapangan, dan mengunggah foto bukti pasca-perbaikan.',
+    primaryFocus: 'Pelaksanaan Remediasi Fisik & Penyelesaian Cacat',
+  },
+  'Project / Site Engineer': {
+    duties:
+      'Mengelola milestone WBS di Project Setup Studio, menyusun target jadwal dan bobot progres, serta mengajukan Request for Inspection (RFI).',
+    primaryFocus: 'Perencanaan Milestone, Pengajuan RFI & Koordinasi Klaim Progres',
+  },
+  'QA/QC Lead / Owner Inspector': {
+    duties:
+      'Mengesahkan laporan inspeksi bersama (four-eyes check), memverifikasi penutupan punchlist kritis, dan mengesahkan progress fisik terverifikasi.',
+    primaryFocus: 'Pengesahan Laporan Independen, Gatekeeper Mutu & Verifikasi Progres Fisik',
+  },
+  'Project Director & Tenant Admin': {
+    duties:
+      'Memantau Kurva-S Dual-Track (Target vs Verified Progress), memonitor Bottleneck Radar, mengelola setup proyek, dan mengekspor laporan mingguan resmi.',
+    primaryFocus: 'Pengawasan Eksekutif Proyek, Eliminasi Bottleneck & Tata Kelola Sistem',
+  },
   'Field Inspector / Petugas K3': {
     duties:
       'Menjalankan sesi inspeksi dari template aktif, merekam foto bukti ber-geotag GPS dan hash SHA-256, mencatat pembacaan ketebalan UT, dan memicu Stop Work Authority (SWA) untuk temuan kritikal.',
@@ -533,7 +583,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                   disabled={busy}
                   className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
                 >
-                  {busy ? '...' : isId ? 'Ubah Password' : 'Change Password'}
+                  {busy ? '...' : isId ? 'Simpan Sandi' : 'Save Changes'}
                 </button>
               </div>
             </form>

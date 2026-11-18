@@ -1,50 +1,48 @@
-# SiteLens — Platform Inspeksi Lapangan, Master-Data Checklist, dan CAPA Self-Hosted
+# SiteLens — Platform Monitoring Bottleneck Laporan Inspeksi & Verifikasi Progress Proyek
 
-SiteLens adalah platform perangkat lunak **dedicated dan self-hosted (single-tenant)** yang dirancang untuk menyatukan inspeksi lapangan, master-data daftar periksa (checklist), kalkulasi rekayasa integritas peralatan bertekanan (API 510, API 570, ASME), serta siklus penanganan Tindakan Korektif dan Preventif (CAPA) *closed-loop* untuk sektor konstruksi, migas, dan industri proses.
+SiteLens adalah platform perangkat lunak **dedicated dan self-hosted (single-tenant)** yang dirancang untuk mengatasi **bottleneck laporan inspeksi / Request for Inspection (RFI)** dan menjamin **validitas progress fisik pekerjaan (*verifiable progress*)** untuk sektor EPC, konstruksi sipil, mekanikal, instalasi, dan pengadaan.
 
-Platform ini mengadopsi prinsip **keterlacakan independen dan four-eyes principle** (ISO 9001:2015 Klausul 10.2, ISO 45001:2018, API 510/570) serta kepatuhan ganda regulasi K3 nasional Indonesia (**SMK3 PP No. 50/2012** dan **Bahan Kimia Berbahaya Kepmenaker 187/1999**).
-
----
-
-## 5 Peran Resmi Sistem (Enterprise RBAC)
-
-Mengacu pada Bagian 1 Dokumen Spesifikasi Produk (PRD), SiteLens menegakkan 5 peran resmi beserta batas wewenang ketat di lapisan backend:
-
-1. **`Field Inspector / Petugas K3`** (Mobile & Web)  
-   Menjalankan sesi inspeksi, merekam bukti foto ber-geotag GPS dan hash SHA-256, mencatat pembacaan ketebalan UT, dan memicu *Stop Work Authority* (SWA) untuk temuan kritikal. *Tidak dapat menutup CAPA sendiri atau mengubah rumus rekayasa.*
-2. **`Action Owner / Pelaksana Perbaikan`** (Mobile & Web)  
-   Menerima tindakan koreksi segera (*containment/ICA*) dan rencana korektif permanen (*PCA*), memperbarui progres kerja, dan mengunggah foto pasca-perbaikan. *Dilarang keras memverifikasi atau menutup tindakannya sendiri.*
-3. **`Office / Integrity Engineer`** (Web)  
-   Mengelola sirkuit perpipaan, bejana tekan, dan CML; memvalidasi laju korosi (*governing rate*); mengevaluasi batas ketebalan minimum ($t_{min}$), Fitness-For-Service (FFS API 579-1), rerating, dan peninjauan deferral.
-4. **`Authorized Inspector (API 510/570) & Verifikator K3`** (Web & Mobile)  
-   Mengesahkan laporan inspeksi integritas bertekanan, melakukan verifikasi fisik implementasi perbaikan (*four-eyes check*), dan mengevaluasi efektivitas pasca-jendela pemantauan 30–90 hari.
-5. **`HSE / Quality Manager & Tenant Admin`** (Web)  
-   Mengonfigurasi profil tenant (target tingkat SMK3 & status Major Hazard), mengelola master template ISO/ASME/API, provisioning user, dan memantau KPI keselamatan (FR, SR, tren CAPA).
+Platform ini menghubungkan eksekusi inspeksi lapangan langsung ke milestone proyek dengan prinsip **keterlacakan independen dan four-eyes principle**: progres pekerjaan tidak dapat diakui sepihak sebelum diverifikasi secara fisik melalui checklist inspeksi dan bebas dari temuan cacat kritis/mayor (*punchlist gate*).
 
 ---
 
-## Kemampuan Utama Sesuai PRD
+## 5 Peran Praktis Proyek (Enterprise RBAC)
 
-- **Dual-Compliance Mechanism:** Otomatis memetakan temuan inspeksi ke 12 Elemen Audit SMK3 (PP No. 50/2012) dan Klausul ISO 45001:2018, dilengkapi deteksi Instalasi Potensi Bahaya Besar (Major Hazard) berbasis Nilai Ambang Kuantitas (NAK Kepmenaker 187/1999).
-- **Master-Data Aset Fisik & Registri Legalitas:**
-  - **Piping Circuit & CML (API 570 / API RP 574):** Seed dimensi ASME B36.10M (NPS 1/8 s.d. NPS 36), batas toleransi pabrik -12.5%, dan alert thickness.
-  - **Bejana Tekan (API 510 / ASME BPVC Section VIII Div. 1):** Komponen shell, head elipsoidal 2:1, nozzle, dan efisiensi sambungan las (UW-12).
-  - **Registri PAA & Lisensi Personel:** Pelacakan masa berlaku Suket K3/SIA Kemnaker (Permenaker 8/2020), SILO Migas, dan SIO Operator dengan penguncian operasional otomatis (`PROHIBITED_DO_NOT_OPERATE`) jika kedaluwarsa.
-  - **Soft Archive & Restore:** Mencegah perusakan riwayat audit dan pemeliharaan historis.
-- **Engine Rekayasa Integritas Deterministik:**
-  - Laju korosi jangka panjang ($CR_{LT}$), jangka pendek ($CR_{ST}$), laju penentu $CR_{gov} = \max(CR_{LT}, CR_{ST})$, dan Coefficient of Variation ($COV > 10\%$).
-  - Perhitungan $t_{min}$ (ASME B31.3 & UG-27) dan Remaining Life ($RL$).
-  - Proyeksi MAWP berlanjut dengan aturan korosi ganda ($2 \cdot CR \cdot I$) dan pembesaran jari-jari dalam terkorosi ($R_{corr}$).
-  - Validator 3-syarat *Widely Scattered Pitting* (API 510 Par. 7.4.3).
-- **Tata Kelola Bukti Anti-Tampering:**
-  - Komputasi hash SHA-256 (`file_hash_sha256`) langsung di browser/PWA via Web Crypto API.
-  - Perekaman koordinat GPS (latitude, longitude) dan stempel waktu ISO 8601 UTC (`captured_at`).
-  - Verifikasi ulang nilai hash oleh server saat pengunggahan untuk mencegah pemalsuan foto bukti.
-- **State Machine CAPA Closed-Loop:**
-  - Transisi status: `OPEN` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `PENDING_VERIFICATION` $\rightarrow$ `EFFECTIVENESS_MONITORING` (30–90 hari) $\rightarrow$ `CLOSED`.
-  - Penegakan **Four-Eyes Principle**: Pemisahan tegas penanggung jawab perbaikan dan verifikator independen.
-  - SLA otomatis berbasis Matriks Risiko $5 \times 5$: Critical (1x24 jam), High (3x24 jam), Medium (7 hari), Low (14 hari).
-  - Kalkulator metrik keselamatan kerja: Frequency Rate (FR) dan Severity Rate (SR) per 1.000.000 jam kerja.
+SiteLens membagi wewenang operasional proyek ke dalam 5 peran praktis dengan penegakan izin ketat di lapisan backend:
+
+1. **`Field / QC Inspector`** (Mobile PWA & Web)  
+   Menjalankan sesi inspeksi lapangan secara *offline-first*, merekam bukti foto bertanda waktu, menandai poin pemeriksaan (Pass/Fail), dan menerbitkan temuan cacat (*punchlist*). *Tidak dapat menutup temuannya sendiri tanpa verifikasi pihak independen.*
+2. **`Action Owner / Subcontractor`** (Mobile & Web)  
+   Menerima disposisi perbaikan punchlist/CAPA, memperbarui progres perbaikan di lapangan, dan mengunggah foto bukti pasca-perbaikan. *Dilarang keras memverifikasi atau menutup pekerjaannya sendiri.*
+3. **`Project / Site Engineer`** (Web)  
+   Mengelola milestone WBS di Project Setup Studio, mengatur bobot progres (%), menyusun target timeline jadwal, dan mengajukan permintaan inspeksi (RFI).
+4. **`QA/QC Lead / Owner Inspector`** (Web & Mobile)  
+   Menandatangani persetujuan laporan inspeksi (*four-eyes check*), memvalidasi penutupan punchlist kritis, dan mengesahkan klaim progress fisik pekerjaan.
+5. **`Project Director & Tenant Admin`** (Web)  
+   Memantau dasbor Kurva-S (*Target Timeline vs Verified Physical Progress*), memonitor *Bottleneck Radar* (laporan inspeksi yang tersendat), mengelola akses tim, dan mengekspor laporan mingguan resmi.
+
+---
+
+## Kemampuan Inti Platform
+
+- **Project Setup Studio & Milestone WBS Engine:**
+  - Pilihan cepat: **General EPC / Civil Pack** (milestone standar) atau **Blank Canvas** (kustom dari nol).
+  - Alokasi bobot milestone berimbang (total 100%) dan target jadwal (Start/End Date).
+  - Pengikatan checklist inspeksi wajib (*Inspection Gate*) pada setiap milestone.
+- **Bottleneck Radar & Aging SLA Tracker:**
+  - Melacak laporan inspeksi yang tertahan di meja reviewer dengan indikator waktu: Normal (<24h), Warning (24–48h), dan Critical Bottleneck (>48h).
+  - Mengidentifikasi secara transparan personil/peran yang menahan persetujuan laporan.
+  - Mengukur dampak keterlambatan laporan inspeksi terhadap deviasi jadwal proyek (*Schedule Variance*).
+- **Dual-Track Progress vs Timeline (Kurva-S):**
+  - Membandingkan kurva **Target Timeline**, **Claimed Progress**, dan **Verified Physical Progress** (progress riil yang sah lolos inspeksi).
+- **Severity-Gated Punchlist Lockout:**
+  - Cacat status *Critical* & *High* otomatis membekukan milestone dari klaim komplit hingga perbaikan diverifikasi (*Four-Eyes Principle*).
+  - Cacat *Low/Medium* tetap terlacak sebagai punchlist BAST tanpa mengunci progres fisik secara kaku.
+- **Ekspor Laporan Mingguan Resmi (PDF):**
+  - Menghasilkan ringkasan siap cetak: Kurva-S deviasi, status milestone, daftar bottleneck laporan tertunda, dan tabel punchlist untuk rapat koordinasi mingguan dengan Owner/Konsultan.
+- **Offline-First PWA & Bukti Foto Lapangan:**
+  - Inspektur dapat bekerja di area *blind spot* (basement, terowongan, site terpencil) dengan sinkronisasi antrean otomatis saat kembali online.
+  - Komputasi hash SHA-256 dan stempel waktu UTC untuk integritas audit foto bukti.
 
 ---
 

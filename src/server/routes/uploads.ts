@@ -169,12 +169,23 @@ function handleUpload(req: Request, res: Response) {
     return;
   }
 
-  const uploadDir = getUploadDir();
-  const fullPath = path.join(uploadDir, filename);
+  const uploadDir = path.resolve(getUploadDir());
+  const safeFilename = path.basename(filename);
+  if (!/^[A-Za-z0-9._-]+$/.test(safeFilename)) {
+    res.status(400).json({ error: 'Invalid filename.' });
+    return;
+  }
+  const fullPath = path.resolve(uploadDir, safeFilename);
+  if (!fullPath.startsWith(uploadDir + path.sep) && fullPath !== uploadDir) {
+    res.status(400).json({ error: 'Invalid file destination path.' });
+    return;
+  }
+
+  const fileBuffer = req.file.buffer;
 
   try {
-    fs.writeFileSync(fullPath, req.file.buffer, { mode: 0o600 });
-    writeManifestSync(uploadDir, filename, manifest);
+    fs.writeFileSync(fullPath, fileBuffer, { mode: 0o600 });
+    writeManifestSync(uploadDir, safeFilename, manifest);
   } catch (err) {
     try {
       if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
