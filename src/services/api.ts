@@ -5,6 +5,9 @@ import type {
   InspectionRecord,
   Project,
   User,
+  WorkNode,
+  WorkWorkflow,
+  WorkStage,
 } from '../types';
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -240,4 +243,70 @@ export async function uploadEvidencePhoto(file: Blob, filename = 'evidence.jpg')
   const uploaded = await uploadEvidencePhotoDetailed(file, filename);
   return uploaded.url;
 }
+
+// ---------------- WBS & WORKFLOW CLIENT APIS (FASE 2) ----------------
+
+export async function apiGetProjectWbs(projectId: string): Promise<{
+  project: { id: string; name: string; code: string };
+  nodes: WorkNode[];
+  workflows: WorkWorkflow[];
+  stages: WorkStage[];
+}> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/wbs`);
+}
+
+export async function apiCreateWbsNode(
+  projectId: string,
+  nodeData: Partial<WorkNode>
+): Promise<WorkNode> {
+  const res = await apiJson<{ node: WorkNode }>(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes`,
+    {
+      method: 'POST',
+      body: JSON.stringify(nodeData),
+    }
+  );
+  return res.node;
+}
+
+export async function apiUpdateWbsNode(
+  projectId: string,
+  nodeId: string,
+  nodeData: Partial<WorkNode>
+): Promise<WorkNode> {
+  const res = await apiJson<{ node: WorkNode }>(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(nodeData),
+    }
+  );
+  return res.node;
+}
+
+export async function apiDeleteWbsNode(
+  projectId: string,
+  nodeId: string
+): Promise<void> {
+  await apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}`,
+    {
+      method: 'DELETE',
+    }
+  );
+}
+
+export async function apiApplyWbsPreset(
+  projectId: string,
+  preset: 'general_epc' | 'civil_building' | 'blank'
+): Promise<{ message: string; nodes: WorkNode[] }> {
+  return apiJson<{ message: string; nodes: WorkNode[] }>(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/apply-preset`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ preset }),
+    }
+  );
+}
+
 

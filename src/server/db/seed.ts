@@ -7,6 +7,10 @@ import {
   projects,
   checklistTemplates,
   notificationSettings,
+  projectMembers,
+  workNodes,
+  workWorkflows,
+  workStages,
 } from './schema.ts';
 import { getLocalizedSeedData } from '../../data/mockData.ts';
 
@@ -36,20 +40,83 @@ async function seed() {
     const adminUsername = process.env.ADMIN_USERNAME || 'admin';
     const adminPassword = process.env.ADMIN_PASSWORD || 'SiteLens#Pilot2026';
 
-    await db.insert(users).values({
-      id: toUuid('usr-admin-1'),
-      username: adminUsername,
-      name: 'SiteLens Admin',
-      email: 'admin@sitelens.local',
-      passwordHash: hashPassword(adminPassword),
-      role: 'HSE / Quality Manager & Tenant Admin',
-      title: 'HSE & Quality Director / Tenant Admin',
-      avatar: '',
-      assignedProjects: ['proj-1', 'proj-2'].map(toUuid),
-      certifications: ['ISO 9001 Lead Auditor', 'ISO 45001 Lead Auditor', 'AK3 Umum'],
-      isActive: true,
-    });
-    console.log(`Seeded admin user "${adminUsername}"`);
+    const PILOTING_USERS = [
+      {
+        id: toUuid('usr-admin-1'),
+        username: adminUsername,
+        name: 'SiteLens Admin',
+        email: 'admin@sitelens.local',
+        passwordHash: hashPassword(adminPassword),
+        role: 'Project Director & Tenant Admin' as const,
+        title: 'Project Director / Tenant Admin',
+        assignedProjects: ['prj-101', 'prj-102'].map(toUuid),
+        certifications: ['Project Management Professional (PMP)', 'ISO 9001 Lead Auditor'],
+        isActive: true,
+      },
+      {
+        id: toUuid('usr-eng-1'),
+        username: 'engineer',
+        name: 'Priya Patel',
+        email: 'engineer@sitelens.local',
+        passwordHash: hashPassword('SiteLens#Eng2026'),
+        role: 'Project / Site Engineer' as const,
+        title: 'Lead Site & Planning Engineer',
+        assignedProjects: ['prj-101', 'prj-102'].map(toUuid),
+        certifications: ['PE Civil', 'Primavera P6 Certified'],
+        isActive: true,
+      },
+      {
+        id: toUuid('usr-op-1'),
+        username: 'inspector',
+        name: 'Raymond Briggs',
+        email: 'inspector@sitelens.local',
+        passwordHash: hashPassword('SiteLens#Insp2026'),
+        role: 'Field / QC Inspector' as const,
+        title: 'Field QC & Structural Inspector',
+        assignedProjects: ['prj-101'].map(toUuid),
+        certifications: ['CSWIP 3.1 Welding Inspector', 'ACI Concrete Field Testing'],
+        isActive: true,
+      },
+      {
+        id: toUuid('usr-sup-1'),
+        username: 'subcon',
+        name: 'Dave Kowalski',
+        email: 'subcon@sitelens.local',
+        passwordHash: hashPassword('SiteLens#Sub2026'),
+        role: 'Action Owner / Subcontractor' as const,
+        title: 'Site Execution & Remediation Supervisor',
+        assignedProjects: ['prj-101'].map(toUuid),
+        certifications: ['Site Safety Supervisor', 'Scaffolding Inspector'],
+        isActive: true,
+      },
+      {
+        id: toUuid('usr-qc-1'),
+        username: 'qalead',
+        name: 'Marcus Chen',
+        email: 'qalead@sitelens.local',
+        passwordHash: hashPassword('SiteLens#Qa2026'),
+        role: 'QA/QC Lead / Owner Inspector' as const,
+        title: 'QA/QC Lead / Owner Inspection Authority',
+        assignedProjects: ['prj-101', 'prj-102'].map(toUuid),
+        certifications: ['AWS CWI Senior Welding Inspector', 'ISO 9001 Lead Auditor'],
+        isActive: true,
+      },
+      {
+        id: toUuid('usr-view-1'),
+        username: 'viewer',
+        name: 'David Vance',
+        email: 'viewer@sitelens.local',
+        passwordHash: hashPassword('SiteLens#View2026'),
+        role: 'Client / Vendor Viewer' as const,
+        title: 'Client Project Oversight Representative',
+        assignedProjects: ['prj-101'].map(toUuid),
+        certifications: ['Client Representative Credentials'],
+        isActive: true,
+      },
+    ];
+
+    await db.insert(users).values(PILOTING_USERS);
+    console.log(`Seeded ${PILOTING_USERS.length} piloting users (6 practical roles)`);
   }
 
   const seedData = getLocalizedSeedData('en');
@@ -133,6 +200,151 @@ async function seed() {
       notifyOnCriticalCapa: true,
       notifyOnApproval: true,
     });
+  }
+
+  // ---------------- PROJECT MEMBERS & WBS NODES SEEDING ----------------
+  const [{ value: memberCount }] = await db
+    .select({ value: count() })
+    .from(projectMembers);
+  if (memberCount === 0) {
+    const prj101Id = toUuid('prj-101');
+    const prj102Id = toUuid('prj-102');
+
+    const MEMBERS = [
+      {
+        id: toUuid('pm-1'),
+        projectId: prj101Id,
+        userId: toUuid('usr-admin-1'),
+        projectRole: 'Project Director & Tenant Admin' as const,
+        isActive: true,
+      },
+      {
+        id: toUuid('pm-2'),
+        projectId: prj101Id,
+        userId: toUuid('usr-eng-1'),
+        projectRole: 'Project / Site Engineer' as const,
+        isActive: true,
+      },
+      {
+        id: toUuid('pm-3'),
+        projectId: prj101Id,
+        userId: toUuid('usr-op-1'),
+        projectRole: 'Field / QC Inspector' as const,
+        isActive: true,
+      },
+      {
+        id: toUuid('pm-4'),
+        projectId: prj101Id,
+        userId: toUuid('usr-sup-1'),
+        projectRole: 'Action Owner / Subcontractor' as const,
+        isActive: true,
+      },
+      {
+        id: toUuid('pm-5'),
+        projectId: prj101Id,
+        userId: toUuid('usr-qc-1'),
+        projectRole: 'QA/QC Lead / Owner Inspector' as const,
+        isActive: true,
+      },
+      {
+        id: toUuid('pm-6'),
+        projectId: prj101Id,
+        userId: toUuid('usr-view-1'),
+        projectRole: 'Client / Vendor Viewer' as const,
+        isActive: true,
+      },
+      // User can have a different role on Project 102
+      {
+        id: toUuid('pm-7'),
+        projectId: prj102Id,
+        userId: toUuid('usr-eng-1'),
+        projectRole: 'QA/QC Lead / Owner Inspector' as const,
+        isActive: true,
+      },
+    ];
+
+    await db.insert(projectMembers).values(MEMBERS);
+    console.log(`Seeded ${MEMBERS.length} project member role assignments`);
+  }
+
+  const [{ value: nodeCount }] = await db
+    .select({ value: count() })
+    .from(workNodes);
+  if (nodeCount === 0) {
+    const prj101Id = toUuid('prj-101');
+    const parentConstId = toUuid('wn-300');
+
+    const WBS_NODES = [
+      {
+        id: toUuid('wn-100'),
+        projectId: prj101Id,
+        wbsCode: '1.0',
+        name: 'Engineering & Detailed Design',
+        weightPercent: '15.00',
+        claimedProgressPercent: 100,
+        verifiedProgressPercent: 100,
+        sortOrder: 1,
+      },
+      {
+        id: toUuid('wn-200'),
+        projectId: prj101Id,
+        wbsCode: '2.0',
+        name: 'Procurement & Long-Lead Equipment',
+        weightPercent: '35.00',
+        claimedProgressPercent: 80,
+        verifiedProgressPercent: 75,
+        sortOrder: 2,
+      },
+      {
+        id: parentConstId,
+        projectId: prj101Id,
+        wbsCode: '3.0',
+        name: 'Civil & Structural Construction',
+        weightPercent: '45.00',
+        claimedProgressPercent: 40,
+        verifiedProgressPercent: 30,
+        sortOrder: 3,
+      },
+      {
+        id: toUuid('wn-310'),
+        projectId: prj101Id,
+        parentId: parentConstId,
+        wbsCode: '3.1',
+        name: 'Substructure & Piling Inspection',
+        weightPercent: '20.00',
+        documentReferenceNo: 'DWG-CIV-001',
+        activeRevision: 'Rev B',
+        claimedProgressPercent: 100,
+        verifiedProgressPercent: 100,
+        sortOrder: 4,
+      },
+      {
+        id: toUuid('wn-320'),
+        projectId: prj101Id,
+        parentId: parentConstId,
+        wbsCode: '3.2',
+        name: 'Superstructure & Core Wall Pouring',
+        weightPercent: '25.00',
+        documentReferenceNo: 'DWG-STR-104',
+        activeRevision: 'Rev C',
+        claimedProgressPercent: 30,
+        verifiedProgressPercent: 0,
+        sortOrder: 5,
+      },
+      {
+        id: toUuid('wn-400'),
+        projectId: prj101Id,
+        wbsCode: '4.0',
+        name: 'Pre-Commissioning & Handover',
+        weightPercent: '5.00',
+        claimedProgressPercent: 0,
+        verifiedProgressPercent: 0,
+        sortOrder: 6,
+      },
+    ];
+
+    await db.insert(workNodes).values(WBS_NODES);
+    console.log(`Seeded ${WBS_NODES.length} initial WBS nodes for General EPC Pack`);
   }
 
   await closeDb();

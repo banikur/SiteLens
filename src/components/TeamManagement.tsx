@@ -49,6 +49,11 @@ const ROLE_DESCRIPTIONS_EN: Record<
       'Monitors Dual-Track S-Curve (Target vs Verified Progress), oversees Bottleneck Radar, governs project setup studios, and exports official weekly progress reports.',
     primaryFocus: 'Executive Progress Governance, Bottleneck Removal & System Administration',
   },
+  'Client / Vendor Viewer': {
+    duties:
+      'Transparently monitors S-Curve progress, inspection completion status, and approved deliverables with strict read-only access.',
+    primaryFocus: 'Progress Monitoring, Stakeholder Transparency & Read-Only Governance',
+  },
   'Field Inspector / Petugas K3': {
     duties:
       'Executes inspection sessions from active templates, records SHA-256 hashed and GPS geotagged photo evidence, captures field UT thickness readings, and exercises Stop Work Authority (SWA) for critical hazards.',
@@ -104,6 +109,11 @@ const ROLE_DESCRIPTIONS_ID: Record<
     duties:
       'Memantau Kurva-S Dual-Track (Target vs Verified Progress), memonitor Bottleneck Radar, mengelola setup proyek, dan mengekspor laporan mingguan resmi.',
     primaryFocus: 'Pengawasan Eksekutif Proyek, Eliminasi Bottleneck & Tata Kelola Sistem',
+  },
+  'Client / Vendor Viewer': {
+    duties:
+      'Memantau Kurva-S progres, status inspeksi, dan laporan yang telah disahkan secara transparan dengan akses baca saja (read-only).',
+    primaryFocus: 'Pemantauan Progres, Transparansi Stakeholder & Akses Baca Terbatas',
   },
   'Field Inspector / Petugas K3': {
     duties:

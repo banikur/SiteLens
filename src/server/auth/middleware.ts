@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { and, eq, gt } from 'drizzle-orm';
 import { getDb } from '../db/index.ts';
-import { sessions, users } from '../db/schema.ts';
+import { sessions, users, projectMembers } from '../db/schema.ts';
 import { hashSessionToken } from './crypto.ts';
 import type { User, UserRole } from '../../types/index.ts';
 
@@ -97,6 +97,7 @@ const ROLE_EQUIVALENTS: Record<string, string[]> = {
   'Action Owner / Pelaksana Perbaikan': ['Action Owner / Subcontractor', 'Action Owner / Pelaksana Perbaikan'],
   'Field / QC Inspector': ['Field / QC Inspector', 'Field Inspector / Petugas K3'],
   'Field Inspector / Petugas K3': ['Field / QC Inspector', 'Field Inspector / Petugas K3'],
+  'Client / Vendor Viewer': ['Client / Vendor Viewer'],
 };
 
 export function requireRole(allowedRoles: UserRole[]) {
@@ -116,5 +117,72 @@ export function requireRole(allowedRoles: UserRole[]) {
     }
     next();
   };
+}
+
+export function requireProjectAccess(paramName = 'projectId') {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.authUser) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+
+    const projectId =
+      req.params?.[paramName] ||
+      (req.query?.[paramName] as string) ||
+      (req.body && typeof req.body === 'object' ? req.body[paramName] : null);
+
+    if (!projectId) {
+      next();
+      return;
+    }
+
+    const isGlobalAdmin =
+      req.authUser.role === 'Project Director & Tenant Admin' ||
+      req.authUser.role === 'HSE / Quality Manager & Tenant Admin';
+
+    const isAssigned =
+      isGlobalAdmin ||
+      (Array.isArray(req.authUser.assignedProjects) &&
+        req.authUser.assignedProjects.includes(projectId));
+
+    if (!isAssigned) {
+      res.status(403).json({ error: 'Forbidden: Access to this project is denied.' });
+      return;
+    }
+
+    // Client / Vendor Viewer is strictly read-only: reject all write/mutation methods
+    const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method.toUpperCase());
+    if (req.authUser.role === 'Client / Vendor Viewer' && isMutation) {
+      res.status(403).json({ error: 'Forbidden: Client / Vendor Viewer has read-only access.' });
+      return;
+    }
+
+    next();
+  };
+}
+
+export async function getEffectiveProjectRole(
+  userId: string,
+  projectId: string,
+  defaultRole: UserRole
+): Promise<UserRole> {
+  const db = getDb();
+  if (!db) return defaultRole;
+
+  try {
+    const rows = await db
+      .select({ projectRole: projectMembers.projectRole, isActive: projectMembers.isActive })
+      .from(projectMembers)
+      .where(and(eq(projectMembers.userId, userId as any), eq(projectMembers.projectId, projectId as any)))
+      .limit(1);
+
+    if (rows.length > 0 && rows[0].isActive) {
+      return rows[0].projectRole;
+    }
+  } catch (err) {
+    console.error('Error fetching project member role:', err);
+  }
+
+  return defaultRole;
 }
 

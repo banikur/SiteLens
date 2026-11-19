@@ -669,6 +669,7 @@ function SiteLensWorkspace() {
           ) : currentTab === 'projects' ? (
             <ProjectsManager
               projects={projects}
+              currentUser={currentUser}
               onAddProject={handleAddProject}
             />
           ) : currentTab === 'analytics' ? (

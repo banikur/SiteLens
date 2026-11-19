@@ -9,9 +9,13 @@ import {
   inspections,
   projects,
   users,
+  workNodes,
+  workWorkflows,
+  workStages,
+  projectMembers,
 } from '../db/schema.ts';
 import { hashSecret } from '../auth/crypto.ts';
-import { requireAuth, requireRole } from '../auth/middleware.ts';
+import { requireAuth, requireRole, requireProjectAccess } from '../auth/middleware.ts';
 import { dispatchNotification } from '../services/notifications.ts';
 import {
   extractEvidenceFilename,
@@ -28,6 +32,12 @@ import type {
 } from '../../types/index.ts';
 
 const VALID_ROLES: readonly UserRole[] = [
+  'Field / QC Inspector',
+  'Action Owner / Subcontractor',
+  'Project / Site Engineer',
+  'QA/QC Lead / Owner Inspector',
+  'Project Director & Tenant Admin',
+  'Client / Vendor Viewer',
   'Field Inspector / Petugas K3',
   'Action Owner / Pelaksana Perbaikan',
   'Office / Integrity Engineer',
@@ -248,22 +258,30 @@ apiRouter.get('/projects', async (_req: Request, res: Response) => {
   const allInspections = await db.select().from(inspections);
   const allActions = await db.select().from(correctiveActions);
 
-  const enriched = allProjects.map((p) => {
-    const pInspections = allInspections.filter((i) => i.projectId === p.id);
-    const pActions = allActions.filter(
-      (a) => a.projectId === p.id && (a.status === 'OPEN' || a.status === 'IN_PROGRESS' || a.status === 'PENDING_VERIFICATION')
-    );
-    const avgScore =
-      pInspections.length > 0
-        ? Math.round(
-            pInspections.reduce((acc, i) => acc + i.scorePercent, 0) / pInspections.length
-          )
-        : 100;
+  // Group metrics by project ID using Maps to avoid repeated filter passes
+  const countsByProject = new Map<string, { inspections: number; openActions: number; totalScore: number }>();
+  for (const insp of allInspections) {
+    const entry = countsByProject.get(insp.projectId) || { inspections: 0, openActions: 0, totalScore: 0 };
+    entry.inspections += 1;
+    entry.totalScore += insp.scorePercent;
+    countsByProject.set(insp.projectId, entry);
+  }
+  for (const act of allActions) {
+    if (act.status === 'OPEN' || act.status === 'IN_PROGRESS' || act.status === 'PENDING_VERIFICATION') {
+      const entry = countsByProject.get(act.projectId) || { inspections: 0, openActions: 0, totalScore: 0 };
+      entry.openActions += 1;
+      countsByProject.set(act.projectId, entry);
+    }
+  }
+
+  const enriched = allProjects.map((projectItem) => {
+    const stats = countsByProject.get(projectItem.id) || { inspections: 0, openActions: 0, totalScore: 0 };
+    const avgScore = stats.inspections > 0 ? Math.round(stats.totalScore / stats.inspections) : 100;
 
     return {
-      ...p,
-      activeInspectionsCount: pInspections.length,
-      openIssuesCount: pActions.length,
+      ...projectItem,
+      activeInspectionsCount: stats.inspections,
+      openIssuesCount: stats.openActions,
       complianceRate: avgScore,
     };
   });
@@ -321,6 +339,345 @@ apiRouter.post(
         complianceRate: 100,
       },
     });
+  }
+);
+
+// ---------------- WBS TREE & WORKFLOWS (FASE 2) ----------------
+
+apiRouter.get(
+  '/projects/:projectId/wbs',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+
+    const [matchedProject] = await db
+      .select({ id: projects.id, name: projects.name, code: projects.code })
+      .from(projects)
+      .where(eq(projects.id, projectScopeId as any))
+      .limit(1);
+
+    if (!matchedProject) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const nodes = await db
+      .select()
+      .from(workNodes)
+      .where(eq(workNodes.projectId, matchedProject.id))
+      .orderBy(workNodes.sortOrder, workNodes.wbsCode);
+
+    const workflows = await db.select().from(workWorkflows);
+    const stages = await db.select().from(workStages).orderBy(workStages.stageOrder);
+
+    res.json({
+      project: matchedProject,
+      nodes,
+      workflows,
+      stages,
+    });
+  }
+);
+
+apiRouter.post(
+  '/projects/:projectId/wbs/nodes',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const [targetProject] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.id, projectScopeId as any))
+      .limit(1);
+
+    if (!targetProject) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const body = req.body || {};
+    if (!body.wbsCode || !body.name) {
+      res.status(400).json({ error: 'wbsCode and name are required.' });
+      return;
+    }
+
+    const verifiedParentId = body.parentId || null;
+    if (verifiedParentId) {
+      const [parent] = await db
+        .select({ id: workNodes.id })
+        .from(workNodes)
+        .where(and(eq(workNodes.id, verifiedParentId), eq(workNodes.projectId, targetProject.id)))
+        .limit(1);
+      if (!parent) {
+        res.status(400).json({ error: 'Parent WBS node not found in this project.' });
+        return;
+      }
+    }
+
+    const [newNode] = await db
+      .insert(workNodes)
+      .values({
+        id: body.id || undefined,
+        projectId: targetProject.id,
+        parentId: verifiedParentId,
+        wbsCode: String(body.wbsCode).trim(),
+        name: String(body.name).trim(),
+        weightPercent: body.weightPercent ? String(body.weightPercent) : '0.00',
+        plannedStartDate: body.plannedStartDate ? new Date(body.plannedStartDate) : null,
+        plannedEndDate: body.plannedEndDate ? new Date(body.plannedEndDate) : null,
+        documentReferenceNo: body.documentReferenceNo || null,
+        activeRevision: body.activeRevision || null,
+        claimedProgressPercent: Number(body.claimedProgressPercent) || 0,
+        verifiedProgressPercent: Number(body.verifiedProgressPercent) || 0,
+        sortOrder: Number(body.sortOrder) || 0,
+      })
+      .returning();
+
+    await logAudit(req.authUser.id, req.authUser.name, 'CREATE_WBS_NODE', 'work_node', newNode.id, {
+      projectId: targetProject.id,
+      wbsCode: newNode.wbsCode,
+      name: newNode.name,
+    });
+
+    res.status(201).json({ node: newNode });
+  }
+);
+
+apiRouter.put(
+  '/projects/:projectId/wbs/nodes/:nodeId',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const nodeScopeId = String(req.params.nodeId || '');
+    const [existingNode] = await db
+      .select()
+      .from(workNodes)
+      .where(and(eq(workNodes.id, nodeScopeId as any), eq(workNodes.projectId, projectScopeId as any)))
+      .limit(1);
+
+    if (!existingNode) {
+      res.status(404).json({ error: 'WBS node not found.' });
+      return;
+    }
+
+    const body = req.body || {};
+    const [updatedNode] = await db
+      .update(workNodes)
+      .set({
+        wbsCode: body.wbsCode ? String(body.wbsCode).trim() : existingNode.wbsCode,
+        name: body.name ? String(body.name).trim() : existingNode.name,
+        weightPercent: body.weightPercent !== undefined ? String(body.weightPercent) : existingNode.weightPercent,
+        plannedStartDate: body.plannedStartDate !== undefined ? (body.plannedStartDate ? new Date(body.plannedStartDate) : null) : existingNode.plannedStartDate,
+        plannedEndDate: body.plannedEndDate !== undefined ? (body.plannedEndDate ? new Date(body.plannedEndDate) : null) : existingNode.plannedEndDate,
+        documentReferenceNo: body.documentReferenceNo !== undefined ? body.documentReferenceNo : existingNode.documentReferenceNo,
+        activeRevision: body.activeRevision !== undefined ? body.activeRevision : existingNode.activeRevision,
+        claimedProgressPercent: body.claimedProgressPercent !== undefined ? Number(body.claimedProgressPercent) : existingNode.claimedProgressPercent,
+        verifiedProgressPercent: body.verifiedProgressPercent !== undefined ? Number(body.verifiedProgressPercent) : existingNode.verifiedProgressPercent,
+        sortOrder: body.sortOrder !== undefined ? Number(body.sortOrder) : existingNode.sortOrder,
+        updatedAt: new Date(),
+      })
+      .where(eq(workNodes.id, existingNode.id))
+      .returning();
+
+    await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_WBS_NODE', 'work_node', updatedNode.id, {
+      wbsCode: updatedNode.wbsCode,
+      name: updatedNode.name,
+    });
+
+    res.json({ node: updatedNode });
+  }
+);
+
+apiRouter.delete(
+  '/projects/:projectId/wbs/nodes/:nodeId',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const nodeScopeId = String(req.params.nodeId || '');
+    const [existingNode] = await db
+      .select({ id: workNodes.id, name: workNodes.name, wbsCode: workNodes.wbsCode })
+      .from(workNodes)
+      .where(and(eq(workNodes.id, nodeScopeId as any), eq(workNodes.projectId, projectScopeId as any)))
+      .limit(1);
+
+    if (!existingNode) {
+      res.status(404).json({ error: 'WBS node not found.' });
+      return;
+    }
+
+    await db.delete(workNodes).where(eq(workNodes.id, existingNode.id));
+
+    await logAudit(req.authUser.id, req.authUser.name, 'DELETE_WBS_NODE', 'work_node', existingNode.id, {
+      wbsCode: existingNode.wbsCode,
+      name: existingNode.name,
+    });
+
+    res.json({ success: true, deletedId: existingNode.id });
+  }
+);
+
+apiRouter.post(
+  '/projects/:projectId/wbs/apply-preset',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const [targetProject] = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, projectScopeId as any))
+      .limit(1);
+
+    if (!targetProject) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const { preset } = req.body || {};
+
+    // Clear existing nodes for clean preset application
+    await db.delete(workNodes).where(eq(workNodes.projectId, targetProject.id));
+
+    if (preset === 'blank') {
+      res.json({ message: 'Blank canvas initiated. All existing nodes cleared.', nodes: [] });
+      return;
+    }
+
+    const createdNodes = [];
+
+    if (preset === 'civil_building') {
+      const [n1] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '1.0',
+        name: 'Pekerjaan Persiapan & Mobilisasi',
+        weightPercent: '10.00',
+        sortOrder: 1,
+      }).returning();
+      const [n2] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '2.0',
+        name: 'Pekerjaan Struktur Bawah (Substructure)',
+        weightPercent: '30.00',
+        documentReferenceNo: 'DWG-FND-001',
+        activeRevision: 'Rev A',
+        sortOrder: 2,
+      }).returning();
+      const [n3] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '3.0',
+        name: 'Pekerjaan Struktur Atas & Arsitektur',
+        weightPercent: '40.00',
+        documentReferenceNo: 'DWG-STR-201',
+        activeRevision: 'Rev B',
+        sortOrder: 3,
+      }).returning();
+      const [n4] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '4.0',
+        name: 'Pekerjaan Mekanikal, Elektrikal & Plumbing (MEP)',
+        weightPercent: '20.00',
+        documentReferenceNo: 'DWG-MEP-001',
+        activeRevision: 'Rev A',
+        sortOrder: 4,
+      }).returning();
+      createdNodes.push(n1, n2, n3, n4);
+    } else {
+      // Default: 'general_epc'
+      const [n1] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '1.0',
+        name: 'Engineering & Detailed Design',
+        weightPercent: '15.00',
+        sortOrder: 1,
+      }).returning();
+      const [n2] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '2.0',
+        name: 'Procurement & Long-Lead Equipment',
+        weightPercent: '35.00',
+        sortOrder: 2,
+      }).returning();
+      const [n3] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '3.0',
+        name: 'Civil & Structural Construction',
+        weightPercent: '45.00',
+        sortOrder: 3,
+      }).returning();
+      const [n31] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        parentId: n3.id,
+        wbsCode: '3.1',
+        name: 'Substructure & Piling Inspection',
+        weightPercent: '20.00',
+        documentReferenceNo: 'DWG-CIV-001',
+        activeRevision: 'Rev B',
+        sortOrder: 4,
+      }).returning();
+      const [n32] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        parentId: n3.id,
+        wbsCode: '3.2',
+        name: 'Superstructure & Core Wall Pouring',
+        weightPercent: '25.00',
+        documentReferenceNo: 'DWG-STR-104',
+        activeRevision: 'Rev C',
+        sortOrder: 5,
+      }).returning();
+      const [n4] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '4.0',
+        name: 'Pre-Commissioning & Handover',
+        weightPercent: '5.00',
+        sortOrder: 6,
+      }).returning();
+      createdNodes.push(n1, n2, n3, n31, n32, n4);
+    }
+
+    await logAudit(req.authUser.id, req.authUser.name, 'APPLY_WBS_PRESET', 'project', targetProject.id, {
+      preset: preset || 'general_epc',
+      nodeCount: createdNodes.length,
+    });
+
+    res.json({ message: `Preset '${preset || 'general_epc'}' applied successfully.`, nodes: createdNodes });
   }
 );
 

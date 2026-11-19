@@ -3,26 +3,41 @@ import {
   MapPin,
   Plus,
   X,
+  FolderTree,
 } from 'lucide-react';
-import { Project } from '../types';
+import { Project, User } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import { ProjectSetupStudio } from './ProjectSetupStudio';
 
 interface ProjectsManagerProps {
   projects: Project[];
+  currentUser?: User;
   onAddProject: (project: Project) => void;
 }
 
 export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
   projects,
+  currentUser,
   onAddProject,
 }) => {
   const { t } = useLanguage();
+  const [selectedProjectForStudio, setSelectedProjectForStudio] = useState<Project | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [client, setClient] = useState('');
   const [location, setLocation] = useState('');
   const [leadManager] = useState('Arthur Sterling');
+
+  if (selectedProjectForStudio && currentUser) {
+    return (
+      <ProjectSetupStudio
+        project={selectedProjectForStudio}
+        currentUser={currentUser}
+        onBack={() => setSelectedProjectForStudio(null)}
+      />
+    );
+  }
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,6 +193,18 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
                   {prj.openIssuesCount}
                 </span>
               </div>
+            </div>
+
+            {/* Project Setup Studio (WBS & Relative Weights) Action */}
+            <div className="mt-4 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedProjectForStudio(prj)}
+                className="w-full py-2 px-3 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-colors flex items-center justify-center space-x-1.5 shadow-2xs"
+              >
+                <FolderTree className="w-3.5 h-3.5 text-amber-700" />
+                <span>Setup WBS & Bobot Proyek</span>
+              </button>
             </div>
           </div>
         ))}

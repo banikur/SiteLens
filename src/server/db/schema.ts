@@ -3,6 +3,7 @@ import {
   text,
   boolean,
   integer,
+  numeric,
   timestamp,
   jsonb,
   uuid,
@@ -219,5 +220,144 @@ export const tenantProfiles = pgTable('tenant_profiles', {
   expiryAlertDays: integer('expiry_alert_days').notNull().default(60),
   smk3ElementsMap: jsonb('smk3_elements_map').$type<Smk3ElementMapping[]>().notNull().default([]),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------- PILOTING WBS & CORE RBAC SCHEMAS (v1.0-PILOT) ----------------
+
+export const projectMembers = pgTable('project_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  projectRole: text('project_role').$type<UserRole>().notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workNodes = pgTable('work_nodes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  parentId: uuid('parent_id'),
+  wbsCode: text('wbs_code').notNull(),
+  name: text('name').notNull(),
+  weightPercent: numeric('weight_percent', { precision: 5, scale: 2 }).notNull().default('0.00'),
+  plannedStartDate: timestamp('planned_start_date', { withTimezone: true }),
+  plannedEndDate: timestamp('planned_end_date', { withTimezone: true }),
+  documentReferenceNo: text('document_reference_no'),
+  activeRevision: text('active_revision'),
+  claimedProgressPercent: integer('claimed_progress_percent').notNull().default(0),
+  verifiedProgressPercent: integer('verified_progress_percent').notNull().default(0),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workWorkflows = pgTable('work_workflows', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  nodeId: uuid('node_id')
+    .notNull()
+    .references(() => workNodes.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const workStages = pgTable('work_stages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workflowId: uuid('workflow_id')
+    .notNull()
+    .references(() => workWorkflows.id, { onDelete: 'cascade' }),
+  stageOrder: integer('stage_order').notNull().default(1),
+  stageType: text('stage_type').$type<'work' | 'hold' | 'review'>().notNull().default('work'),
+  name: text('name').notNull(),
+  assignedRole: text('assigned_role').$type<UserRole>().notNull(),
+  approvalRole: text('approval_role').$type<UserRole>(),
+  checklistSchema: jsonb('checklist_schema').$type<ChecklistSection[]>().notNull().default([]),
+  requiresWetSignature: boolean('requires_wet_signature').notNull().default(false),
+  status: text('status').$type<'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected'>().notNull().default('pending'),
+  actualCompletedAt: timestamp('actual_completed_at', { withTimezone: true }),
+  forecastCompletionDate: timestamp('forecast_completion_date', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const inspectionAttempts = pgTable('inspection_attempts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  stageId: uuid('stage_id')
+    .notNull()
+    .references(() => workStages.id, { onDelete: 'cascade' }),
+  attemptNumber: integer('attempt_number').notNull().default(1),
+  submitterId: uuid('submitter_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
+  approverId: uuid('approver_id')
+    .references(() => users.id, { onDelete: 'set null' }),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  status: text('status').$type<'draft' | 'submitted' | 'approved' | 'rejected'>().notNull().default('submitted'),
+  answers: jsonb('answers').$type<Record<string, any>>().notNull().default({}),
+  rejectionReason: text('rejection_reason'),
+  signatureCanvasUrl: text('signature_canvas_url'),
+  wetSignatureDocumentUrl: text('wet_signature_document_url'),
+  offlineSyncId: text('offline_sync_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const evidenceAttachments = pgTable('evidence_attachments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  attemptId: uuid('attempt_id')
+    .references(() => inspectionAttempts.id, { onDelete: 'cascade' }),
+  fileUrl: text('file_url').notNull(),
+  attachmentType: text('attachment_type').$type<'photo' | 'wet_signature_scan' | 'document'>().notNull().default('photo'),
+  sha256: text('sha256').notNull(),
+  sizeBytes: integer('size_bytes'),
+  capturedAt: timestamp('captured_at', { withTimezone: true }).notNull().defaultNow(),
+  uploaderId: uuid('uploader_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const punchlistItems = pgTable('punchlist_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  nodeId: uuid('node_id')
+    .notNull()
+    .references(() => workNodes.id, { onDelete: 'cascade' }),
+  stageId: uuid('stage_id')
+    .notNull()
+    .references(() => workStages.id, { onDelete: 'cascade' }),
+  attemptId: uuid('attempt_id')
+    .references(() => inspectionAttempts.id, { onDelete: 'set null' }),
+  issueDescription: text('issue_description').notNull(),
+  severity: text('severity').$type<ActionSeverity>().notNull().default('medium'),
+  creatorId: uuid('creator_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  assigneeId: uuid('assignee_id')
+    .references(() => users.id, { onDelete: 'set null' }),
+  status: text('status').$type<'open' | 'in_progress' | 'rectified' | 'verified_closed'>().notNull().default('open'),
+  rectifiedAt: timestamp('rectified_at', { withTimezone: true }),
+  rectificationPhotoUrl: text('rectification_photo_url'),
+  verifiedClosedBy: uuid('verified_closed_by')
+    .references(() => users.id, { onDelete: 'set null' }),
+  verifiedClosedAt: timestamp('verified_closed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const plannedCurveOverrides = pgTable('planned_curve_overrides', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  weekIndex: integer('week_index').notNull(),
+  overridePlannedCumulative: numeric('override_planned_cumulative', { precision: 5, scale: 2 }).notNull(),
+  overriddenBy: uuid('overridden_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

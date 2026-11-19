@@ -4,6 +4,7 @@ export type UserRole =
   | 'Project / Site Engineer'
   | 'QA/QC Lead / Owner Inspector'
   | 'Project Director & Tenant Admin'
+  | 'Client / Vendor Viewer'
   // Legacy aliases for backward compatibility
   | 'Field Inspector / Petugas K3'
   | 'Action Owner / Pelaksana Perbaikan'
@@ -302,4 +303,123 @@ export interface TenantProfile {
   smk3OverallScorePercent: number;
   smk3ElementsMap: Smk3ElementMapping[];
   updatedAt: string;
+}
+
+// ---------------- PILOTING WBS & CORE RBAC ENTITY TYPES (v1.0-PILOT) ----------------
+
+export type ProjectRole =
+  | 'Project Director & Tenant Admin'
+  | 'Project / Site Engineer'
+  | 'Field / QC Inspector'
+  | 'Action Owner / Subcontractor'
+  | 'QA/QC Lead / Owner Inspector'
+  | 'Client / Vendor Viewer';
+
+export interface ProjectMember {
+  id: string;
+  projectId: string;
+  userId: string;
+  projectRole: UserRole;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface WorkNode {
+  id: string;
+  projectId: string;
+  parentId?: string | null;
+  wbsCode: string;
+  name: string;
+  weightPercent: number | string;
+  plannedStartDate?: string | null;
+  plannedEndDate?: string | null;
+  documentReferenceNo?: string | null;
+  activeRevision?: string | null;
+  claimedProgressPercent: number;
+  verifiedProgressPercent: number;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type StageType = 'work' | 'hold' | 'review';
+export type StageStatus = 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected';
+
+export interface WorkWorkflow {
+  id: string;
+  nodeId: string;
+  title: string;
+  createdAt: string;
+}
+
+export interface WorkStage {
+  id: string;
+  workflowId: string;
+  stageOrder: number;
+  stageType: StageType;
+  name: string;
+  assignedRole: UserRole;
+  approvalRole?: UserRole | null;
+  checklistSchema?: ChecklistSection[];
+  requiresWetSignature: boolean;
+  status: StageStatus;
+  actualCompletedAt?: string | null;
+  forecastCompletionDate?: string | null;
+  createdAt: string;
+}
+
+export interface InspectionAttempt {
+  id: string;
+  stageId: string;
+  attemptNumber: number;
+  submitterId: string;
+  submittedAt: string;
+  approverId?: string | null;
+  decidedAt?: string | null;
+  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  answers: Record<string, any>;
+  rejectionReason?: string | null;
+  signatureCanvasUrl?: string | null;
+  wetSignatureDocumentUrl?: string | null;
+  offlineSyncId?: string | null;
+  createdAt: string;
+}
+
+export interface EvidenceAttachment {
+  id: string;
+  attemptId?: string | null;
+  fileUrl: string;
+  attachmentType: 'photo' | 'wet_signature_scan' | 'document';
+  sha256: string;
+  sizeBytes?: number | null;
+  capturedAt: string;
+  uploaderId: string;
+  createdAt: string;
+}
+
+export interface PunchlistItem {
+  id: string;
+  nodeId: string;
+  stageId: string;
+  attemptId?: string | null;
+  issueDescription: string;
+  severity: ActionSeverity;
+  creatorId: string;
+  assigneeId?: string | null;
+  status: 'open' | 'in_progress' | 'rectified' | 'verified_closed';
+  rectifiedAt?: string | null;
+  rectificationPhotoUrl?: string | null;
+  verifiedClosedBy?: string | null;
+  verifiedClosedAt?: string | null;
+  createdAt: string;
+}
+
+export interface PlannedCurveOverride {
+  id: string;
+  projectId: string;
+  weekIndex: number;
+  overridePlannedCumulative: number;
+  overriddenBy: string;
+  reason?: string | null;
+  createdAt: string;
 }
