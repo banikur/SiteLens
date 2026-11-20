@@ -92,12 +92,12 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
   const isViewer = currentUser.role === 'Client / Vendor Viewer';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl max-w-2xl w-full shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-2">
-            <CloudRain className="w-5 h-5 text-indigo-600" />
+            <CloudRain className="w-5 h-5 text-slate-700" />
             <div>
               <h3 className="text-sm font-bold text-slate-900">
                 Buku Harian Cuaca, Curah Hujan & Klaim EOT
@@ -117,56 +117,56 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
           {/* EOT Impact Summary Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Jam Hujan</span>
-              <span className="text-lg font-mono font-bold text-slate-800 mt-1 block">
+              <span className="text-[11px] font-medium text-slate-500 block">Total jam hujan</span>
+              <span className="text-lg font-mono tabular-nums font-bold text-slate-800 mt-1 block">
                 {impact.totalRainHours} Jam
               </span>
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Hari Hujan</span>
-              <span className="text-lg font-mono font-bold text-slate-800 mt-1 block">
+              <span className="text-[11px] font-medium text-slate-500 block">Hari hujan</span>
+              <span className="text-lg font-mono tabular-nums font-bold text-slate-800 mt-1 block">
                 {impact.totalRainDays} Hari
               </span>
             </div>
 
             <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900">
-              <span className="text-[10px] uppercase font-bold text-rose-700 block">Stop Total Kerja</span>
-              <span className="text-lg font-mono font-bold text-rose-800 mt-1 block">
+              <span className="text-[11px] font-medium text-rose-700 block">Stop total kerja</span>
+              <span className="text-lg font-mono tabular-nums font-bold text-rose-800 mt-1 block">
                 {impact.stopTotalDays} Hari
               </span>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900">
-              <span className="text-[10px] uppercase font-bold text-indigo-700 block">Klaim EOT Layak</span>
-              <span className="text-lg font-mono font-bold text-indigo-800 mt-1 block">
+            <div className="p-3.5 rounded-xl bg-[#0b0e14] border border-slate-800 text-white">
+              <span className="text-[11px] font-medium text-[#d4f038] block">Klaim EOT layak</span>
+              <span className="text-lg font-mono tabular-nums font-bold text-[#d4f038] mt-1 block">
                 +{impact.recommendedEotDays} Hari
               </span>
             </div>
           </div>
 
           <div className="flex items-center justify-between">
-            <h4 className="font-bold uppercase tracking-wider text-slate-700 text-[11px]">
-              Daftar Buku Harian Cuaca Lapangan:
+            <h4 className="font-semibold text-slate-700 text-xs">
+              Daftar buku harian cuaca lapangan:
             </h4>
 
             {!isViewer && (
               <button
                 type="button"
                 onClick={() => setFormOpen(true)}
-                className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold flex items-center space-x-1 shadow-2xs"
+                className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold flex items-center space-x-1 shadow-xs transition-colors"
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>Catat Cuaca Hari Ini</span>
+                <span>Catat cuaca hari ini</span>
               </button>
             )}
           </div>
 
           {/* New Weather Log Form */}
           {formOpen && (
-            <form onSubmit={handleSaveLog} className="p-4 rounded-xl border border-amber-200 bg-amber-50/30 space-y-3">
-              <div className="flex items-center justify-between border-b border-amber-200/60 pb-2 font-bold text-amber-900">
-                <span>Formulir Pencatatan Cuaca Harian</span>
+            <form onSubmit={handleSaveLog} className="p-4 rounded-xl border border-slate-300 bg-slate-50/60 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2 font-bold text-slate-900">
+                <span>Formulir pencatatan cuaca harian</span>
                 <button type="button" onClick={() => setFormOpen(false)} className="text-slate-400 hover:text-slate-700">
                   <X className="w-4 h-4" />
                 </button>
@@ -174,7 +174,7 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
                     Tanggal *
                   </label>
                   <input
@@ -182,18 +182,18 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
                     required
                     value={formDate}
                     onChange={(e) => setFormDate(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 bg-white"
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 bg-white focus:outline-none focus:border-slate-800"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Kondisi Cuaca Dominan *
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Kondisi cuaca dominan *
                   </label>
                   <select
                     value={formCondition}
                     onChange={(e) => setFormCondition(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 bg-white"
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 bg-white focus:outline-none focus:border-slate-800"
                   >
                     <option value="cerah">Cerah (Sunny)</option>
                     <option value="berawan">Berawan (Cloudy)</option>
@@ -206,8 +206,8 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Durasi Curah Hujan (Jam) *
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Durasi curah hujan (jam) *
                   </label>
                   <input
                     type="number"
@@ -217,18 +217,18 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
                     required
                     value={formRainHours}
                     onChange={(e) => setFormRainHours(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono text-slate-900 bg-white"
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono tabular-nums text-slate-900 bg-white focus:outline-none focus:border-slate-800"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Dampak Terhadap Operasional Fisik *
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Dampak terhadap operasional fisik *
                   </label>
                   <select
                     value={formImpact}
                     onChange={(e) => setFormImpact(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 bg-white"
+                    className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 bg-white focus:outline-none focus:border-slate-800"
                   >
                     <option value="tidak_ada">Tidak Ada Dampak (Normal)</option>
                     <option value="parsial">Dampak Parsial (Kompensasi 0.5 Hari EOT)</option>
@@ -238,15 +238,15 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Catatan Lapangan & Justifikasi
+                <label className="block font-medium text-slate-700 text-xs mb-1">
+                  Catatan lapangan & justifikasi
                 </label>
                 <textarea
                   rows={2}
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
                   placeholder="Contoh: Hujan lebat disertai petir menghentikan pekerjaan erection baja dan operasi tower crane pukul 13:00 - 16:30."
-                  className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 bg-white"
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 bg-white focus:outline-none focus:border-slate-800"
                 />
               </div>
 
@@ -254,16 +254,16 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setFormOpen(false)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-semibold"
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+                  className="px-3.5 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold shadow-xs transition-colors"
                 >
-                  Simpan Catatan
+                  Simpan catatan
                 </button>
               </div>
             </form>

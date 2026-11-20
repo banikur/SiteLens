@@ -108,12 +108,12 @@ export const SignatureCanvasModal: React.FC<SignatureCanvasModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-2">
-            <PenTool className="w-4 h-4 text-amber-600" />
+            <PenTool className="w-4 h-4 text-slate-800" />
             <h3 className="text-sm font-bold text-slate-900">
               Tanda Tangan Digital (Touchscreen Canvas)
             </h3>
@@ -127,29 +127,29 @@ export const SignatureCanvasModal: React.FC<SignatureCanvasModalProps> = ({
         <div className="p-6 space-y-4 text-xs">
           <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200">
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Penanda Tangan:
+              <span className="text-[11px] font-medium text-slate-500 block">
+                Penanda tangan:
               </span>
               <span className="font-bold text-slate-900 text-xs">{currentUser.name}</span>
               <span className="text-slate-500 text-[11px] block">{currentUser.role}</span>
             </div>
             <div className="text-right">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Waktu Otentikasi:
+              <span className="text-[11px] font-medium text-slate-500 block">
+                Waktu otentikasi:
               </span>
-              <span className="font-mono text-slate-700 text-[11px]">{signDate}</span>
+              <span className="font-mono tabular-nums text-slate-700 text-[11px]">{signDate}</span>
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                Area Goresan Tanda Tangan:
+              <label className="text-xs font-medium text-slate-700">
+                Area goresan tanda tangan:
               </label>
               <button
                 type="button"
                 onClick={handleClear}
-                className="text-[11px] text-slate-500 hover:text-rose-600 flex items-center space-x-1"
+                className="text-[11px] text-slate-500 hover:text-rose-600 flex items-center space-x-1 transition-colors"
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>Bersihkan (Clear)</span>
@@ -166,7 +166,7 @@ export const SignatureCanvasModal: React.FC<SignatureCanvasModalProps> = ({
                 className="w-full h-44 bg-white"
               />
               {!hasDrawn && (
-                <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-slate-300 text-xs font-medium">
+                <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-slate-400 text-xs font-medium">
                   Goreskan tanda tangan dengan jari atau stylus di sini
                 </div>
               )}
@@ -181,17 +181,17 @@ export const SignatureCanvasModal: React.FC<SignatureCanvasModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold"
+              className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
             >
               Batal
             </button>
             <button
               type="button"
               onClick={handleConfirm}
-              className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold flex items-center space-x-1.5"
+              className="px-4 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold flex items-center space-x-1.5 shadow-xs transition-colors"
             >
               <Check className="w-4 h-4" />
-              <span>Bubuhkan Tanda Tangan</span>
+              <span>Bubuhkan tanda tangan</span>
             </button>
           </div>
         </div>

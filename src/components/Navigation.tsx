@@ -143,20 +143,20 @@ export const Navigation: React.FC<NavigationProps> = ({
   return (
     <>
       {/* Mobile Top Bar */}
-      <div className="lg:hidden bg-slate-900 border-b border-slate-800 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40">
+      <div className="lg:hidden bg-[#0b0e14] border-b border-slate-800 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center space-x-2.5">
-          <div className="w-7 h-7 rounded bg-amber-500 flex items-center justify-center font-black text-slate-950 text-sm">
+          <div className="w-7 h-7 rounded bg-[#d4f038] flex items-center justify-center font-mono font-bold text-[#0b0e14] text-xs shadow-xs">
             SL
           </div>
-          <span className="font-bold text-sm tracking-tight">SiteLens</span>
+          <span className="font-bold text-sm tracking-tight text-slate-100">SiteLens</span>
         </div>
         <div className="flex items-center space-x-2">
           {/* Mobile Language Toggle */}
-          <div className="flex items-center bg-slate-800 rounded p-0.5 border border-slate-700">
+          <div className="flex items-center bg-[#161c28] rounded p-0.5 border border-slate-700/80">
             <button
               onClick={() => setLang('en')}
               className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
-                lang === 'en' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'
+                lang === 'en' ? 'bg-[#d4f038] text-[#0b0e14]' : 'text-slate-400'
               }`}
             >
               EN
@@ -164,7 +164,7 @@ export const Navigation: React.FC<NavigationProps> = ({
             <button
               onClick={() => setLang('id')}
               className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
-                lang === 'id' ? 'bg-amber-500 text-slate-950' : 'text-slate-400'
+                lang === 'id' ? 'bg-[#d4f038] text-[#0b0e14]' : 'text-slate-400'
               }`}
             >
               ID
@@ -172,7 +172,7 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
           <button
             onClick={onOpenAIGenerator}
-            className="px-2.5 py-1 rounded bg-amber-500 text-slate-950 font-semibold text-xs flex items-center"
+            className="px-2.5 py-1 rounded bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs flex items-center shadow-xs"
           >
             <Wand2 className="w-3.5 h-3.5 mr-1" />
             AI
@@ -188,8 +188,8 @@ export const Navigation: React.FC<NavigationProps> = ({
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex flex-col">
-          <div className="bg-slate-900 border-b border-slate-800 p-4 flex items-center justify-between">
+        <div className="lg:hidden fixed inset-0 z-50 bg-[#06090e]/80 backdrop-blur-xs flex flex-col">
+          <div className="bg-[#0b0e14] border-b border-slate-800 p-4 flex items-center justify-between">
             <span className="text-sm font-bold text-white">SiteLens</span>
             <button
               onClick={() => setMobileMenuOpen(false)}
@@ -198,7 +198,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
-          <div className="p-4 space-y-1 bg-slate-900 flex-1 overflow-y-auto">
+          <div className="p-4 space-y-1 bg-[#0b0e14] flex-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentTab === item.id;
@@ -211,7 +211,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                   }}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-medium transition-colors ${
                     isActive
-                      ? 'bg-slate-800 text-white font-semibold'
+                      ? 'bg-[#161c28] text-white font-semibold'
                       : 'text-slate-400 hover:text-slate-100'
                   }`}
                 >
@@ -220,7 +220,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                     <span>{item.label}</span>
                   </div>
                   {item.badge && (
-                    <span className="text-[10px] font-mono text-amber-400">
+                    <span className="text-[10px] font-mono text-[#d4f038]">
                       {item.badge}
                     </span>
                   )}
@@ -232,11 +232,11 @@ export const Navigation: React.FC<NavigationProps> = ({
       )}
 
       {/* Desktop Persistent Sidebar */}
-      <aside className="hidden lg:flex w-64 bg-slate-900 border-r border-slate-800 flex-col flex-shrink-0 select-none">
+      <aside className="hidden lg:flex w-64 bg-[#0b0e14] border-r border-slate-800 flex-col flex-shrink-0 select-none">
         {/* Brand Zone + Language Toggle */}
-        <div className="h-16 flex items-center px-5 border-b border-slate-800 justify-between">
+        <div className="h-16 flex items-center px-5 border-b border-slate-800/80 justify-between">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center font-bold text-slate-950 text-sm shadow-xs">
+            <div className="w-8 h-8 rounded-lg bg-[#d4f038] flex items-center justify-center font-mono font-bold text-[#0b0e14] text-sm shadow-xs">
               SL
             </div>
             <div>
@@ -251,14 +251,14 @@ export const Navigation: React.FC<NavigationProps> = ({
 
           {/* Segmented EN / ID Switcher */}
           <div
-            className="flex items-center bg-slate-800 rounded-md p-0.5 border border-slate-700"
+            className="flex items-center bg-[#161c28] rounded-md p-0.5 border border-slate-700/80"
             title={t.common.languageLabel}
           >
             <button
               onClick={() => setLang('en')}
               className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
                 lang === 'en'
-                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                  ? 'bg-[#d4f038] text-[#0b0e14] shadow-xs'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -268,7 +268,7 @@ export const Navigation: React.FC<NavigationProps> = ({
               onClick={() => setLang('id')}
               className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
                 lang === 'id'
-                  ? 'bg-amber-500 text-slate-950 shadow-xs'
+                  ? 'bg-[#d4f038] text-[#0b0e14] shadow-xs'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -291,7 +291,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 onClick={() => onSelectTab(item.id)}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors group ${
                   isActive
-                    ? 'bg-slate-800 text-white font-semibold'
+                    ? 'bg-[#161c28] text-white font-semibold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-850'
                 }`}
               >
@@ -299,21 +299,21 @@ export const Navigation: React.FC<NavigationProps> = ({
                   <Icon
                     className={`w-4 h-4 transition-colors ${
                       isActive
-                        ? 'text-amber-400'
+                        ? 'text-[#d4f038]'
                         : 'text-slate-400 group-hover:text-slate-200'
                     }`}
                   />
                   <span>{item.label}</span>
                 </div>
                 {item.count !== undefined && (
-                  <span className="text-[11px] font-mono text-slate-400">
+                  <span className="text-[11px] font-mono tabular-nums text-slate-400">
                     {item.count}
                   </span>
                 )}
                 {item.badge && (
                   <span
-                    className={`text-[10px] font-mono font-medium ${
-                      item.badgeAlert ? 'text-rose-400' : 'text-amber-400'
+                    className={`text-[10px] font-mono tabular-nums font-medium ${
+                      item.badgeAlert ? 'text-rose-400' : 'text-[#d4f038]'
                     }`}
                   >
                     {item.badge}
@@ -325,12 +325,12 @@ export const Navigation: React.FC<NavigationProps> = ({
         </div>
 
         {/* Quick Builder & AI Generator CTA Box */}
-        <div className="p-3 mx-3 mb-3 rounded-lg bg-slate-800/80 border border-slate-700/60 space-y-2">
+        <div className="p-3 mx-3 mb-3 rounded-lg bg-[#121722] border border-slate-800 space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-white">
               {t.nav.builderCardTitle}
             </span>
-            <span className="text-[10px] text-amber-400 font-mono">
+            <span className="text-[10px] text-[#d4f038] font-mono">
               {t.nav.builderCardTag}
             </span>
           </div>
@@ -340,14 +340,14 @@ export const Navigation: React.FC<NavigationProps> = ({
           <div className="space-y-1.5 pt-1">
             <button
               onClick={onOpenAIGenerator}
-              className="w-full inline-flex items-center justify-center px-3 py-2 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors shadow-xs"
+              className="w-full inline-flex items-center justify-center px-3 py-2 rounded-md bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] text-xs font-bold transition-colors shadow-xs"
             >
               <Wand2 className="w-3.5 h-3.5 mr-1.5" />
               {t.nav.generateWithAI}
             </button>
             <button
               onClick={onNewTemplate}
-              className="w-full inline-flex items-center justify-center px-3 py-1.5 rounded-md border border-slate-600 hover:border-slate-500 text-slate-200 hover:text-white text-xs font-semibold transition-colors"
+              className="w-full inline-flex items-center justify-center px-3 py-1.5 rounded-md border border-slate-700 hover:border-slate-600 text-slate-200 hover:text-white text-xs font-semibold transition-colors"
             >
               <Plus className="w-3.5 h-3.5 mr-1" />
               {t.nav.buildNewChecklist}
@@ -357,14 +357,14 @@ export const Navigation: React.FC<NavigationProps> = ({
 
         {/* Offline / Sync Status Pill */}
         {authEnabled && (
-          <div className="px-3 py-2 border-t border-slate-800 bg-slate-950/40 flex items-center justify-between text-[11px]">
+          <div className="px-3 py-2 border-t border-slate-800 bg-[#06090e]/60 flex items-center justify-between text-[11px]">
             <div className="flex items-center space-x-1.5">
               {isOnline ? (
-                <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                <Wifi className="w-3.5 h-3.5 text-[#d4f038]" />
               ) : (
                 <WifiOff className="w-3.5 h-3.5 text-amber-400" />
               )}
-              <span className={isOnline ? 'text-emerald-400 font-medium' : 'text-amber-400 font-semibold'}>
+              <span className={isOnline ? 'text-[#d4f038] font-medium' : 'text-amber-400 font-semibold'}>
                 {isOnline ? (lang === 'id' ? 'Online' : 'Online') : lang === 'id' ? 'Mode Offline' : 'Offline Mode'}
               </span>
             </div>
@@ -373,7 +373,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                 type="button"
                 onClick={onSyncNow}
                 disabled={!isOnline}
-                className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 disabled:opacity-50 flex items-center space-x-1 font-mono text-[10px]"
+                className="px-2 py-0.5 rounded bg-[#d4f038]/10 text-[#d4f038] border border-[#d4f038]/30 hover:bg-[#d4f038]/20 disabled:opacity-50 flex items-center space-x-1 font-mono tabular-nums text-[10px]"
               >
                 <RefreshCw className="w-2.5 h-2.5" />
                 <span>{pendingSyncCount}</span>
@@ -383,7 +383,7 @@ export const Navigation: React.FC<NavigationProps> = ({
         )}
 
         {/* Active Persona & User Switcher Card */}
-        <div className="p-3 border-t border-slate-800 relative bg-slate-950/60">
+        <div className="p-3 border-t border-slate-800 relative bg-[#06090e]">
           <button
             onClick={() => setUserDropdownOpen(!userDropdownOpen)}
             className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-800/70 transition-colors text-left"
@@ -397,7 +397,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                   className="w-8 h-8 rounded-full border border-slate-700 object-cover flex-shrink-0"
                 />
               ) : (
-                <div className="w-8 h-8 rounded-full border border-slate-700 bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                <div className="w-8 h-8 rounded-full border border-slate-700 bg-[#d4f038]/15 text-[#d4f038] flex items-center justify-center text-xs font-mono font-bold flex-shrink-0">
                   {activeUser.name.slice(0, 2).toUpperCase()}
                 </div>
               )}
@@ -415,8 +415,8 @@ export const Navigation: React.FC<NavigationProps> = ({
 
           {/* Persona Switcher or Authenticated Account Menu */}
           {userDropdownOpen && authEnabled && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-xs">
-              <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-[#0b0e14] border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-xs">
+              <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold text-slate-400">
                 {lang === 'id' ? 'Akun & Keamanan' : 'Account & Security'}
               </div>
               <div className="p-1.5 space-y-1">
@@ -427,7 +427,7 @@ export const Navigation: React.FC<NavigationProps> = ({
                   }}
                   className="w-full text-left px-3 py-2 rounded-lg flex items-center space-x-2 text-slate-200 hover:bg-slate-800 transition-colors"
                 >
-                  <Shield className="w-3.5 h-3.5 text-amber-400" />
+                  <Shield className="w-3.5 h-3.5 text-[#d4f038]" />
                   <span>{lang === 'id' ? 'PIN & Sidik Jari' : 'PIN & Biometrics'}</span>
                 </button>
                 <button
@@ -445,8 +445,8 @@ export const Navigation: React.FC<NavigationProps> = ({
           )}
 
           {userDropdownOpen && !authEnabled && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-xs">
-              <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-[#0b0e14] border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-xs">
+              <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold text-slate-400 flex items-center justify-between">
                 <span>{t.nav.switchPersona}</span>
                 <UserCheck className="w-3 h-3 text-amber-400" />
               </div>

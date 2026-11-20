@@ -544,8 +544,9 @@ function SiteLensWorkspace() {
             <span aria-hidden="true">·</span>
             <span>{t.nav.activeShiftsHeader}</span>
             <span aria-hidden="true">·</span>
-            <span className="font-mono text-emerald-600 font-semibold">
-              {t.nav.siteSyncNominal}
+            <span className="font-mono text-xs text-slate-700 font-semibold flex items-center space-x-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#d4f038] inline-block" />
+              <span>{t.nav.siteSyncNominal}</span>
             </span>
           </nav>
 
@@ -554,7 +555,7 @@ function SiteLensWorkspace() {
             {executingTemplate ? (
               <button
                 onClick={() => setExecutingTemplate(null)}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
+                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
               >
                 {t.nav.exitInspection}
               </button>
@@ -564,7 +565,7 @@ function SiteLensWorkspace() {
                   setEditingTemplate(null);
                   setCurrentTab('templates');
                 }}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
+                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
               >
                 {t.nav.closeBuilder}
               </button>
@@ -575,7 +576,7 @@ function SiteLensWorkspace() {
                     setExecutingTemplate(templates[0]);
                   }
                 }}
-                className="px-3.5 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition-colors whitespace-nowrap"
+                className="px-3.5 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] text-xs font-bold transition-colors whitespace-nowrap shadow-xs"
               >
                 {t.nav.quickPerform}
               </button>

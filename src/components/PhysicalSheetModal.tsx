@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Printer, Upload, CheckCircle, X, FileText, QrCode } from 'lucide-react';
+import { Printer, Upload, CheckCircle, X, FileText, QrCode, RefreshCw } from 'lucide-react';
 import type { WorkNode, WorkStage, Project, User } from '../types';
 import { uploadEvidencePhotoDetailed } from '../services/api';
 
@@ -56,12 +56,12 @@ export const PhysicalSheetModal: React.FC<PhysicalSheetModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl max-w-2xl w-full shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-2">
-            <FileText className="w-4 h-4 text-amber-600" />
+            <FileText className="w-4 h-4 text-slate-800" />
             <h3 className="text-sm font-bold text-slate-900">
               Dual-Track: Lembar Tanda Tangan Fisik & Scan
             </h3>
@@ -72,28 +72,30 @@ export const PhysicalSheetModal: React.FC<PhysicalSheetModalProps> = ({
         </div>
 
         {/* Tab switchers */}
-        <div className="flex border-b border-slate-200 px-6 pt-3 space-x-6 text-xs font-bold">
+        <div className="flex border-b border-slate-200 px-6 pt-3 space-x-6 text-xs font-medium">
           <button
             onClick={() => setActiveTab('print')}
             className={`pb-3 flex items-center space-x-1.5 transition-colors border-b-2 ${
               activeTab === 'print'
-                ? 'border-amber-500 text-amber-900'
+                ? 'border-[#0b0e14] text-slate-900 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>1. Cetak Lembar Pemeriksaan (Print Sheet)</span>
+            <span>1. Cetak lembar pemeriksaan (Print Sheet)</span>
+            {activeTab === 'print' && <span className="w-1.5 h-1.5 rounded-full bg-[#d4f038]" />}
           </button>
           <button
             onClick={() => setActiveTab('upload')}
             className={`pb-3 flex items-center space-x-1.5 transition-colors border-b-2 ${
               activeTab === 'upload'
-                ? 'border-amber-500 text-amber-900'
+                ? 'border-[#0b0e14] text-slate-900 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-900'
             }`}
           >
             <Upload className="w-3.5 h-3.5" />
-            <span>2. Unggah Scan Fisik Bertanda Tangan</span>
+            <span>2. Unggah scan fisik bertanda tangan</span>
+            {activeTab === 'upload' && <span className="w-1.5 h-1.5 rounded-full bg-[#d4f038]" />}
           </button>
         </div>
 
@@ -267,19 +269,20 @@ export const PhysicalSheetModal: React.FC<PhysicalSheetModalProps> = ({
               </div>
 
               {uploading && (
-                <div className="text-center text-amber-700 font-bold py-2 animate-pulse text-xs">
-                  Sedang memproses dan menghitung checksum SHA-256 dokumen scan...
+                <div className="text-center text-slate-700 font-medium py-2 text-xs flex items-center justify-center space-x-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
+                  <span>Sedang memproses dan menghitung checksum SHA-256 dokumen scan...</span>
                 </div>
               )}
 
               {uploadedUrl && (
-                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
-                  <div className="flex items-center space-x-2 text-emerald-800 font-bold text-xs">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                  <div className="flex items-center space-x-2 text-slate-900 font-bold text-xs">
                     <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>File pindaian fisik berhasil diunggah!</span>
+                    <span>File pindaian fisik berhasil diunggah</span>
                   </div>
-                  <div className="font-mono text-[10px] text-slate-600 break-all bg-white p-2 rounded border border-emerald-100">
-                    <span className="font-bold block text-slate-700">SHA-256 Checksum:</span>
+                  <div className="font-mono text-[10px] text-slate-700 break-all bg-white p-2 rounded border border-slate-200">
+                    <span className="font-bold block text-slate-900">SHA-256 Checksum:</span>
                     {uploadedSha}
                   </div>
                 </div>
@@ -289,7 +292,7 @@ export const PhysicalSheetModal: React.FC<PhysicalSheetModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold"
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
                 >
                   Batal
                 </button>
@@ -297,10 +300,10 @@ export const PhysicalSheetModal: React.FC<PhysicalSheetModalProps> = ({
                   type="button"
                   disabled={!uploadedUrl}
                   onClick={handleConfirmUpload}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold flex items-center space-x-1.5"
+                  className="px-4 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] disabled:opacity-50 text-[#0b0e14] font-bold flex items-center space-x-1.5 shadow-xs transition-colors"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  <span>Gunakan Scan Fisik Ini</span>
+                  <span>Gunakan scan fisik ini</span>
                 </button>
               </div>
             </div>

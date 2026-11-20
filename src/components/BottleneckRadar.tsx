@@ -57,53 +57,53 @@ export const BottleneckRadar: React.FC<BottleneckRadarProps> = ({
     <div className="space-y-5">
       {/* KPI Status Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="p-4 rounded-xl bg-white border border-rose-200 bg-rose-50/20 shadow-2xs flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-white border border-rose-300 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[10px] uppercase font-bold text-rose-800 block">
-              Critical Bottlenecks (&gt;48 Jam)
+            <span className="text-[11px] font-medium text-rose-700 block">
+              Antrean kritis (&gt;48 jam)
             </span>
-            <span className="text-2xl font-mono font-bold text-rose-700 mt-1 block">
+            <span className="text-2xl font-mono tabular-nums font-bold text-rose-700 mt-1 block">
               {criticalCount}
             </span>
             <span className="text-[10px] text-rose-600 mt-0.5 block">
               Potensi penggeseran jadwal kritis
             </span>
           </div>
-          <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
-            <ShieldAlert className="w-5 h-5 animate-pulse" />
+          <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-center font-bold">
+            <ShieldAlert className="w-5 h-5" />
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-white border border-amber-200 bg-amber-50/20 shadow-2xs flex items-center justify-between">
+        <div className="p-4 rounded-xl bg-white border border-amber-300 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[10px] uppercase font-bold text-amber-800 block">
-              Warning SLA (24 – 48 Jam)
+            <span className="text-[11px] font-medium text-amber-800 block">
+              Peringatan SLA (24 – 48 jam)
             </span>
-            <span className="text-2xl font-mono font-bold text-amber-700 mt-1 block">
+            <span className="text-2xl font-mono tabular-nums font-bold text-amber-700 mt-1 block">
               {warningCount}
             </span>
             <span className="text-[10px] text-amber-600 mt-0.5 block">
               Perlu tindak lanjut reviewer
             </span>
           </div>
-          <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center font-bold">
             <Clock className="w-5 h-5" />
           </div>
         </div>
 
         <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
           <div>
-            <span className="text-[10px] uppercase font-bold text-slate-500 block">
-              Normal Queue (&lt;24 Jam)
+            <span className="text-[11px] font-medium text-slate-500 block">
+              Antrean normal (&lt;24 jam)
             </span>
-            <span className="text-2xl font-mono font-bold text-slate-800 mt-1 block">
+            <span className="text-2xl font-mono tabular-nums font-bold text-slate-800 mt-1 block">
               {normalCount}
             </span>
             <span className="text-[10px] text-slate-400 mt-0.5 block">
               Dalam batas toleransi standar
             </span>
           </div>
-          <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-lg bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center font-bold">
             <CheckCircle className="w-5 h-5" />
           </div>
         </div>
@@ -113,9 +113,9 @@ export const BottleneckRadar: React.FC<BottleneckRadarProps> = ({
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center space-x-2">
-              <Clock className="w-4 h-4 text-amber-600" />
-              <span>Bottleneck Radar: Antrean Inspeksi & Umur Waktu Tunggu (SLA)</span>
+            <h3 className="text-xs font-bold text-slate-900 flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-slate-800" />
+              <span>Bottleneck Radar: Antrean inspeksi & umur waktu tunggu (SLA)</span>
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
               Menghitung waktu tunggu persetujuan inspeksi sejak diajukan pelaksana di lapangan.
@@ -149,7 +149,7 @@ export const BottleneckRadar: React.FC<BottleneckRadarProps> = ({
               <div
                 key={item.stageId}
                 className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors ${
-                  item.status === 'critical' ? 'bg-rose-50/20' : ''
+                  item.status === 'critical' ? 'bg-rose-50/30' : ''
                 }`}
               >
                 <div className="flex items-start space-x-3">
@@ -167,31 +167,31 @@ export const BottleneckRadar: React.FC<BottleneckRadarProps> = ({
 
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                      <span className="font-mono text-xs font-bold text-[#d4f038] bg-[#0b0e14] border border-slate-800 px-2 py-0.5 rounded">
                         {item.wbsCode}
                       </span>
                       <h4 className="font-bold text-slate-900 text-xs">{item.stageName}</h4>
 
                       {item.stageType === 'hold' && (
-                        <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 text-[9px] font-bold uppercase">
+                        <span className="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 text-[10px] font-mono font-bold">
                           HOLD POINT
                         </span>
                       )}
 
                       <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono tabular-nums font-bold ${
                           item.status === 'critical'
-                            ? 'bg-rose-100 text-rose-800 animate-pulse'
+                            ? 'bg-rose-100 text-rose-900 border border-rose-300'
                             : item.status === 'warning'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-100 text-slate-600'
+                            ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
                         }`}
                       >
                         {item.status === 'critical'
-                          ? `CRITICAL (${item.waitingHours} JAM)`
+                          ? `CRITICAL (${item.waitingHours}h)`
                           : item.status === 'warning'
-                          ? `WARNING (${item.waitingHours} JAM)`
-                          : `NORMAL (${item.waitingHours} JAM)`}
+                          ? `WARNING (${item.waitingHours}h)`
+                          : `NORMAL (${item.waitingHours}h)`}
                       </span>
                     </div>
 
@@ -218,17 +218,17 @@ export const BottleneckRadar: React.FC<BottleneckRadarProps> = ({
                   <button
                     type="button"
                     onClick={() => handleSendReminder(item)}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-medium flex items-center space-x-1"
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-medium flex items-center space-x-1 transition-colors"
                   >
-                    <Bell className="w-3 h-3 text-amber-600" />
-                    <span>{notifiedId === item.stageId ? 'Terkirim ✓' : 'Kirim Reminder'}</span>
+                    <Bell className="w-3 h-3 text-slate-600" />
+                    <span>{notifiedId === item.stageId ? 'Terkirim ✓' : 'Kirim reminder'}</span>
                   </button>
 
                   {onOpenStageWorkflow && (
                     <button
                       type="button"
                       onClick={() => onOpenStageWorkflow(item.wbsCode)}
-                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center space-x-1 shadow-2xs"
+                      className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] text-xs font-bold flex items-center space-x-1 shadow-xs transition-colors"
                     >
                       <span>Tinjau</span>
                       <ArrowRight className="w-3 h-3" />

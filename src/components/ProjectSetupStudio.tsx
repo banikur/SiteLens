@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Clock,
   CloudRain,
+  RefreshCw,
 } from 'lucide-react';
 import type { Project, User, WorkNode, SCurveSummary } from '../types';
 import {
@@ -260,7 +261,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
           </button>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
+              <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#0b0e14] text-[#d4f038] border border-slate-800">
                 {project.code}
               </span>
               <h1 className="text-lg md:text-xl font-bold text-slate-900">
@@ -278,10 +279,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
           <button
             type="button"
             onClick={() => setWeatherModalOpen(true)}
-            className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold transition-colors flex items-center shadow-xs"
+            className="px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold transition-colors flex items-center shadow-xs"
             title="Buku Harian Cuaca, Curah Hujan & Klaim EOT"
           >
-            <CloudRain className="w-3.5 h-3.5 mr-1.5 text-indigo-600" />
+            <CloudRain className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
             <span>Cuaca & EOT</span>
           </button>
 
@@ -289,17 +290,17 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
             <>
               <button
                 onClick={() => setPresetModalOpen(true)}
-                className="px-3 py-2 rounded-lg border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-bold transition-colors flex items-center shadow-xs"
+                className="px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold transition-colors flex items-center shadow-xs"
               >
-                <Sparkles className="w-3.5 h-3.5 mr-1.5 text-indigo-600" />
-                Pilih Preset WBS
+                <Sparkles className="w-3.5 h-3.5 mr-1.5 text-slate-600" />
+                <span>Pilih preset WBS</span>
               </button>
               <button
                 onClick={() => handleOpenAddModal('')}
-                className="px-3.5 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors flex items-center shadow-xs"
+                className="px-3.5 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] text-xs font-bold transition-colors flex items-center shadow-xs"
               >
                 <Plus className="w-4 h-4 mr-1.5" />
-                Tambah Root Node
+                <span>Tambah root node</span>
               </button>
             </>
           )}
@@ -314,18 +315,19 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
       </div>
 
       {/* Studio Navigation Tabs (Fase 4: WBS, S-Curve, Bottleneck Radar) */}
-      <div className="flex border-b border-slate-200 space-x-6 text-xs font-bold bg-white px-5 pt-3 rounded-xl shadow-2xs">
+      <div className="flex border-b border-slate-200 space-x-6 text-xs font-medium bg-white px-5 pt-3 rounded-xl shadow-2xs">
         <button
           type="button"
           onClick={() => setActiveStudioTab('wbs')}
           className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${
             activeStudioTab === 'wbs'
-              ? 'border-amber-500 text-amber-900'
+              ? 'border-[#0b0e14] text-slate-900 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}
         >
-          <FolderTree className="w-4 h-4 text-amber-600" />
+          <FolderTree className="w-4 h-4 text-slate-700" />
           <span>1. Struktur WBS & Bobot</span>
+          {activeStudioTab === 'wbs' && <span className="w-1.5 h-1.5 rounded-full bg-[#d4f038]" />}
         </button>
 
         <button
@@ -336,12 +338,13 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
           }}
           className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${
             activeStudioTab === 'scurve'
-              ? 'border-amber-500 text-amber-900'
+              ? 'border-[#0b0e14] text-slate-900 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}
         >
-          <TrendingUp className="w-4 h-4 text-indigo-600" />
+          <TrendingUp className="w-4 h-4 text-slate-700" />
           <span>2. Kurva S Mingguan & Deviasi</span>
+          {activeStudioTab === 'scurve' && <span className="w-1.5 h-1.5 rounded-full bg-[#d4f038]" />}
         </button>
 
         <button
@@ -349,12 +352,13 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
           onClick={() => setActiveStudioTab('radar')}
           className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${
             activeStudioTab === 'radar'
-              ? 'border-amber-500 text-amber-900'
+              ? 'border-[#0b0e14] text-slate-900 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-900'
           }`}
         >
-          <Clock className="w-4 h-4 text-rose-600" />
+          <Clock className="w-4 h-4 text-slate-700" />
           <span>3. Bottleneck Radar SLA</span>
+          {activeStudioTab === 'radar' && <span className="w-1.5 h-1.5 rounded-full bg-[#d4f038]" />}
         </button>
       </div>
 
@@ -371,78 +375,78 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
         <>
           {/* Non-Blocking Relative Weights Summary & Warning Banner */}
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-3">
-            <div
-              className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                weightValidation.rootTotal === 100
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-amber-100 text-amber-700'
-              }`}
-            >
-              {weightValidation.rootTotal === 100 ? (
-                <CheckCircle className="w-5 h-5" />
-              ) : (
-                <AlertTriangle className="w-5 h-5" />
-              )}
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-bold text-slate-900">
-                  Total Bobot Root Proyek:
-                </span>
-                <span
-                  className={`font-mono text-xs font-bold px-2 py-0.5 rounded ${
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <div
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
                     weightValidation.rootTotal === 100
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-amber-100 text-amber-800'
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                      : 'bg-amber-50 border border-amber-200 text-amber-700'
                   }`}
                 >
-                  {weightValidation.rootTotal.toFixed(2)}%
-                </span>
-                <span className="text-[11px] text-slate-400">
-                  (Target Ideal: 100.00%)
-                </span>
+                  {weightValidation.rootTotal === 100 ? (
+                    <CheckCircle className="w-5 h-5" />
+                  ) : (
+                    <AlertTriangle className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs font-semibold text-slate-900">
+                      Total bobot root proyek:
+                    </span>
+                    <span
+                      className={`font-mono text-xs tabular-nums font-bold px-2 py-0.5 rounded ${
+                        weightValidation.rootTotal === 100
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {weightValidation.rootTotal.toFixed(2)}%
+                    </span>
+                    <span className="text-[11px] text-slate-400 font-mono tabular-nums">
+                      (Target: 100.00%)
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    {weightValidation.hasWarnings
+                      ? 'Sistem toleransi non-blocking: Total bobot saat ini belum 100%. Anda tetap dapat menyimpan struktur dan melanjutkan pekerjaan.'
+                      : 'Struktur bobot relatif tingkat proyek seimbang tepat 100.00%.'}
+                  </p>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {weightValidation.hasWarnings
-                  ? 'Sistem toleransi non-blocking: Total bobot saat ini belum 100%. Anda tetap dapat menyimpan struktur dan melanjutkan pekerjaan.'
-                  : 'Struktur bobot relatif tingkat proyek seimbang tepat 100.00%.'}
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-center space-x-4 text-xs text-slate-600 font-mono">
-            <div>
-              <span className="text-slate-400 block text-[10px]">TOTAL NODE</span>
-              <span className="font-bold text-slate-800">{nodes.length} Item</span>
+              <div className="flex items-center space-x-4 text-xs text-slate-600 font-mono">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">TOTAL NODE</span>
+                  <span className="font-bold text-slate-800 tabular-nums">{nodes.length} Item</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">ROOT ITEMS</span>
+                  <span className="font-bold text-slate-800 tabular-nums">
+                    {treeNodes.length} Root
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <span className="text-slate-400 block text-[10px]">ROOT ITEMS</span>
-              <span className="font-bold text-slate-800">
-                {treeNodes.length} Root
-              </span>
-            </div>
-          </div>
-        </div>
 
-        {/* Detailed warnings breakdown if any group is != 100% */}
-        {weightValidation.hasWarnings && (
-          <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2 text-[11px]">
-            {weightValidation.groups
-              .filter((g) => !g.isValid)
-              .map((g, idx) => (
-                <span
-                  key={idx}
-                  className="px-2.5 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 flex items-center"
-                >
-                  <AlertTriangle className="w-3 h-3 mr-1 text-amber-600" />
-                  {g.message}
-                </span>
-              ))}
+            {/* Detailed warnings breakdown if any group is != 100% */}
+            {weightValidation.hasWarnings && (
+              <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap gap-2 text-[11px]">
+                {weightValidation.groups
+                  .filter((g) => !g.isValid)
+                  .map((g, idx) => (
+                    <span
+                      key={idx}
+                      className="px-2.5 py-1 rounded bg-amber-50 border border-amber-200 text-amber-800 flex items-center"
+                    >
+                      <AlertTriangle className="w-3 h-3 mr-1 text-amber-600" />
+                      {g.message}
+                    </span>
+                  ))}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -464,13 +468,13 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-bold tracking-wider text-[11px]">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium text-xs">
               <tr>
-                <th className="py-3 px-4">WBS Code & Nama Pekerjaan</th>
+                <th className="py-3 px-4">WBS code & nama pekerjaan</th>
                 <th className="py-3 px-4 w-28 text-right">Bobot (%)</th>
-                <th className="py-3 px-4 w-44">Dokumen Acuan & Rev</th>
-                <th className="py-3 px-4 w-36">Jadwal Rencana</th>
-                <th className="py-3 px-4 w-36">Progress (Klaim / Verifikasi)</th>
+                <th className="py-3 px-4 w-44">Dokumen acuan & rev</th>
+                <th className="py-3 px-4 w-36">Jadwal rencana</th>
+                <th className="py-3 px-4 w-36">Progres (klaim / verifikasi)</th>
                 <th className="py-3 px-4 w-28 text-right">Aksi</th>
               </tr>
             </thead>
@@ -496,15 +500,15 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                           <div className="flex items-center justify-center space-x-2 pt-2">
                             <button
                               onClick={() => setPresetModalOpen(true)}
-                              className="px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 font-bold hover:bg-indigo-100"
+                              className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800 font-medium hover:bg-slate-50 transition-colors"
                             >
-                              Pilih Preset Starter Pack
+                              Pilih preset starter pack
                             </button>
                             <button
                               onClick={() => handleOpenAddModal('')}
-                              className="px-3 py-1.5 rounded-lg bg-amber-500 text-slate-950 font-bold hover:bg-amber-400"
+                              className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold shadow-xs transition-colors"
                             >
-                              Buat Node Manual
+                              Buat node manual
                             </button>
                           </div>
                         )}
@@ -548,7 +552,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                             </span>
                           )}
 
-                          <span className="font-mono font-bold text-amber-700 mr-2 text-[11px]">
+                          <span className="font-mono font-bold text-[#d4f038] bg-[#0b0e14] border border-slate-800 px-1.5 py-0.5 rounded text-[10px] mr-2">
                             {node.wbsCode}
                           </span>
                           <span
@@ -564,7 +568,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                       </td>
 
                       {/* Weight Percent */}
-                      <td className="py-2.5 px-4 text-right font-mono font-bold text-slate-800">
+                      <td className="py-2.5 px-4 text-right font-mono tabular-nums font-bold text-slate-800">
                         {Number(node.weightPercent).toFixed(2)}%
                       </td>
 
@@ -577,7 +581,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                               {node.documentReferenceNo}
                             </span>
                             {node.activeRevision && (
-                              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-mono text-[10px] font-bold">
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-mono text-[10px] font-medium">
                                 {node.activeRevision}
                               </span>
                             )}
@@ -592,7 +596,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                         {node.plannedStartDate || node.plannedEndDate ? (
                           <div className="flex items-center space-x-1">
                             <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>
+                            <span className="font-mono tabular-nums">
                               {node.plannedStartDate
                                 ? String(node.plannedStartDate).slice(5, 10)
                                 : '...'}
@@ -610,22 +614,22 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                       {/* Progress Rollup */}
                       <td className="py-2.5 px-4">
                         <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[10px]">
+                          <div className="flex items-center justify-between text-[10px] font-mono tabular-nums">
                             <span className="text-slate-400">
                               Klaim: <b className="text-slate-700">{rollup.claimedProgress}%</b>
                             </span>
-                            <span className="text-emerald-700 font-bold">
+                            <span className="text-slate-900 font-bold">
                               Verif: {rollup.verifiedProgress}%
                             </span>
                           </div>
-                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden flex">
+                          <div className="w-full bg-slate-100 rounded-sm h-1.5 overflow-hidden flex border border-slate-200">
                             <div
-                              className="bg-emerald-500 h-1.5 rounded-l-full"
+                              className="bg-[#d4f038] h-1.5"
                               style={{ width: `${Math.min(rollup.verifiedProgress, 100)}%` }}
                               title={`Terverifikasi: ${rollup.verifiedProgress}%`}
                             />
                             <div
-                              className="bg-amber-300 h-1.5"
+                              className="bg-slate-300 h-1.5"
                               style={{
                                 width: `${Math.max(
                                   0,
@@ -647,10 +651,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                           <button
                             type="button"
                             onClick={() => setSelectedWorkflowNode(node)}
-                            className="px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] flex items-center space-x-1 transition-colors"
+                            className="px-2 py-1 rounded bg-[#0b0e14] hover:bg-[#161c28] text-[#d4f038] border border-slate-800 font-mono text-[10px] font-bold flex items-center space-x-1 transition-colors"
                             title="Buka Alur Multi-Stage Workflow & Hold Point"
                           >
-                            <ShieldCheck className="w-3 h-3 text-indigo-600" />
+                            <ShieldCheck className="w-3 h-3 text-[#d4f038]" />
                             <span>Workflow</span>
                           </button>
 
@@ -807,8 +811,9 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               </div>
 
               {presetSubmitting && (
-                <div className="py-2 text-center text-indigo-700 font-semibold animate-pulse">
-                  Sedang menerapkan struktur preset...
+                <div className="py-2 text-center text-slate-700 font-medium text-xs flex items-center justify-center space-x-2">
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-400" />
+                  <span>Sedang menerapkan struktur preset...</span>
                 </div>
               )}
             </div>
@@ -818,11 +823,11 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
 
       {/* Add / Edit Node Modal */}
       {nodeModalOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <h3 className="text-sm font-bold text-slate-900">
-                {editingNode ? `Edit WBS Node: ${editingNode.wbsCode}` : 'Tambah Item WBS Baru'}
+                {editingNode ? `Edit WBS Node: ${editingNode.wbsCode}` : 'Tambah item WBS baru'}
               </h3>
               <button
                 onClick={() => setNodeModalOpen(false)}
@@ -835,13 +840,13 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
             <form onSubmit={handleSaveNode} className="p-6 space-y-4 text-xs">
               {/* Parent Selector */}
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Parent Node (Hirarki)
+                <label className="block font-medium text-slate-700 text-xs mb-1">
+                  Parent node (hirarki)
                 </label>
                 <select
                   value={formParentId}
                   onChange={(e) => setFormParentId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 bg-white"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 bg-white focus:outline-none focus:border-slate-800"
                 >
                   <option value="">Root Level (Tingkat Utama Proyek)</option>
                   {flatNodes
@@ -857,8 +862,8 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               {/* Code & Weight */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    WBS Code *
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    WBS code *
                   </label>
                   <input
                     type="text"
@@ -866,12 +871,12 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                     value={formWbsCode}
                     onChange={(e) => setFormWbsCode(e.target.value)}
                     placeholder="Contoh: 1.0 atau 3.2.1"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Bobot Relatif (%) *
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Bobot relatif (%) *
                   </label>
                   <input
                     type="number"
@@ -882,15 +887,15 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                     value={formWeight}
                     onChange={(e) => setFormWeight(e.target.value)}
                     placeholder="15.00"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono tabular-nums focus:outline-none focus:border-slate-800"
                   />
                 </div>
               </div>
 
               {/* Work Name */}
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Nama Pekerjaan / Paket Kerja *
+                <label className="block font-medium text-slate-700 text-xs mb-1">
+                  Nama pekerjaan / paket kerja *
                 </label>
                 <input
                   type="text"
@@ -898,34 +903,34 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="Contoh: Civil & Structural Construction"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-800"
                 />
               </div>
 
               {/* Document Reference & Revision */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Nomor Dokumen Acuan / Gambar
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Nomor dokumen acuan / gambar
                   </label>
                   <input
                     type="text"
                     value={formDocRef}
                     onChange={(e) => setFormDocRef(e.target.value)}
                     placeholder="Contoh: DWG-STR-104"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Revisi Aktif
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Revisi aktif
                   </label>
                   <input
                     type="text"
                     value={formRevision}
                     onChange={(e) => setFormRevision(e.target.value)}
                     placeholder="Rev C"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-800"
                   />
                 </div>
               </div>
@@ -933,25 +938,25 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               {/* Schedule Dates */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Rencana Mulai
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Rencana mulai
                   </label>
                   <input
                     type="date"
                     value={formStartDate}
                     onChange={(e) => setFormStartDate(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-800"
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Rencana Selesai
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Rencana selesai
                   </label>
                   <input
                     type="date"
                     value={formEndDate}
                     onChange={(e) => setFormEndDate(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-800"
                   />
                 </div>
               </div>
@@ -960,15 +965,15 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                 <button
                   type="button"
                   onClick={() => setNodeModalOpen(false)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold"
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+                  className="px-4 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold shadow-xs transition-colors"
                 >
-                  Simpan Node
+                  Simpan node
                 </button>
               </div>
             </form>
@@ -978,9 +983,9 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmNode && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-200 p-6 text-xs space-y-4">
-            <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full shadow-xl border border-slate-200 p-6 text-xs space-y-4">
+            <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-5 h-5" />
             </div>
             <div className="text-center">
@@ -994,15 +999,15 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
             <div className="flex items-center justify-end space-x-2 pt-2">
               <button
                 onClick={() => setDeleteConfirmNode(null)}
-                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
               >
                 Batal
               </button>
               <button
                 onClick={() => handleDeleteNode(deleteConfirmNode)}
-                className="flex-1 px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold"
+                className="flex-1 px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-bold transition-colors"
               >
-                Ya, Hapus
+                Ya, hapus
               </button>
             </div>
           </div>

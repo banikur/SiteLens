@@ -3,6 +3,18 @@
 @theme {
   --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --color-obsidian-950: #06090e;
+  --color-obsidian-900: #0b0e14;
+  --color-obsidian-850: #10141d;
+  --color-obsidian-800: #161c28;
+  --color-obsidian-700: #202738;
+  --color-obsidian-600: #2d374d;
+
+  --color-reticle: #d4f038;
+  --color-reticle-hover: #bfe025;
+  --color-reticle-dim: rgba(212, 240, 56, 0.12);
+  --color-reticle-border: rgba(212, 240, 56, 0.35);
 }
 
 /* Custom scrollbars for clean industrial SaaS UI */

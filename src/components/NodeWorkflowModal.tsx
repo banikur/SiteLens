@@ -202,12 +202,12 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
   const isViewer = currentUser.role === 'Client / Vendor Viewer';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl max-w-3xl w-full shadow-xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
           <div className="flex items-center space-x-2.5">
-            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-200">
+            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#0b0e14] text-[#d4f038] border border-slate-800">
               {node.wbsCode}
             </span>
             <div>
@@ -215,7 +215,7 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                 Multi-Stage Workflow: {node.name}
               </h3>
               <p className="text-[11px] text-slate-500">
-                Alur Tahapan, Titik Kritis (Hold Point), dan Otorisasi Tanda Tangan Ganda
+                Alur tahapan, titik kritis (Hold Point), dan otorisasi tanda tangan ganda
               </p>
             </div>
           </div>
@@ -243,16 +243,16 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
           {/* Workflow Status Banner */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Target Standar & Revisi Aktif:
+              <span className="text-[11px] font-medium text-slate-500 block">
+                Target standar & revisi aktif:
               </span>
               <span className="font-bold text-slate-800">
                 {node.documentReferenceNo || 'N/A'} {node.activeRevision ? `(${node.activeRevision})` : ''}
               </span>
-              <div className="flex items-center space-x-3 mt-1 text-[11px] text-slate-500">
+              <div className="flex items-center space-x-3 mt-1 text-[11px] text-slate-500 font-mono tabular-nums">
                 <span>Bobot WBS: <b className="text-slate-700">{Number(node.weightPercent).toFixed(2)}%</b></span>
                 <span>•</span>
-                <span>Progress Terverifikasi: <b className="text-emerald-700">{node.verifiedProgressPercent}%</b></span>
+                <span>Progres terverifikasi: <b className="text-slate-900">{node.verifiedProgressPercent}%</b></span>
               </div>
             </div>
 
@@ -261,10 +261,10 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                 type="button"
                 onClick={handleInitDefault}
                 disabled={actionLoading || isViewer}
-                className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold flex items-center space-x-1.5 shadow-xs shrink-0 disabled:opacity-50"
+                className="px-3.5 py-2 rounded-lg bg-[#0b0e14] hover:bg-[#161c28] text-[#d4f038] border border-slate-800 font-bold flex items-center space-x-1.5 shadow-xs shrink-0 disabled:opacity-50 transition-colors"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Buat 3-Tahap Workflow Standar</span>
+                <Sparkles className="w-3.5 h-3.5 text-[#d4f038]" />
+                <span>Buat 3-tahap workflow standar</span>
               </button>
             )}
           </div>
@@ -285,8 +285,8 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
             </div>
           ) : (
             <div className="space-y-3">
-              <h4 className="font-bold uppercase tracking-wider text-slate-600 text-[11px]">
-                Urutan Tahapan Inspeksi (Sequential Pipeline):
+              <h4 className="font-semibold text-slate-700 text-xs">
+                Urutan tahapan inspeksi (sequential pipeline):
               </h4>
 
               {stages.map((stage) => {
@@ -300,12 +300,12 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                     key={stage.id}
                     className={`rounded-xl border p-4 transition-all ${
                       stage.status === 'approved'
-                        ? 'border-emerald-200 bg-emerald-50/30'
+                        ? 'border-emerald-200 bg-emerald-50/20 text-slate-900'
                         : stage.status === 'rejected'
-                        ? 'border-rose-200 bg-rose-50/30'
+                        ? 'border-rose-200 bg-rose-50/30 text-slate-900'
                         : isBlocked
-                        ? 'border-slate-200 bg-slate-50/60 opacity-80'
-                        : 'border-slate-300 bg-white shadow-2xs'
+                        ? 'border-slate-200 bg-slate-50/60 opacity-80 text-slate-700'
+                        : 'border-slate-300 bg-white shadow-2xs text-slate-900'
                     }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -313,12 +313,12 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                         <div
                           className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold font-mono text-xs shrink-0 mt-0.5 ${
                             stage.status === 'approved'
-                              ? 'bg-emerald-600 text-white'
+                              ? 'bg-[#d4f038] text-[#0b0e14]'
                               : stage.status === 'rejected'
                               ? 'bg-rose-600 text-white'
                               : isBlocked
                               ? 'bg-slate-200 text-slate-500'
-                              : 'bg-amber-500 text-slate-950'
+                              : 'bg-[#0b0e14] text-white'
                           }`}
                         >
                           {stage.stageOrder}
@@ -331,33 +331,33 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
 
                             {/* Stage Type Badge */}
                             {stage.stageType === 'hold' ? (
-                              <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold text-[9px] uppercase border border-rose-200 flex items-center space-x-1">
+                              <span className="px-2 py-0.5 rounded bg-rose-950 text-rose-300 font-bold font-mono text-[9px] border border-rose-800 flex items-center space-x-1">
                                 <Lock className="w-2.5 h-2.5" />
                                 <span>HOLD POINT</span>
                               </span>
                             ) : stage.stageType === 'review' ? (
-                              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[9px] uppercase border border-amber-200">
+                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold font-mono text-[9px] border border-slate-200">
                                 WITNESS / REVIEW
                               </span>
                             ) : (
-                              <span className="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold text-[9px] uppercase border border-blue-200">
+                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold font-mono text-[9px] border border-slate-200">
                                 WORK EXECUTION
                               </span>
                             )}
 
                             {/* Status Pill */}
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
                                 stage.status === 'approved'
-                                  ? 'bg-emerald-100 text-emerald-800'
+                                  ? 'bg-slate-900 text-[#d4f038] border border-slate-800'
                                   : stage.status === 'rejected'
-                                  ? 'bg-rose-100 text-rose-800'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
                                   : stage.status === 'submitted'
-                                  ? 'bg-indigo-100 text-indigo-800'
-                                  : 'bg-slate-100 text-slate-600'
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
                               }`}
                             >
-                              {stage.status}
+                              {stage.status.toUpperCase()}
                             </span>
                           </div>
 
@@ -377,10 +377,10 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenSubmit(stage)}
-                              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center space-x-1 shadow-2xs"
+                              className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs flex items-center space-x-1 shadow-xs transition-colors"
                             >
                               <Send className="w-3 h-3" />
-                              <span>{stageAttempts.length > 0 ? 'Ajukan Ulang' : 'Ajukan Inspeksi'}</span>
+                              <span>{stageAttempts.length > 0 ? 'Ajukan ulang' : 'Ajukan inspeksi'}</span>
                             </button>
                           )}
 
@@ -389,9 +389,9 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleOpenReview(stage)}
-                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center space-x-1 shadow-2xs"
+                              className="px-3 py-1.5 rounded-lg bg-[#0b0e14] hover:bg-[#161c28] text-white font-bold text-xs flex items-center space-x-1 shadow-xs transition-colors"
                             >
-                              <FileCheck2 className="w-3 h-3" />
+                              <FileCheck2 className="w-3 h-3 text-[#d4f038]" />
                               <span>Review & Sign-Off</span>
                             </button>
                           )}
@@ -467,11 +467,11 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
 
       {/* Submission Form Modal Dialog */}
       {submittingStage && (
-        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <h3 className="text-sm font-bold text-slate-900">
-                Pengajuan Inspeksi: {submittingStage.name}
+                Pengajuan inspeksi: {submittingStage.name}
               </h3>
               <button onClick={() => setSubmittingStage(null)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
@@ -481,37 +481,37 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
             <form onSubmit={handleSubmitAttempt} className="p-6 space-y-4 text-xs">
               {/* Checkpoints */}
               <div className="space-y-2.5">
-                <label className="font-bold text-slate-700 uppercase tracking-wider block">
-                  Kriteria Verifikasi Lapangan:
+                <label className="font-medium text-slate-700 text-xs block">
+                  Kriteria verifikasi lapangan:
                 </label>
-                <label className="flex items-center space-x-2 p-2 rounded bg-slate-50 border border-slate-200 cursor-pointer">
+                <label className="flex items-center space-x-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={checkpoint1}
                     onChange={(e) => setCheckpoint1(e.target.checked)}
-                    className="rounded text-amber-500 focus:ring-amber-500 w-4 h-4"
+                    className="rounded text-slate-900 focus:ring-slate-800 w-4 h-4"
                   />
                   <span className="text-slate-800">
                     Kesesuaian gambar & spesifikasi aktif ({node.documentReferenceNo || 'Terkini'})
                   </span>
                 </label>
-                <label className="flex items-center space-x-2 p-2 rounded bg-slate-50 border border-slate-200 cursor-pointer">
+                <label className="flex items-center space-x-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={checkpoint2}
                     onChange={(e) => setCheckpoint2(e.target.checked)}
-                    className="rounded text-amber-500 focus:ring-amber-500 w-4 h-4"
+                    className="rounded text-slate-900 focus:ring-slate-800 w-4 h-4"
                   />
                   <span className="text-slate-800">
                     Mutu material dan dimensi toleransi fisik memenuhi syarat
                   </span>
                 </label>
-                <label className="flex items-center space-x-2 p-2 rounded bg-slate-50 border border-slate-200 cursor-pointer">
+                <label className="flex items-center space-x-2 p-2 rounded-lg bg-slate-50 border border-slate-200 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={checkpoint3}
                     onChange={(e) => setCheckpoint3(e.target.checked)}
-                    className="rounded text-amber-500 focus:ring-amber-500 w-4 h-4"
+                    className="rounded text-slate-900 focus:ring-slate-800 w-4 h-4"
                   />
                   <span className="text-slate-800">
                     Penerapan K3 (APD lengkap, zonasi aman) terpenuhi
@@ -521,22 +521,22 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
 
               {/* Notes */}
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Catatan Pelaksana / Hasil Uji
+                <label className="block font-medium text-slate-700 text-xs mb-1">
+                  Catatan pelaksana atau hasil uji
                 </label>
                 <textarea
                   rows={2}
                   value={submissionNotes}
                   onChange={(e) => setSubmissionNotes(e.target.value)}
                   placeholder="Masukkan pengamatan lapangan atau hasil uji tekan..."
-                  className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900"
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 focus:outline-none focus:border-slate-800"
                 />
               </div>
 
               {/* Dual-Track Signature Selection */}
               <div className="border-t border-slate-100 pt-3 space-y-2">
-                <label className="font-bold text-slate-700 uppercase tracking-wider block">
-                  Otorisasi Tanda Tangan (Pilih Salah Satu):
+                <label className="font-medium text-slate-700 text-xs block">
+                  Otorisasi tanda tangan (pilih salah satu):
                 </label>
 
                 <div className="grid grid-cols-2 gap-2">
@@ -548,15 +548,15 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                     }}
                     className={`p-3 rounded-lg border text-left flex flex-col justify-between transition-colors ${
                       capturedDigitalSig
-                        ? 'border-indigo-400 bg-indigo-50/50'
-                        : 'border-slate-300 hover:border-slate-400'
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-300 hover:border-slate-400 bg-white'
                     }`}
                   >
-                    <div className="flex items-center space-x-1.5 font-bold text-slate-800">
-                      <PenTool className="w-3.5 h-3.5 text-indigo-600" />
-                      <span>Digital Kanvas</span>
+                    <div className="flex items-center space-x-1.5 font-semibold text-xs">
+                      <PenTool className={`w-3.5 h-3.5 ${capturedDigitalSig ? 'text-[#d4f038]' : 'text-slate-700'}`} />
+                      <span>Digital kanvas</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 mt-1">
+                    <span className={`text-[10px] mt-1 ${capturedDigitalSig ? 'text-[#d4f038]' : 'text-slate-500'}`}>
                       {capturedDigitalSig ? '✓ Tanda tangan tersimpan' : 'Goreskan di layar sentuh'}
                     </span>
                   </button>
@@ -569,15 +569,15 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                     }}
                     className={`p-3 rounded-lg border text-left flex flex-col justify-between transition-colors ${
                       capturedWetScanUrl
-                        ? 'border-emerald-400 bg-emerald-50/50'
-                        : 'border-slate-300 hover:border-slate-400'
+                        ? 'border-slate-900 bg-slate-900 text-white'
+                        : 'border-slate-300 hover:border-slate-400 bg-white'
                     }`}
                   >
-                    <div className="flex items-center space-x-1.5 font-bold text-slate-800">
-                      <Printer className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Cetak & Scan Fisik</span>
+                    <div className="flex items-center space-x-1.5 font-semibold text-xs">
+                      <Printer className={`w-3.5 h-3.5 ${capturedWetScanUrl ? 'text-[#d4f038]' : 'text-slate-700'}`} />
+                      <span>Cetak & scan fisik</span>
                     </div>
-                    <span className="text-[10px] text-slate-500 mt-1">
+                    <span className={`text-[10px] mt-1 ${capturedWetScanUrl ? 'text-[#d4f038]' : 'text-slate-500'}`}>
                       {capturedWetScanUrl ? '✓ Dokumen scan terunggah' : 'Cetak sheet & upload scan'}
                     </span>
                   </button>
@@ -588,17 +588,17 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setSubmittingStage(null)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold"
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold flex items-center space-x-1"
+                  className="px-4 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold flex items-center space-x-1 shadow-xs transition-colors"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>Kirimkan Pengajuan</span>
+                  <span>Kirimkan pengajuan</span>
                 </button>
               </div>
             </form>
@@ -608,11 +608,11 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
 
       {/* Review & Sign-Off Modal Dialog */}
       {reviewingStage && (
-        <div className="fixed inset-0 z-60 overflow-y-auto bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="fixed inset-0 z-60 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <h3 className="text-sm font-bold text-slate-900">
-                Review & Verifikasi Mutu: {reviewingStage.name}
+                Review & verifikasi mutu: {reviewingStage.name}
               </h3>
               <button onClick={() => setReviewingStage(null)} className="text-slate-400 hover:text-slate-700">
                 <X className="w-5 h-5" />
@@ -620,31 +620,31 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
             </div>
 
             <form onSubmit={handleReviewAttempt} className="p-6 space-y-4 text-xs">
-              <div className="p-3 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-900 space-y-1">
-                <span className="font-bold block">Pemeriksa Independen (QA/QC Lead):</span>
-                <span>{currentUser.name} ({currentUser.role})</span>
-                <span className="block text-[10px] text-indigo-700 mt-1">
+              <div className="p-3.5 rounded-lg bg-[#0b0e14] border border-slate-800 text-slate-200 space-y-1">
+                <span className="font-bold block text-white">Pemeriksa independen (QA/QC Lead):</span>
+                <span className="text-[#d4f038] font-mono">{currentUser.name} ({currentUser.role})</span>
+                <span className="block text-[10px] text-slate-400 mt-1">
                   Enforcement: Anda bertindak sebagai pihak verifikator kedua independen sesuai prinsip Four-Eyes.
                 </span>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Keputusan Verifikasi Mutu:
+                <label className="block font-medium text-slate-700 text-xs mb-1.5">
+                  Keputusan verifikasi mutu:
                 </label>
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="flex items-center space-x-2 p-2.5 rounded-lg border border-slate-300 cursor-pointer hover:bg-slate-50">
+                  <label className="flex items-center space-x-2 p-2.5 rounded-lg border border-slate-300 cursor-pointer hover:bg-slate-50 transition-colors">
                     <input
                       type="radio"
                       name="decision"
                       value="approved"
                       checked={reviewDecision === 'approved'}
                       onChange={() => setReviewDecision('approved')}
-                      className="text-emerald-600 focus:ring-emerald-500"
+                      className="text-slate-900 focus:ring-slate-800"
                     />
                     <span className="font-bold text-emerald-800">Setujui (Approve)</span>
                   </label>
-                  <label className="flex items-center space-x-2 p-2.5 rounded-lg border border-slate-300 cursor-pointer hover:bg-slate-50">
+                  <label className="flex items-center space-x-2 p-2.5 rounded-lg border border-slate-300 cursor-pointer hover:bg-slate-50 transition-colors">
                     <input
                       type="radio"
                       name="decision"
@@ -653,14 +653,14 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                       onChange={() => setReviewDecision('rejected')}
                       className="text-rose-600 focus:ring-rose-500"
                     />
-                    <span className="font-bold text-rose-800">Tolak & Instruksikan Perbaikan</span>
+                    <span className="font-bold text-rose-800">Tolak & perbaikan</span>
                   </label>
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Catatan Direktif Verifikator
+                <label className="block font-medium text-slate-700 text-xs mb-1">
+                  Catatan direktif verifikator
                 </label>
                 <textarea
                   rows={3}
@@ -672,7 +672,7 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                       ? 'Catatan verifikasi atau instruksi lanjutan (opsional)...'
                       : 'Wajib: Jelaskan ketidaksesuaian yang ditemukan dan instruksi perbaikan...'
                   }
-                  className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900"
+                  className="w-full border border-slate-300 rounded-lg p-2 text-xs text-slate-900 focus:outline-none focus:border-slate-800"
                 />
               </div>
 
@@ -680,21 +680,21 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setReviewingStage(null)}
-                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-semibold"
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className={`px-4 py-2 rounded-lg font-bold text-white flex items-center space-x-1 ${
+                  className={`px-4 py-2 rounded-lg font-bold flex items-center space-x-1 shadow-xs transition-colors ${
                     reviewDecision === 'approved'
-                      ? 'bg-emerald-600 hover:bg-emerald-500'
-                      : 'bg-rose-600 hover:bg-rose-500'
+                      ? 'bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14]'
+                      : 'bg-rose-600 hover:bg-rose-500 text-white'
                   }`}
                 >
                   <FileCheck2 className="w-3.5 h-3.5" />
-                  <span>Kirimkan Keputusan</span>
+                  <span>Kirimkan keputusan</span>
                 </button>
               </div>
             </form>
