@@ -361,3 +361,26 @@ export const plannedCurveOverrides = pgTable('planned_curve_overrides', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const dailyWeatherLogs = pgTable('daily_weather_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  logDate: timestamp('log_date', { withTimezone: true }).notNull(),
+  weatherCondition: text('weather_condition')
+    .$type<'cerah' | 'berawan' | 'hujan_ringan' | 'hujan_lebat' | 'badai'>()
+    .notNull()
+    .default('cerah'),
+  rainHours: numeric('rain_hours', { precision: 4, scale: 2 }).notNull().default('0.00'),
+  workImpact: text('work_impact')
+    .$type<'tidak_ada' | 'parsial' | 'stop_total'>()
+    .notNull()
+    .default('tidak_ada'),
+  notes: text('notes'),
+  recordedBy: uuid('recorded_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+

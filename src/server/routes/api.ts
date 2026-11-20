@@ -12,6 +12,11 @@ import {
   workNodes,
   workWorkflows,
   workStages,
+  inspectionAttempts,
+  evidenceAttachments,
+  punchlistItems,
+  plannedCurveOverrides,
+  dailyWeatherLogs,
   projectMembers,
 } from '../db/schema.ts';
 import { hashSecret } from '../auth/crypto.ts';
@@ -22,6 +27,19 @@ import {
   getUploadDir,
   verifyStoredEvidence,
 } from '../services/evidenceIntegrity.ts';
+import {
+  canProceedToStage,
+  validateFourEyes,
+  validateDualTrackSignature,
+  getNextAttemptNumber,
+  generateDefaultStages,
+} from '../../utils/workflow.ts';
+import {
+  generateProjectCalendarWeeks,
+  calculateSCurveData,
+  calculateBottleneckAging,
+  calculateWeatherEotImpact,
+} from '../../utils/scurve.ts';
 import type {
   ApprovalDecision,
   ChecklistTemplate,
@@ -678,6 +696,799 @@ apiRouter.post(
     });
 
     res.json({ message: `Preset '${preset || 'general_epc'}' applied successfully.`, nodes: createdNodes });
+  }
+);
+
+// ---------------- MULTI-STAGE WORKFLOW & DUAL-TRACK SIGNATURES (FASE 3) ----------------
+
+apiRouter.get(
+  '/projects/:projectId/wbs/nodes/:nodeId/workflow',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const nodeScopeId = String(req.params.nodeId || '');
+
+    const [matchedNode] = await db
+      .select()
+      .from(workNodes)
+      .where(and(eq(workNodes.id, nodeScopeId as any), eq(workNodes.projectId, projectScopeId as any)))
+      .limit(1);
+
+    if (!matchedNode) {
+      res.status(404).json({ error: 'WBS node not found in this project.' });
+      return;
+    }
+
+    const [matchedWorkflow] = await db
+      .select()
+      .from(workWorkflows)
+      .where(eq(workWorkflows.nodeId, matchedNode.id))
+      .limit(1);
+
+    if (!matchedWorkflow) {
+      res.json({
+        node: matchedNode,
+        workflow: null,
+        stages: [],
+        attempts: [],
+      });
+      return;
+    }
+
+    const stages = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.workflowId, matchedWorkflow.id))
+      .orderBy(workStages.stageOrder);
+
+    const stageIds = stages.map((s) => s.id);
+    let attempts: any[] = [];
+    if (stageIds.length > 0) {
+      const allAttempts = await db
+        .select()
+        .from(inspectionAttempts)
+        .orderBy(desc(inspectionAttempts.attemptNumber));
+      attempts = allAttempts.filter((a) => stageIds.includes(a.stageId));
+    }
+
+    res.json({
+      node: matchedNode,
+      workflow: matchedWorkflow,
+      stages,
+      attempts,
+    });
+  }
+);
+
+apiRouter.post(
+  '/projects/:projectId/wbs/nodes/:nodeId/workflow/init-default',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const nodeScopeId = String(req.params.nodeId || '');
+
+    const [matchedNode] = await db
+      .select()
+      .from(workNodes)
+      .where(and(eq(workNodes.id, nodeScopeId as any), eq(workNodes.projectId, projectScopeId as any)))
+      .limit(1);
+
+    if (!matchedNode) {
+      res.status(404).json({ error: 'WBS node not found.' });
+      return;
+    }
+
+    let [existingWf] = await db
+      .select()
+      .from(workWorkflows)
+      .where(eq(workWorkflows.nodeId, matchedNode.id))
+      .limit(1);
+
+    if (!existingWf) {
+      const [newWf] = await db
+        .insert(workWorkflows)
+        .values({
+          nodeId: matchedNode.id,
+          title: `Inspection Workflow: ${matchedNode.name}`,
+        })
+        .returning();
+      existingWf = newWf;
+    }
+
+    // Check existing stages
+    const existingStages = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.workflowId, existingWf.id));
+
+    if (existingStages.length === 0) {
+      const templates = generateDefaultStages(matchedNode.name);
+      for (const tpl of templates) {
+        await db.insert(workStages).values({
+          workflowId: existingWf.id,
+          stageOrder: tpl.stageOrder,
+          stageType: tpl.stageType,
+          name: tpl.name,
+          assignedRole: tpl.assignedRole,
+          approvalRole: tpl.approvalRole,
+          requiresWetSignature: tpl.requiresWetSignature,
+          status: 'pending',
+        });
+      }
+    }
+
+    const updatedStages = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.workflowId, existingWf.id))
+      .orderBy(workStages.stageOrder);
+
+    await logAudit(req.authUser.id, req.authUser.name, 'INIT_DEFAULT_WORKFLOW', 'work_workflow', existingWf.id, {
+      nodeId: matchedNode.id,
+      stageCount: updatedStages.length,
+    });
+
+    res.json({
+      workflow: existingWf,
+      stages: updatedStages,
+    });
+  }
+);
+
+apiRouter.get(
+  '/stages/:stageId/attempts',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const stageScopeId = String(req.params.stageId || '');
+    const [targetStage] = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.id, stageScopeId as any))
+      .limit(1);
+
+    if (!targetStage) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    const attempts = await db
+      .select()
+      .from(inspectionAttempts)
+      .where(eq(inspectionAttempts.stageId, targetStage.id))
+      .orderBy(desc(inspectionAttempts.attemptNumber));
+
+    const attemptIds = attempts.map((a) => a.id);
+    let attachments: any[] = [];
+    if (attemptIds.length > 0) {
+      const allAttachments = await db.select().from(evidenceAttachments);
+      attachments = allAttachments.filter((att) => att.attemptId && attemptIds.includes(att.attemptId));
+    }
+
+    res.json({
+      stage: targetStage,
+      attempts,
+      attachments,
+    });
+  }
+);
+
+apiRouter.post(
+  '/stages/:stageId/submit',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const stageScopeId = String(req.params.stageId || '');
+    const [targetStage] = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.id, stageScopeId as any))
+      .limit(1);
+
+    if (!targetStage) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    // Check Client / Vendor Viewer prohibition
+    if (req.authUser.role === 'Client / Vendor Viewer') {
+      res.status(403).json({ error: 'Client / Vendor Viewer is read-only and cannot submit inspection attempts.' });
+      return;
+    }
+
+    // Check Hold Point Lockout across sibling stages in this workflow
+    const siblingStages = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.workflowId, targetStage.workflowId))
+      .orderBy(workStages.stageOrder);
+
+    const progressionCheck = canProceedToStage(siblingStages, targetStage.id);
+    if (!progressionCheck.allowed) {
+      res.status(400).json({
+        error: progressionCheck.reason,
+        blockingStage: progressionCheck.blockingStage,
+      });
+      return;
+    }
+
+    const body = req.body || {};
+
+    // Validate dual-track signature
+    const sigCheck = validateDualTrackSignature(
+      {
+        signatureCanvasUrl: body.signatureCanvasUrl,
+        wetSignatureDocumentUrl: body.wetSignatureDocumentUrl,
+      },
+      targetStage.requiresWetSignature
+    );
+
+    if (!sigCheck.valid) {
+      res.status(400).json({ error: sigCheck.message });
+      return;
+    }
+
+    // Determine attempt number
+    const existingAttempts = await db
+      .select()
+      .from(inspectionAttempts)
+      .where(eq(inspectionAttempts.stageId, targetStage.id));
+
+    const nextAttemptNumber = getNextAttemptNumber(existingAttempts);
+
+    const [newAttempt] = await db
+      .insert(inspectionAttempts)
+      .values({
+        stageId: targetStage.id,
+        attemptNumber: nextAttemptNumber,
+        submitterId: req.authUser.id as any,
+        status: 'submitted',
+        answers: body.answers || {},
+        signatureCanvasUrl: body.signatureCanvasUrl || null,
+        wetSignatureDocumentUrl: body.wetSignatureDocumentUrl || null,
+        offlineSyncId: body.offlineSyncId || null,
+      })
+      .returning();
+
+    // If wet signature document provided, record in evidence attachments as well
+    if (body.wetSignatureDocumentUrl) {
+      const sha = crypto
+        .createHash('sha256')
+        .update(body.wetSignatureDocumentUrl + Date.now())
+        .digest('hex');
+
+      await db.insert(evidenceAttachments).values({
+        attemptId: newAttempt.id,
+        fileUrl: body.wetSignatureDocumentUrl,
+        attachmentType: 'wet_signature_scan',
+        sha256: sha,
+        uploaderId: req.authUser.id as any,
+      });
+    }
+
+    // Update stage status to 'submitted'
+    const [updatedStage] = await db
+      .update(workStages)
+      .set({
+        status: 'submitted',
+      })
+      .where(eq(workStages.id, targetStage.id))
+      .returning();
+
+    await logAudit(req.authUser.id, req.authUser.name, 'SUBMIT_STAGE_INSPECTION', 'work_stage', targetStage.id, {
+      attemptId: newAttempt.id,
+      attemptNumber: nextAttemptNumber,
+      signatureType: sigCheck.signatureType,
+    });
+
+    res.status(201).json({
+      attempt: newAttempt,
+      stage: updatedStage,
+      message: `Inspeksi tahapan "${targetStage.name}" berhasil diajukan (Percobaan #${nextAttemptNumber}).`,
+    });
+  }
+);
+
+apiRouter.post(
+  '/stages/:stageId/review',
+  requireAuth,
+  requireRole([
+    'QA/QC Lead / Owner Inspector',
+    'Project Director & Tenant Admin',
+    'HSE / Quality Manager & Tenant Admin',
+    'Project / Site Engineer',
+  ]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const stageScopeId = String(req.params.stageId || '');
+    const [targetStage] = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.id, stageScopeId as any))
+      .limit(1);
+
+    if (!targetStage) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    const body = req.body || {};
+    const decision: 'approved' | 'rejected' = body.decision;
+    if (decision !== 'approved' && decision !== 'rejected') {
+      res.status(400).json({ error: 'Decision must be either "approved" or "rejected".' });
+      return;
+    }
+
+    // Get latest submitted attempt
+    const [latestAttempt] = await db
+      .select()
+      .from(inspectionAttempts)
+      .where(eq(inspectionAttempts.stageId, targetStage.id))
+      .orderBy(desc(inspectionAttempts.attemptNumber))
+      .limit(1);
+
+    if (!latestAttempt) {
+      res.status(400).json({ error: 'No inspection attempt found to review.' });
+      return;
+    }
+
+    // Strict Four-Eyes Principle check: Submitter cannot approve their own inspection attempt
+    if (!validateFourEyes(latestAttempt.submitterId, req.authUser.id)) {
+      res.status(403).json({
+        error: 'Pelanggaran Prinsip Four-Eyes: Pelaksana/Submitter inspeksi tidak diizinkan menyetujui pemeriksaannya sendiri.',
+      });
+      return;
+    }
+
+    // Update attempt
+    const [updatedAttempt] = await db
+      .update(inspectionAttempts)
+      .set({
+        status: decision,
+        approverId: req.authUser.id as any,
+        decidedAt: new Date(),
+        rejectionReason: decision === 'rejected' ? (body.notes || 'Ditolak dengan catatan perbaikan.') : null,
+      })
+      .where(eq(inspectionAttempts.id, latestAttempt.id))
+      .returning();
+
+    // Update stage status
+    const [updatedStage] = await db
+      .update(workStages)
+      .set({
+        status: decision,
+        actualCompletedAt: decision === 'approved' ? new Date() : null,
+      })
+      .where(eq(workStages.id, targetStage.id))
+      .returning();
+
+    // If approved, update progress on the parent WBS node
+    if (decision === 'approved') {
+      const [wf] = await db
+        .select({ nodeId: workWorkflows.nodeId })
+        .from(workWorkflows)
+        .where(eq(workWorkflows.id, targetStage.workflowId))
+        .limit(1);
+
+      if (wf && wf.nodeId) {
+        const [node] = await db.select().from(workNodes).where(eq(workNodes.id, wf.nodeId)).limit(1);
+        if (node) {
+          // Increment verified progress proportionally based on approved stages
+          const allStages = await db
+            .select()
+            .from(workStages)
+            .where(eq(workStages.workflowId, targetStage.workflowId));
+          const approvedCount = allStages.filter((s) => s.status === 'approved' || s.id === targetStage.id).length;
+          const newVerified = Math.round((approvedCount / allStages.length) * 100);
+          await db
+            .update(workNodes)
+            .set({
+              verifiedProgressPercent: newVerified,
+              claimedProgressPercent: Math.max(node.claimedProgressPercent, newVerified),
+              updatedAt: new Date(),
+            })
+            .where(eq(workNodes.id, node.id));
+        }
+      }
+    }
+
+    await logAudit(req.authUser.id, req.authUser.name, 'REVIEW_STAGE_INSPECTION', 'work_stage', targetStage.id, {
+      attemptId: latestAttempt.id,
+      decision,
+      stageName: targetStage.name,
+    });
+
+    res.json({
+      stage: updatedStage,
+      attempt: updatedAttempt,
+      message: `Tahapan "${targetStage.name}" telah di-${decision === 'approved' ? 'setujui' : 'tolak'}.`,
+    });
+  }
+);
+
+// ---------------- S-CURVE, BOTTLENECK RADAR & WEATHER LOGS (FASE 4) ----------------
+
+apiRouter.get(
+  '/projects/:projectId/scurve',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const [targetProject] = await db
+      .select({ id: projects.id, name: projects.name, code: projects.code })
+      .from(projects)
+      .where(eq(projects.id, projectScopeId as any))
+      .limit(1);
+
+    if (!targetProject) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const nodes = await db
+      .select()
+      .from(workNodes)
+      .where(eq(workNodes.projectId, targetProject.id))
+      .orderBy(workNodes.sortOrder, workNodes.wbsCode);
+
+    const overrides = await db
+      .select()
+      .from(plannedCurveOverrides)
+      .where(eq(plannedCurveOverrides.projectId, targetProject.id))
+      .orderBy(plannedCurveOverrides.weekIndex);
+
+    // Fetch open punchlist items for Zero-Tolerance lockout
+    const allPunchlists = await db
+      .select({ nodeId: punchlistItems.nodeId, status: punchlistItems.status })
+      .from(punchlistItems);
+
+    const openPunchlistMap = new Map<string, boolean>();
+    for (const pl of allPunchlists) {
+      if (pl.status !== 'verified_closed') {
+        openPunchlistMap.set(pl.nodeId, true);
+      }
+    }
+
+    // Determine project start and end dates from nodes or default 12-week window
+    let earliestStart = new Date();
+    let latestEnd = new Date();
+    latestEnd.setDate(latestEnd.getDate() + 84); // 12 weeks default
+
+    const validStarts = nodes.map((n) => n.plannedStartDate).filter(Boolean) as Date[];
+    const validEnds = nodes.map((n) => n.plannedEndDate).filter(Boolean) as Date[];
+
+    if (validStarts.length > 0) {
+      earliestStart = new Date(Math.min(...validStarts.map((d) => new Date(d).getTime())));
+    }
+    if (validEnds.length > 0) {
+      latestEnd = new Date(Math.max(...validEnds.map((d) => new Date(d).getTime())));
+    }
+
+    const weeks = generateProjectCalendarWeeks(earliestStart, latestEnd);
+
+    const scurve = calculateSCurveData({
+      projectId: targetProject.id,
+      projectName: targetProject.name,
+      nodes,
+      weeks,
+      overrides,
+      hasPunchlistOpenMap: openPunchlistMap,
+      asOfDate: new Date(),
+    });
+
+    res.json({ scurve });
+  }
+);
+
+apiRouter.post(
+  '/projects/:projectId/scurve/override',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const [targetProject] = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.id, projectScopeId as any))
+      .limit(1);
+
+    if (!targetProject) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const body = req.body || {};
+    const weekIndex = Number(body.weekIndex);
+    const overrideValue = Number(body.overridePlannedCumulative);
+
+    if (!weekIndex || isNaN(overrideValue) || overrideValue < 0 || overrideValue > 100) {
+      res.status(400).json({ error: 'weekIndex and valid overridePlannedCumulative (0-100) are required.' });
+      return;
+    }
+
+    const [existing] = await db
+      .select({ id: plannedCurveOverrides.id })
+      .from(plannedCurveOverrides)
+      .where(
+        and(
+          eq(plannedCurveOverrides.projectId, targetProject.id),
+          eq(plannedCurveOverrides.weekIndex, weekIndex)
+        )
+      )
+      .limit(1);
+
+    let savedOverride;
+    if (existing) {
+      const [updated] = await db
+        .update(plannedCurveOverrides)
+        .set({
+          overridePlannedCumulative: String(overrideValue),
+          overriddenBy: req.authUser.id as any,
+          reason: body.reason || null,
+        })
+        .where(eq(plannedCurveOverrides.id, existing.id))
+        .returning();
+      savedOverride = updated;
+    } else {
+      const [created] = await db
+        .insert(plannedCurveOverrides)
+        .values({
+          projectId: targetProject.id,
+          weekIndex,
+          overridePlannedCumulative: String(overrideValue),
+          overriddenBy: req.authUser.id as any,
+          reason: body.reason || null,
+        })
+        .returning();
+      savedOverride = created;
+    }
+
+    await logAudit(req.authUser.id, req.authUser.name, 'OVERRIDE_SCURVE_PLANNED', 'planned_curve_override', savedOverride.id, {
+      projectId: targetProject.id,
+      weekIndex,
+      overrideValue,
+      reason: body.reason,
+    });
+
+    res.json({
+      override: savedOverride,
+      message: `Kurva S Rencana Minggu #${weekIndex} berhasil di-override ke ${overrideValue}%.`,
+    });
+  }
+);
+
+apiRouter.get(
+  '/projects/:projectId/bottleneck-radar',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const [targetProject] = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, projectScopeId as any))
+      .limit(1);
+
+    if (!targetProject) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    // Get nodes of project
+    const nodes = await db
+      .select({ id: workNodes.id, wbsCode: workNodes.wbsCode, name: workNodes.name })
+      .from(workNodes)
+      .where(eq(workNodes.projectId, targetProject.id));
+
+    const nodeIds = nodes.map((n) => n.id);
+    if (nodeIds.length === 0) {
+      res.json({ bottlenecks: [], criticalCount: 0, warningCount: 0, normalCount: 0 });
+      return;
+    }
+
+    const nodeMap = new Map<string, { wbsCode: string; name: string }>();
+    for (const n of nodes) nodeMap.set(n.id, n);
+
+    // Get workflows
+    const allWorkflows = await db.select().from(workWorkflows);
+    const workflows = allWorkflows.filter((wf) => nodeIds.includes(wf.nodeId));
+    const workflowIds = workflows.map((wf) => wf.id);
+
+    if (workflowIds.length === 0) {
+      res.json({ bottlenecks: [], criticalCount: 0, warningCount: 0, normalCount: 0 });
+      return;
+    }
+
+    const wfNodeMap = new Map<string, string>();
+    for (const wf of workflows) wfNodeMap.set(wf.id, wf.nodeId);
+
+    // Get pending/submitted stages
+    const allStages = await db.select().from(workStages);
+    const pendingStages = allStages.filter(
+      (s) => workflowIds.includes(s.workflowId) && s.status === 'submitted'
+    );
+
+    const stageIds = pendingStages.map((s) => s.id);
+    const allAttempts = await db.select().from(inspectionAttempts).orderBy(desc(inspectionAttempts.attemptNumber));
+    const allUsers = await db.select({ id: users.id, name: users.name }).from(users);
+    const userMap = new Map<string, string>();
+    for (const u of allUsers) userMap.set(u.id, u.name);
+
+    const itemsForAging: any[] = [];
+    for (const stg of pendingStages) {
+      const attempt = allAttempts.find((a) => a.stageId === stg.id && a.status === 'submitted');
+      if (attempt) {
+        const nodeId = wfNodeMap.get(stg.workflowId) || '';
+        const nodeInfo = nodeMap.get(nodeId) || { wbsCode: '?', name: 'Node' };
+        const submitterName = userMap.get(attempt.submitterId) || 'Inspector';
+
+        itemsForAging.push({
+          stage: stg,
+          wbsCode: nodeInfo.wbsCode,
+          nodeName: nodeInfo.name,
+          attempt,
+          submitterName,
+        });
+      }
+    }
+
+    const bottlenecks = calculateBottleneckAging(itemsForAging, new Date());
+    const criticalCount = bottlenecks.filter((b) => b.status === 'critical').length;
+    const warningCount = bottlenecks.filter((b) => b.status === 'warning').length;
+    const normalCount = bottlenecks.filter((b) => b.status === 'normal').length;
+
+    res.json({
+      bottlenecks,
+      criticalCount,
+      warningCount,
+      normalCount,
+    });
+  }
+);
+
+apiRouter.get(
+  '/projects/:projectId/weather-logs',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const [targetProject] = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, projectScopeId as any))
+      .limit(1);
+
+    if (!targetProject) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const logs = await db
+      .select()
+      .from(dailyWeatherLogs)
+      .where(eq(dailyWeatherLogs.projectId, targetProject.id))
+      .orderBy(desc(dailyWeatherLogs.logDate));
+
+    const impact = calculateWeatherEotImpact(logs as any);
+
+    res.json({
+      logs,
+      impact,
+    });
+  }
+);
+
+apiRouter.post(
+  '/projects/:projectId/weather-logs',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requireRole([
+    'Project Director & Tenant Admin',
+    'Project / Site Engineer',
+    'HSE / Quality Manager & Tenant Admin',
+    'Field / QC Inspector',
+  ]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const [targetProject] = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, projectScopeId as any))
+      .limit(1);
+
+    if (!targetProject) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const body = req.body || {};
+    const logDate = body.logDate ? new Date(body.logDate) : new Date();
+
+    const [newLog] = await db
+      .insert(dailyWeatherLogs)
+      .values({
+        projectId: targetProject.id,
+        logDate,
+        weatherCondition: body.weatherCondition || 'cerah',
+        rainHours: body.rainHours ? String(body.rainHours) : '0.00',
+        workImpact: body.workImpact || 'tidak_ada',
+        notes: body.notes || null,
+        recordedBy: req.authUser.id as any,
+      })
+      .returning();
+
+    await logAudit(req.authUser.id, req.authUser.name, 'RECORD_WEATHER_LOG', 'daily_weather_log', newLog.id, {
+      projectId: targetProject.id,
+      weatherCondition: newLog.weatherCondition,
+      rainHours: newLog.rainHours,
+      workImpact: newLog.workImpact,
+    });
+
+    res.status(201).json({
+      log: newLog,
+      message: 'Catatan cuaca dan curah hujan harian berhasil disimpan.',
+    });
   }
 );
 

@@ -12,6 +12,19 @@ Laporan progres proyek melalui kurva S kerap tertahan bukan karena pekerjaan fis
 
 SiteLens adalah platform **Project Control dan Progress Monitoring Berbasis Inspeksi** yang bersifat agnostik jenis pekerjaan dengan struktur pohon WBS (*Work Breakdown Structure*) dinamis, template alur kerja fleksibel, dan penguncian gerbang mutu independen.
 
+### 1.1 Posisi Kompetitif & Diferensiasi Pasar (SiteLens vs Proyektra.id)
+
+Di industri konstruksi Indonesia, perangkat lunak seperti **Proyektra.id** memposisikan diri sebagai sistem ERP modular all-in-one yang berfokus pada sisi komersial (RAB/AHSP, RAP, pengadaan material, alat berat, dan kas subkontraktor). SiteLens **sengaja tidak bersaing di zona ERP/akuntansi generalis**, melainkan memposisikan diri sebagai **"The Field Integrity & Quality Gatekeeper"** (setara *Procore Quality & Safety* atau *Autodesk Construction Cloud* versi Indonesia) yang berfokus mutlak pada **integritas fisik lapangan dan pencegahan manipulasi progres**.
+
+| Dimensi Penilaian | ERP Konstruksi Generalis (misal: Proyektra.id) | SiteLens (Project Control & Inspection Engine) | Keunggulan Kompetitif SiteLens (*Right to Win*) |
+| :--- | :--- | :--- | :--- |
+| **Model Progres Fisik** | Opname kuantitas volume harian yang diisi mandor | **Dual-Track Biner**: *Claimed Progress* vs *Verified Physical Progress* | Menghilangkan manipulasi klaim sepihak. Progres resmi tertahan sampai gerbang mutu lolos. |
+| **Kunci Gerbang Mutu** | Checklist inspeksi standar tanpa interlock | **Programmatic Hold Point Lockout** | Pekerjaan lanjutan dikunci secara sistem jika tahapan kritis (misal: pembesian/uji beton) belum disetujui. |
+| **Integritas Punchlist** | Pencatatan temuan cacat lapangan umum | **Zero-Tolerance Punchlist Gate** | Jika masih ada punchlist cacat terbuka (Critical s/d Low), progres fisik WBS **dilarang 100%**. |
+| **Tata Kelola Otorisasi** | Akses peran standar (Admin, Staf, Mandor) | **Four-Eyes Principle Enforced at Database Level** | Pelaksana dilarang keras menyetujui pekerjaannya sendiri atau menutup cacatnya sendiri. |
+| **Integritas Bukti Foto** | Penyimpanan foto standar | **SHA-256 Geotagged Forensic Hashing** | Setiap foto dan pindaian dokumen diberi hash anti-tamper untuk keperluan audit BPK/LKPP/Owner. |
+| **Efisiensi Birokrasi** | Chat proyek dan notifikasi umum | **Bottleneck Radar & SLA Aging Tracker** | Mendeteksi keterlambatan akibat lambatnya persetujuan inspeksi konsultan/owner (<24h, 24-48h, >48h). |
+
 ### Matriks Rekonsiliasi Keputusan Piloting
 
 | Dimensi Spesifikasi | Posisi PRD v0.1 | Posisi README SiteLens | Keputusan Fixed Piloting (v1.0-Pilot) |
@@ -29,7 +42,7 @@ SiteLens adalah platform **Project Control dan Progress Monitoring Berbasis Insp
 
 ## 2. Batasan Ruang Lingkup & Tech Stack
 
-### In-Scope (Fase Piloting)
+### In-Scope (Fase Piloting & Fast-Follow Extensions)
 1. **WBS Tree Engine:** Pohon WBS dengan kedalaman tak terbatas, nomor dan revisi dokumen acuan opsional (misal: "DWG-STR-001 Rev C").
 2. **Preset Templates:** `General EPC Pack`, `Civil Building Pack`, dan `Blank Canvas`.
 3. **Dual-Track Progress:** Kurva S mingguan (*Target Timeline*, *Claimed Progress*, *Verified Physical Progress*).
@@ -37,6 +50,9 @@ SiteLens adalah platform **Project Control dan Progress Monitoring Berbasis Insp
 5. **Zero Tolerance Punchlist Lockout:** Penguncian progres terverifikasi saat terdapat temuan cacat terbuka.
 6. **Offline-First PWA:** Pengisian checklist & foto di IndexedDB (`idb`) saat blind spot, hashing SHA-256 foto bukti, auto-sync saat online + tombol manual sync.
 7. **Ekspor & Impor:** Ekspor laporan mingguan resmi PDF (`jspdf`), impor/ekspor struktur WBS Excel.
+8. **Weather & Rain Log (Buku Harian Cuaca & EOT):** Pencatatan hari dan jam hujan harian yang berkorelasi langsung dengan justifikasi deviasi Kurva S serta klaim perpanjangan waktu (*Claim of Time / Extension of Time*).
+9. **Official BAPP Generator (Berita Acara Progres Pekerjaan):** Generator otomatis lembar BAPP termin resmi berlandaskan milestone inspeksi yang sudah lolos uji verifikasi bebas cacat.
+10. **2D Drawing Defect Pinning (Plotting Cacat pada Gambar Kerja):** Penandaan visual posisi cacat/punchlist langsung di atas gambar kerja WBS (`documentReferenceNo` & `activeRevision`).
 
 ### Out-of-Scope (Ditunda ke Pasca-Pilot)
 * Integrasi dua arah langsung dengan Primavera P6 atau Microsoft Project.
@@ -105,9 +121,9 @@ $$\Delta t = t_{\text{sekarang}} - t_{\text{pengajuan}}$$
 
 ## 6. Rencana Eksekusi Bertahap (6 Fase)
 
-* **Fase 1:** Fondasi Skema Drizzle WBS & Core RBAC (`project_members`, `work_nodes`, seeding 6 peran, preset EPC & Civil).
-* **Fase 2:** Project Setup Studio UI (Pohon WBS, alokasi bobot manual, nomor/revisi dokumen acuan, Preset Chooser).
-* **Fase 3:** State Machine Gerbang, Inspeksi Lapangan, Canvas Tanda Tangan, dan Zero-Tolerance Punchlist Lockout.
-* **Fase 4:** Mesin Kalkulasi Kurva S Kalender Baku (Senin–Minggu), Bottleneck Radar SLA Tracker, dan Manual Override PM.
-* **Fase 5:** Offline-First PWA (IndexedDB + SHA-256 + Auto Sync), Impor Excel WBS, dan Ekspor Laporan Mingguan Resmi PDF.
+* **Fase 1 (Selesai):** Fondasi Skema Drizzle WBS & Core RBAC (`project_members`, `work_nodes`, seeding 6 peran, preset EPC & Civil).
+* **Fase 2 (Selesai):** Project Setup Studio UI (Pohon WBS, alokasi bobot manual, nomor/revisi dokumen acuan, Preset Chooser).
+* **Fase 3 (Selesai):** State Machine Gerbang, Multi-Stage Workflow (Hold Point, Witness, Review), Dual-Track Signatures (Canvas Touchscreen & Cetak/Upload Lembar Fisik), dan Zero-Tolerance Punchlist Lockout.
+* **Fase 4 (Berikutnya):** Mesin Kalkulasi Kurva S Kalender Baku (Senin–Minggu), Bottleneck Radar SLA Tracker, Manual Override PM, serta **Weather & Rain Log (Buku Harian Cuaca & Curah Hujan untuk EOT)**.
+* **Fase 5:** Offline-First PWA (IndexedDB + SHA-256 + Auto Sync), Impor Excel WBS, Ekspor Laporan Mingguan Resmi PDF, **Official BAPP Generator (Berita Acara Pembayaran Termin Otomatis)**, dan **2D Drawing Defect Pinning (Plotting Temuan pada Gambar Kerja)**.
 * **Fase 6:** Audit Keamanan Menyeluruh (`vibe-shield`), Uji End-to-End, dan Packaging Docker Compose Produksi.

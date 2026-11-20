@@ -1,0 +1,245 @@
+import React, { useState, useEffect } from 'react';
+import {
+  AlertTriangle,
+  Clock,
+  ShieldAlert,
+  CheckCircle,
+  RefreshCw,
+  Bell,
+  ArrowRight,
+} from 'lucide-react';
+import type { BottleneckItem, Project, User } from '../types';
+import { apiGetBottleneckRadar } from '../services/api';
+
+interface BottleneckRadarProps {
+  project: Project;
+  currentUser: User;
+  onOpenStageWorkflow?: (wbsCode: string) => void;
+}
+
+export const BottleneckRadar: React.FC<BottleneckRadarProps> = ({
+  project,
+  currentUser,
+  onOpenStageWorkflow,
+}) => {
+  const [loading, setLoading] = useState(true);
+  const [bottlenecks, setBottlenecks] = useState<BottleneckItem[]>([]);
+  const [criticalCount, setCriticalCount] = useState(0);
+  const [warningCount, setWarningCount] = useState(0);
+  const [normalCount, setNormalCount] = useState(0);
+  const [notifiedId, setNotifiedId] = useState<string | null>(null);
+
+  const loadRadar = async () => {
+    try {
+      setLoading(true);
+      const res = await apiGetBottleneckRadar(project.id);
+      setBottlenecks(res.bottlenecks || []);
+      setCriticalCount(res.criticalCount || 0);
+      setWarningCount(res.warningCount || 0);
+      setNormalCount(res.normalCount || 0);
+    } catch (err: any) {
+      console.error('Failed to load bottleneck radar:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRadar();
+  }, [project.id]);
+
+  const handleSendReminder = (item: BottleneckItem) => {
+    setNotifiedId(item.stageId);
+    setTimeout(() => setNotifiedId(null), 3000);
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* KPI Status Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div className="p-4 rounded-xl bg-white border border-rose-200 bg-rose-50/20 shadow-2xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-rose-800 block">
+              Critical Bottlenecks (&gt;48 Jam)
+            </span>
+            <span className="text-2xl font-mono font-bold text-rose-700 mt-1 block">
+              {criticalCount}
+            </span>
+            <span className="text-[10px] text-rose-600 mt-0.5 block">
+              Potensi penggeseran jadwal kritis
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold">
+            <ShieldAlert className="w-5 h-5 animate-pulse" />
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white border border-amber-200 bg-amber-50/20 shadow-2xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-amber-800 block">
+              Warning SLA (24 – 48 Jam)
+            </span>
+            <span className="text-2xl font-mono font-bold text-amber-700 mt-1 block">
+              {warningCount}
+            </span>
+            <span className="text-[10px] text-amber-600 mt-0.5 block">
+              Perlu tindak lanjut reviewer
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center font-bold">
+            <Clock className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-between">
+          <div>
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">
+              Normal Queue (&lt;24 Jam)
+            </span>
+            <span className="text-2xl font-mono font-bold text-slate-800 mt-1 block">
+              {normalCount}
+            </span>
+            <span className="text-[10px] text-slate-400 mt-0.5 block">
+              Dalam batas toleransi standar
+            </span>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center font-bold">
+            <CheckCircle className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Bottlenecks List Card */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 flex items-center space-x-2">
+              <Clock className="w-4 h-4 text-amber-600" />
+              <span>Bottleneck Radar: Antrean Inspeksi & Umur Waktu Tunggu (SLA)</span>
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Menghitung waktu tunggu persetujuan inspeksi sejak diajukan pelaksana di lapangan.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={loadRadar}
+            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+            title="Refresh Radar"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="divide-y divide-slate-100 text-xs">
+          {loading ? (
+            <div className="p-8 text-center text-slate-400">
+              <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-slate-300" />
+              Memindai antrean inspeksi proyek...
+            </div>
+          ) : bottlenecks.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 space-y-1">
+              <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+              <p className="font-semibold text-slate-700">Radar Bersih: Tidak ada antrean inspeksi tertunda.</p>
+              <p className="text-[11px] text-slate-400">Semua tahapan inspeksi telah ditinjau atau belum ada pengajuan baru.</p>
+            </div>
+          ) : (
+            bottlenecks.map((item) => (
+              <div
+                key={item.stageId}
+                className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors ${
+                  item.status === 'critical' ? 'bg-rose-50/20' : ''
+                }`}
+              >
+                <div className="flex items-start space-x-3">
+                  <div
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
+                      item.status === 'critical'
+                        ? 'bg-rose-100 text-rose-700'
+                        : item.status === 'warning'
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    <Clock className="w-4 h-4" />
+                  </div>
+
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                        {item.wbsCode}
+                      </span>
+                      <h4 className="font-bold text-slate-900 text-xs">{item.stageName}</h4>
+
+                      {item.stageType === 'hold' && (
+                        <span className="px-1.5 py-0.2 rounded bg-rose-100 text-rose-800 text-[9px] font-bold uppercase">
+                          HOLD POINT
+                        </span>
+                      )}
+
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          item.status === 'critical'
+                            ? 'bg-rose-100 text-rose-800 animate-pulse'
+                            : item.status === 'warning'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {item.status === 'critical'
+                          ? `CRITICAL (${item.waitingHours} JAM)`
+                          : item.status === 'warning'
+                          ? `WARNING (${item.waitingHours} JAM)`
+                          : `NORMAL (${item.waitingHours} JAM)`}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-500 text-[11px] mt-0.5">
+                      Paket Kerja: <b className="text-slate-700">{item.nodeName}</b> &bull; Diajukan oleh: {item.submitterName} (Percobaan #{item.attemptNumber})
+                    </p>
+
+                    <div className="flex items-center space-x-3 text-[10px] text-slate-400 mt-1">
+                      <span>Wajib Di-approve Oleh: <b className="text-slate-600">{item.approvalRole}</b></span>
+                      {item.scheduleImpactDays > 0 && (
+                        <>
+                          <span>&bull;</span>
+                          <span className="text-rose-600 font-semibold">
+                            Estimasi Geser Jadwal: ~{item.scheduleImpactDays} Hari
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Actions */}
+                <div className="flex items-center space-x-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleSendReminder(item)}
+                    className="px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-medium flex items-center space-x-1"
+                  >
+                    <Bell className="w-3 h-3 text-amber-600" />
+                    <span>{notifiedId === item.stageId ? 'Terkirim ✓' : 'Kirim Reminder'}</span>
+                  </button>
+
+                  {onOpenStageWorkflow && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenStageWorkflow(item.wbsCode)}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center space-x-1 shadow-2xs"
+                    >
+                      <span>Tinjau</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

@@ -15,15 +15,24 @@ import {
   X,
   Calendar,
   Lock,
+  ShieldCheck,
+  TrendingUp,
+  Clock,
+  CloudRain,
 } from 'lucide-react';
-import type { Project, User, WorkNode } from '../types';
+import type { Project, User, WorkNode, SCurveSummary } from '../types';
 import {
   apiGetProjectWbs,
   apiCreateWbsNode,
   apiUpdateWbsNode,
   apiDeleteWbsNode,
   apiApplyWbsPreset,
+  apiGetProjectSCurve,
 } from '../services/api';
+import { NodeWorkflowModal } from './NodeWorkflowModal';
+import { SCurveChart } from './SCurveChart';
+import { BottleneckRadar } from './BottleneckRadar';
+import { WeatherLogModal } from './WeatherLogModal';
 import {
   buildWbsTree,
   flattenWbsTree,
@@ -48,10 +57,16 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
+  // Studio tabs & subviews
+  const [activeStudioTab, setActiveStudioTab] = useState<'wbs' | 'scurve' | 'radar'>('wbs');
+  const [scurveData, setScurveData] = useState<SCurveSummary | null>(null);
+  const [weatherModalOpen, setWeatherModalOpen] = useState(false);
+
   // Modals state
   const [presetModalOpen, setPresetModalOpen] = useState(false);
   const [nodeModalOpen, setNodeModalOpen] = useState(false);
   const [editingNode, setEditingNode] = useState<WorkNode | null>(null);
+  const [selectedWorkflowNode, setSelectedWorkflowNode] = useState<WorkNode | null>(null);
   const [presetSubmitting, setPresetSubmitting] = useState(false);
   const [deleteConfirmNode, setDeleteConfirmNode] = useState<WorkNode | null>(null);
 
@@ -82,10 +97,20 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
       setError(null);
       const data = await apiGetProjectWbs(project.id);
       setNodes(data.nodes || []);
+      loadSCurveData();
     } catch (err: any) {
       setError(err?.message || 'Gagal memuat struktur WBS.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSCurveData = async () => {
+    try {
+      const res = await apiGetProjectSCurve(project.id);
+      setScurveData(res.scurve);
+    } catch (err: any) {
+      console.error('Failed to load S-Curve data:', err);
     }
   };
 
@@ -250,6 +275,16 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
 
         {/* Action Buttons */}
         <div className="flex items-center space-x-2.5">
+          <button
+            type="button"
+            onClick={() => setWeatherModalOpen(true)}
+            className="px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold transition-colors flex items-center shadow-xs"
+            title="Buku Harian Cuaca, Curah Hujan & Klaim EOT"
+          >
+            <CloudRain className="w-3.5 h-3.5 mr-1.5 text-indigo-600" />
+            <span>Cuaca & EOT</span>
+          </button>
+
           {canEdit && (
             <>
               <button
@@ -278,6 +313,51 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
         </div>
       </div>
 
+      {/* Studio Navigation Tabs (Fase 4: WBS, S-Curve, Bottleneck Radar) */}
+      <div className="flex border-b border-slate-200 space-x-6 text-xs font-bold bg-white px-5 pt-3 rounded-xl shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setActiveStudioTab('wbs')}
+          className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${
+            activeStudioTab === 'wbs'
+              ? 'border-amber-500 text-amber-900'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <FolderTree className="w-4 h-4 text-amber-600" />
+          <span>1. Struktur WBS & Bobot</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveStudioTab('scurve');
+            loadSCurveData();
+          }}
+          className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${
+            activeStudioTab === 'scurve'
+              ? 'border-amber-500 text-amber-900'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4 text-indigo-600" />
+          <span>2. Kurva S Mingguan & Deviasi</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveStudioTab('radar')}
+          className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${
+            activeStudioTab === 'radar'
+              ? 'border-amber-500 text-amber-900'
+              : 'border-transparent text-slate-500 hover:text-slate-900'
+          }`}
+        >
+          <Clock className="w-4 h-4 text-rose-600" />
+          <span>3. Bottleneck Radar SLA</span>
+        </button>
+      </div>
+
       {/* Success Banner */}
       {actionSuccess && (
         <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center space-x-2 shadow-xs">
@@ -286,8 +366,11 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
         </div>
       )}
 
-      {/* Non-Blocking Relative Weights Summary & Warning Banner */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+      {/* Tab 1: WBS & Bobot Struktur */}
+      {activeStudioTab === 'wbs' && (
+        <>
+          {/* Non-Blocking Relative Weights Summary & Warning Banner */}
+          <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-3">
             <div
@@ -560,33 +643,43 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
 
                       {/* Action Buttons */}
                       <td className="py-2.5 px-4 text-right">
-                        {canEdit ? (
-                          <div className="flex items-center justify-end space-x-1">
-                            <button
-                              onClick={() => handleOpenAddModal(node.id)}
-                              className="p-1 rounded hover:bg-amber-100 text-amber-700 transition-colors"
-                              title="Tambah Sub-Node di bawah item ini"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleOpenEditModal(node)}
-                              className="p-1 rounded hover:bg-slate-100 text-slate-600 transition-colors"
-                              title="Edit Node"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmNode(node)}
-                              className="p-1 rounded hover:bg-rose-100 text-rose-600 transition-colors"
-                              title="Hapus Node"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-slate-300 text-[10px] italic">Terkunci</span>
-                        )}
+                        <div className="flex items-center justify-end space-x-1">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedWorkflowNode(node)}
+                            className="px-2 py-1 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-[10px] flex items-center space-x-1 transition-colors"
+                            title="Buka Alur Multi-Stage Workflow & Hold Point"
+                          >
+                            <ShieldCheck className="w-3 h-3 text-indigo-600" />
+                            <span>Workflow</span>
+                          </button>
+
+                          {canEdit && (
+                            <>
+                              <button
+                                onClick={() => handleOpenAddModal(node.id)}
+                                className="p-1 rounded hover:bg-amber-100 text-amber-700 transition-colors"
+                                title="Tambah Sub-Node di bawah item ini"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleOpenEditModal(node)}
+                                className="p-1 rounded hover:bg-slate-100 text-slate-600 transition-colors"
+                                title="Edit Node"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmNode(node)}
+                                className="p-1 rounded hover:bg-rose-100 text-rose-600 transition-colors"
+                                title="Hapus Node"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -596,6 +689,40 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
           </table>
         </div>
       </div>
+      </>
+      )}
+
+      {/* Tab 2: Kurva S Mingguan & Deviasi */}
+      {activeStudioTab === 'scurve' && (
+        <div className="space-y-4">
+          {scurveData ? (
+            <SCurveChart
+              scurve={scurveData}
+              currentUser={currentUser}
+              onRefresh={() => {
+                loadSCurveData();
+                loadWbsData();
+              }}
+            />
+          ) : (
+            <div className="p-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
+              Menghitung data Kurva S proyek...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: Bottleneck Radar SLA */}
+      {activeStudioTab === 'radar' && (
+        <BottleneckRadar
+          project={project}
+          currentUser={currentUser}
+          onOpenStageWorkflow={(code) => {
+            setSearchQuery(code);
+            setActiveStudioTab('wbs');
+          }}
+        />
+      )}
 
       {/* Preset Chooser Modal */}
       {presetModalOpen && (
@@ -881,6 +1008,28 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
           </div>
         </div>
       )}
+
+      {/* Multi-Stage Workflow & Hold Point Modal */}
+      {selectedWorkflowNode && (
+        <NodeWorkflowModal
+          isOpen={Boolean(selectedWorkflowNode)}
+          project={project}
+          node={selectedWorkflowNode}
+          currentUser={currentUser}
+          onClose={() => setSelectedWorkflowNode(null)}
+          onWorkflowUpdated={() => {
+            loadWbsData();
+          }}
+        />
+      )}
+
+      {/* Weather & Rain Log Modal (EOT Claims) */}
+      <WeatherLogModal
+        project={project}
+        currentUser={currentUser}
+        isOpen={weatherModalOpen}
+        onClose={() => setWeatherModalOpen(false)}
+      />
     </div>
   );
 };

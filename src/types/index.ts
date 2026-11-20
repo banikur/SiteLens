@@ -331,15 +331,15 @@ export interface WorkNode {
   wbsCode: string;
   name: string;
   weightPercent: number | string;
-  plannedStartDate?: string | null;
-  plannedEndDate?: string | null;
+  plannedStartDate?: string | Date | null;
+  plannedEndDate?: string | Date | null;
   documentReferenceNo?: string | null;
   activeRevision?: string | null;
   claimedProgressPercent: number;
   verifiedProgressPercent: number;
   sortOrder: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 
 export type StageType = 'work' | 'hold' | 'review';
@@ -363,9 +363,9 @@ export interface WorkStage {
   checklistSchema?: ChecklistSection[];
   requiresWetSignature: boolean;
   status: StageStatus;
-  actualCompletedAt?: string | null;
-  forecastCompletionDate?: string | null;
-  createdAt: string;
+  actualCompletedAt?: string | Date | null;
+  forecastCompletionDate?: string | Date | null;
+  createdAt: string | Date;
 }
 
 export interface InspectionAttempt {
@@ -373,16 +373,16 @@ export interface InspectionAttempt {
   stageId: string;
   attemptNumber: number;
   submitterId: string;
-  submittedAt: string;
+  submittedAt: string | Date;
   approverId?: string | null;
-  decidedAt?: string | null;
+  decidedAt?: string | Date | null;
   status: 'draft' | 'submitted' | 'approved' | 'rejected';
   answers: Record<string, any>;
   rejectionReason?: string | null;
   signatureCanvasUrl?: string | null;
   wetSignatureDocumentUrl?: string | null;
   offlineSyncId?: string | null;
-  createdAt: string;
+  createdAt: string | Date;
 }
 
 export interface EvidenceAttachment {
@@ -418,8 +418,69 @@ export interface PlannedCurveOverride {
   id: string;
   projectId: string;
   weekIndex: number;
-  overridePlannedCumulative: number;
+  overridePlannedCumulative: number | string;
   overriddenBy: string;
   reason?: string | null;
-  createdAt: string;
+  createdAt: string | Date;
 }
+
+export type WeatherCondition = 'cerah' | 'berawan' | 'hujan_ringan' | 'hujan_lebat' | 'badai';
+export type WorkImpact = 'tidak_ada' | 'parsial' | 'stop_total';
+
+export interface DailyWeatherLog {
+  id: string;
+  projectId: string;
+  logDate: string | Date;
+  weatherCondition: WeatherCondition;
+  rainHours: number | string;
+  workImpact: WorkImpact;
+  notes?: string | null;
+  recordedBy: string;
+  createdAt: string | Date;
+}
+
+export interface SCurveWeekPoint {
+  weekIndex: number;
+  startDate: string; // YYYY-MM-DD (Monday 00:00)
+  endDate: string; // YYYY-MM-DD (Sunday 23:59)
+  label: string; // e.g. "Minggu 1 (05 Jan - 11 Jan 2026)"
+  targetIncremental: number;
+  targetCumulative: number;
+  claimedIncremental: number;
+  claimedCumulative: number;
+  verifiedIncremental: number;
+  verifiedCumulative: number;
+  variance: number; // verifiedCumulative - targetCumulative
+  isOverridden?: boolean;
+}
+
+export interface SCurveSummary {
+  projectId: string;
+  projectName: string;
+  totalWeeks: number;
+  currentWeekIndex: number;
+  currentPlannedPercent: number;
+  currentClaimedPercent: number;
+  currentVerifiedPercent: number;
+  currentVariance: number;
+  status: 'ahead' | 'on_track' | 'delayed';
+  totalHoldPoints: number;
+  activeHoldPoints: number;
+  points: SCurveWeekPoint[];
+}
+
+export interface BottleneckItem {
+  stageId: string;
+  stageName: string;
+  stageType: 'work' | 'hold' | 'review';
+  wbsCode: string;
+  nodeName: string;
+  attemptNumber: number;
+  submitterName: string;
+  submittedAt: string | Date;
+  approvalRole: UserRole;
+  waitingHours: number;
+  status: 'normal' | 'warning' | 'critical';
+  scheduleImpactDays: number;
+}
+

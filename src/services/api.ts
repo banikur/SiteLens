@@ -8,6 +8,12 @@ import type {
   WorkNode,
   WorkWorkflow,
   WorkStage,
+  InspectionAttempt,
+  EvidenceAttachment,
+  SCurveSummary,
+  BottleneckItem,
+  DailyWeatherLog,
+  PlannedCurveOverride,
 } from '../types';
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -308,5 +314,138 @@ export async function apiApplyWbsPreset(
     }
   );
 }
+
+// ---------------- STAGE WORKFLOW & DUAL-TRACK SIGNATURES (FASE 3) ----------------
+
+export async function apiGetNodeWorkflow(
+  projectId: string,
+  nodeId: string
+): Promise<{
+  node: WorkNode;
+  workflow: WorkWorkflow | null;
+  stages: WorkStage[];
+  attempts: InspectionAttempt[];
+}> {
+  return apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/workflow`
+  );
+}
+
+export async function apiInitDefaultWorkflow(
+  projectId: string,
+  nodeId: string
+): Promise<{
+  workflow: WorkWorkflow;
+  stages: WorkStage[];
+}> {
+  return apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/workflow/init-default`,
+    {
+      method: 'POST',
+    }
+  );
+}
+
+export async function apiGetStageAttempts(stageId: string): Promise<{
+  stage: WorkStage;
+  attempts: InspectionAttempt[];
+  attachments: EvidenceAttachment[];
+}> {
+  return apiJson(`/api/stages/${encodeURIComponent(stageId)}/attempts`);
+}
+
+export async function apiSubmitStageAttempt(
+  stageId: string,
+  data: {
+    answers?: Record<string, any>;
+    signatureCanvasUrl?: string | null;
+    wetSignatureDocumentUrl?: string | null;
+    offlineSyncId?: string | null;
+  }
+): Promise<{
+  attempt: InspectionAttempt;
+  stage: WorkStage;
+  message: string;
+}> {
+  return apiJson(`/api/stages/${encodeURIComponent(stageId)}/submit`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiReviewStageAttempt(
+  stageId: string,
+  data: {
+    decision: 'approved' | 'rejected';
+    notes?: string;
+  }
+): Promise<{
+  stage: WorkStage;
+  attempt: InspectionAttempt;
+  message: string;
+}> {
+  return apiJson(`/api/stages/${encodeURIComponent(stageId)}/review`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// ---------------- S-CURVE, BOTTLENECK RADAR & WEATHER LOGS (FASE 4) ----------------
+
+export async function apiGetProjectSCurve(projectId: string): Promise<{ scurve: SCurveSummary }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/scurve`);
+}
+
+export async function apiOverrideSCurve(
+  projectId: string,
+  weekIndex: number,
+  overridePlannedCumulative: number,
+  reason?: string
+): Promise<{ override: PlannedCurveOverride; message: string }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/scurve/override`, {
+    method: 'POST',
+    body: JSON.stringify({ weekIndex, overridePlannedCumulative, reason }),
+  });
+}
+
+export async function apiGetBottleneckRadar(projectId: string): Promise<{
+  bottlenecks: BottleneckItem[];
+  criticalCount: number;
+  warningCount: number;
+  normalCount: number;
+}> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/bottleneck-radar`);
+}
+
+export async function apiGetWeatherLogs(projectId: string): Promise<{
+  logs: DailyWeatherLog[];
+  impact: {
+    totalRainDays: number;
+    totalRainHours: number;
+    stopTotalDays: number;
+    partialDays: number;
+    recommendedEotDays: number;
+  };
+}> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/weather-logs`);
+}
+
+export async function apiCreateWeatherLog(
+  projectId: string,
+  data: {
+    logDate?: string | Date;
+    weatherCondition: string;
+    rainHours: number | string;
+    workImpact: string;
+    notes?: string;
+  }
+): Promise<{ log: DailyWeatherLog; message: string }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/weather-logs`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+
 
 
