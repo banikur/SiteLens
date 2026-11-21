@@ -1,113 +1,143 @@
-# SiteLens — Platform Monitoring Bottleneck Laporan Inspeksi & Verifikasi Progress Proyek
+# SiteLens — Platform Monitoring & Pengendalian Progres Proyek Generic
 
 [![Vibe-Shield Security](https://img.shields.io/badge/Vibe--Shield-Grade_A%2B-10b981)](https://github.com/avivgerz-hue/vibe-shield)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-19-61dafb.svg)](https://react.dev/)
+[![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.45-C5F74F.svg)](https://orm.drizzle.team/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791.svg)](https://www.postgresql.org/)
 
-SiteLens adalah platform perangkat lunak **dedicated dan self-hosted (single-tenant)** yang dirancang untuk mengatasi **bottleneck laporan inspeksi / Request for Inspection (RFI)** dan menjamin **validitas progress fisik pekerjaan (*verifiable progress*)** untuk sektor EPC, konstruksi sipil, mekanikal, instalasi, dan pengadaan.
+SiteLens adalah platform **Project Progress Monitoring & Control Generic** (dapat diterapkan untuk konstruksi sipil, EPC, instalasi MEP, manufaktur, maupun rekayasa teknologi) yang dirancang untuk menjamin **validitas progres fisik pekerjaan (*verifiable physical progress*)** dan mengeliminasi keterlambatan akibat penyumbatan birokrasi inspeksi teknis (*inspection bottleneck*).
 
-Platform ini menghubungkan eksekusi inspeksi lapangan langsung ke milestone pohon WBS dengan prinsip **keterlacakan independen dan four-eyes principle**: progres pekerjaan tidak dapat diakui sepihak sebelum diverifikasi secara fisik melalui checklist inspeksi dan bebas dari temuan cacat terbuka (*Zero Tolerance Punchlist Lockout*).
-
-> 📖 **Dokumentasi Spesifikasi Lengkap:** [docs/PRD_PILOTING_v1.0.md](file:///c:/Users/Programer/Documents/SiteLens/docs/PRD_PILOTING_v1.0.md)
-
----
-
-## 6 Peran Proyek (Core RBAC & Hybrid Project Membership)
-
-SiteLens menerapkan model **Core RBAC Hybrid**, di mana setiap pengguna memiliki peran bawaan sistem dan peran operasional spesifik per-proyek melalui tabel `project_members`, dengan pembatasan ketat hanya pada proyek yang ditugaskan (`assignedProjects`):
-
-1. **`Field / QC Inspector`** (Mobile PWA & Web)  
-   Menjalankan sesi inspeksi lapangan secara *offline-first*, merekam bukti foto bertanda waktu SHA-256, menandai poin pemeriksaan (Pass/Fail), dan menerbitkan temuan cacat (*punchlist*). *Tidak dapat menutup temuannya sendiri tanpa verifikasi pihak independen.*
-2. **`Action Owner / Subcontractor`** (Mobile & Web)  
-   Menerima disposisi perbaikan punchlist/CAPA, memperbarui progres perbaikan di lapangan, dan mengunggah foto bukti pasca-perbaikan. *Dilarang keras memverifikasi atau menutup pekerjaannya sendiri.*
-3. **`Project / Site Engineer`** (Web)  
-   Mengelola pohon WBS di Project Setup Studio, mengatur bobot progres manual (%), menyusun target timeline jadwal, dan mengajukan permintaan inspeksi (RFI).
-4. **`QA/QC Lead / Owner Inspector`** (Web & Mobile)  
-   Menandatangani persetujuan laporan inspeksi (*four-eyes check*), memvalidasi penutupan punchlist, dan mengesahkan klaim progress fisik pekerjaan.
-5. **`Project Director & Tenant Admin`** (Web)  
-   Memantau dasbor Kurva-S (*Target Timeline vs Verified Physical Progress*), memonitor *Bottleneck Radar* (laporan inspeksi yang tersendat), mengelola akses tim, mengesahkan penimpaan kurva rencana (*override*), dan mengekspor laporan mingguan resmi.
-6. **`Client / Vendor Viewer`** (Web & Mobile)  
-   Memantau kurva S, status penyelesaian pekerjaan, dan laporan inspeksi secara transparan dengan hak akses baca ketat (*read-only* tanpa izin mutasi).
+Platform ini menempatkan **inspeksi lapangan, checklist mutu/K3, dan dokumen pendukung sebagai bukti validasi progres**, bukan pusat sistem yang terisolasi. Progres pekerjaan diukur berbasis pohon struktur rincian kerja (**Work Breakdown Structure / WBS**) dengan prinsip **four-eyes principle** dan pencegahan klaim sepihak: *pekerjaan tidak dapat diakui selesai secara sepihak sebelum lolos verifikasi mutu independen dan bebas dari temuan cacat kritis terbuka*.
 
 ---
 
-## Kemampuan Inti Platform
+## 📚 Dokumentasi Acuan
 
-- **Project Setup Studio & Modular WBS Presets:**
-  - Pilihan preset awal: **General EPC Pack** (Eng, Proc, Const, Comm), **Civil Building Pack** (Pondasi, Struktur, MEP, Finis), atau **Blank Canvas** (kustom dari nol).
-  - Alokasi bobot manual berimbang per level WBS dengan peringatan non-blokir bila total $\neq 100\%$.
-  - Penyematan nomor dokumen dan revisi aktif gambar kerja acuan (misal: "DWG-STR-001 Rev C").
-- **Bottleneck Radar & Aging SLA Tracker:**
-  - Melacak laporan inspeksi yang tertahan di meja reviewer dengan indikator waktu: Normal (<24h), Warning (24–48h), dan Critical Bottleneck (>48h).
-  - Mengidentifikasi secara transparan personil/peran yang menahan persetujuan laporan.
-  - Mengukur dampak keterlambatan laporan inspeksi terhadap deviasi jadwal proyek (*Schedule Variance*).
-- **Dual-Track Progress vs Timeline (Kurva-S Kalender Baku):**
-  - Memotong siklus mingguan berdasarkan **Kalender Baku (Senin–Minggu)**.
-  - Membandingkan kurva **Target Timeline**, **Claimed Progress**, dan **Verified Physical Progress** (progress riil yang sah lolos inspeksi).
-  - Mendukung penimpaan manual kurva rencana mingguan (*planned curve overrides*) oleh Project Director / PM.
-- **Zero Tolerance Punchlist Lockout:**
-  - Seluruh temuan cacat terbuka (**Critical, High, Medium, Low**) wajib diverifikasi tutup (*verified_closed*) oleh pihak independen sebelum *Verified Physical Progress* diakui 100% pada tahap bersangkutan (*Four-Eyes Principle*).
-- **Dual-Mode Signature & Tanda Tangan Basah:**
-  - Tanda tangan digital langsung via layar sentuh (canvas/stempel) di PWA.
-  - Tombol cetak form fisik dan unggah scan lembar bertanda tangan basah selalu tersedia sebagai opsi pendukung bagi kontrak yang mensyaratkannya.
-- **Ekspor Laporan Mingguan Resmi (PDF & Excel):**
-  - Menghasilkan ringkasan siap cetak: Kurva-S deviasi, status WBS, daftar bottleneck laporan tertunda, dan tabel punchlist untuk rapat koordinasi mingguan dengan Owner/Konsultan.
-  - Mendukung ekspor data kurva dan impor/ekspor struktur WBS berbasis Excel.
-- **Offline-First PWA & Bukti Foto Lapangan:**
-  - Inspektur dapat bekerja di area *blind spot* (basement, terowongan, site terpencil) dengan penyimpanan draf di IndexedDB (`idb`).
-  - Komputasi hash SHA-256 dan stempel waktu UTC untuk integritas audit foto bukti.
-  - Sinkronisasi otomatis saat kembali online (*online event*) disertai banner progres, plus tombol manual "Sinkronkan Sekarang".
+* 📋 **Audit Menyeluruh & Status Proyek (17 Bab):** [docs/AUDIT_DAN_STATUS_PROYEK_2026.md](file:///c:/Users/Programer/Documents/SiteLens/docs/AUDIT_DAN_STATUS_PROYEK_2026.md)
+* 🎯 **Product Requirements Document (PRD Piloting v1.1):** [docs/PRD_PILOTING_v1.0.md](file:///c:/Users/Programer/Documents/SiteLens/docs/PRD_PILOTING_v1.0.md)
 
 ---
 
-## Tech Stack
+## 🚀 Status Implementasi Komponen (Faktual Hasil Audit)
 
-- **Frontend:** React 19, Vite 8, Tailwind CSS v4, Motion, Lucide Icons, `jspdf`, `tesseract.js`, `idb`, `vite-plugin-pwa`
-- **Backend:** Express, Node.js 22 (`tsx`), Drizzle ORM, PostgreSQL 16, `@simplewebauthn` (Passkey/Biometric), `nodemailer`, `@google/genai` (opsional BYOK)
-- **Infrastruktur:** Docker Compose (`app`, `postgres`, `caddy` reverse-proxy auto-HTTPS)
+Berdasarkan audit menyeluruh pada codebase (November 2026), berikut adalah status riil komponen sistem:
+
+| Modul / Kemampuan | Status Implementasi | Deskripsi & Lokasi Kode |
+| :--- | :---: | :--- |
+| **Project Setup Studio & WBS Tree** | **AKTIF** | Pengelolaan pohon WBS berbobot (`work_nodes`), preset EPC/Civil/Blank (`ProjectSetupStudio.tsx:41`), validasi total bobot $100\%$ non-blocking, referensi dokumen gambar acuan. |
+| **Kurva-S Kalender Baku** | **AKTIF** | Pemotongan mingguan Senin 00:00 – Minggu 23:59 (`scurve.ts:51`), komparasi Target Timeline vs Verified Physical Progress, dukungan manual override oleh PM (`planned_curve_overrides`). |
+| **Stage Workflow & Four-Eyes Gate** | **AKTIF** | Tahapan `work`, `hold`, `review` (`schema.ts:162`), pencegahan self-approval (`server.ts:474`), dual-track signature (stempel canvas touch + unggah berkas scan basah di `StageCard.tsx:44`). |
+| **Bottleneck Radar & SLA Aging** | **AKTIF** | Indikator keterlambatan approval: Normal (<24h), Warning (24–48h), Critical Bottleneck (>48h) berbasis durasi pengajuan RFI (`scurve.ts:251`). |
+| **Log Cuaca Harian & Analisis EOT** | **AKTIF** | Pencatatan jam hujan harian (`weather_logs`), analisis korelasi deviasi kurva S dengan dampak cuaca ekstrem untuk justifikasi *Extension of Time* (`weather.ts`). |
+| **Otentikasi & Keamanan** | **AKTIF** | Argon2id password hashing, WebAuthn Passkey FIDO2/biometrik (`crypto.ts`), Session cookie HttpOnly, audit log mutasi (`audit_logs`), Grade A+ Vibe-Shield. |
+| **Kepatuhan K3 & AI Generator** | **AKTIF** | Modul SMK3 PP 50/2012 & B3 Kepmenaker 187/1999 (`tenant.ts`), AI Checklist Template Generator via Google Gemini (`AITemplateGeneratorModal.tsx`). |
+| **PWA Offline Checklist & Foto** | **AKTIF (PARSIAL)** | Form inspeksi lama tersimpan di IndexedDB (`idbService.ts`) dengan SHA-256 photo hash. **Catatan:** Pengajuan attempt WBS saat ini masih menggunakan RAM lokal (`wbsDemoStore`) dan perlu dimigrasikan ke IndexedDB. |
+| **Integrasi CAPA/Temuan ke WBS** | **DALAM TRANSISI** | Tabel `corrective_actions` aktif namun belum memiliki relasi FK `node_id`. Logika pengunci S-Curve 99% saat ini membaca tabel `punchlist_items` yang sedang dalam tahap konsolidasi. |
+| **Keanggotaan Per-Proyek (`project_members`)** | **DALAM TRANSISI** | Tabel relasi multi-user per-proyek sudah ada di skema (`schema.ts:227`), namun otorisasi aktif masih membaca peran global `users.role`. Transisi ke *scoped project membership* sedang berjalan. |
+| **Ekspor Laporan Resmi** | **PARSIAL** | Ekspor laporan mingguan PDF aktif via `jspdf` (`WeeklyReportModal.tsx:32`) & ekspor CSV daftar inspeksi. Ekspor/impor struktur file Excel (`.xlsx`) WBS belum diimplementasikan. |
+| **BAPP Generator & 2D Drawing Defect Pinning** | **BELUM ADA** | Direncanakan pada roadmap fase lanjutan pasca-konsolidasi database. |
 
 ---
 
-## Panduan Cepat (Quick Start)
+## 👥 Model Peran (RBAC & Four-Eyes Principle)
 
-### 1. Pengembangan Lokal (Development)
+SiteLens menerapkan pemisahan tugas (*separation of duties*) untuk menjamin integritas data lapangan:
+
+1. **`Project Director & Tenant Admin`**  
+   Memonitor performa makro Kurva-S, mengesahkan *planned curve overrides*, mengelola pengguna sistem, mengawasi *Bottleneck Radar*, dan mengunduh laporan resmi.
+2. **`Project / Site Engineer`**  
+   Menyusun struktur WBS dan pembobotan pada Project Setup Studio, memantau target jadwal, dan mengajukan permintaan inspeksi (*Request for Inspection / RFI*). *Dilarang menyetujui RFI yang diajukannya sendiri.*
+3. **`QA/QC Lead / Owner Inspector`**  
+   Melakukan review independen, menandatangani gerbang persetujuan tahap kerja (*four-eyes check*), dan memvalidasi penutupan temuan ketidaksesuaian/CAPA.
+4. **`Field / QC Inspector`**  
+   Menjalankan inspeksi teknis di lapangan (mendukung PWA offline di area blind spot), merekam bukti foto bertanda waktu SHA-256, dan menerbitkan temuan ketidaksesuaian (*punchlist*).
+5. **`Action Owner / Subcontractor`**  
+   Menerima disposisi perbaikan temuan cacat/CAPA, memperbarui progres perbaikan fisik, dan mengunggah bukti perbaikan. *Dilarang keras memverifikasi atau menutup temuannya sendiri.*
+6. **`Client / Vendor Viewer`**  
+   Mengakses dasbor Kurva-S, status WBS, dan riwayat laporan terverifikasi dengan hak akses baca ketat (*read-only*).
+
+---
+
+## 🛠️ Tech Stack & Arsitektur
+
+* **Frontend:** React 19, Vite 8, Tailwind CSS v4, Motion, Lucide Icons, `jspdf`, `tesseract.js` (OCR), `idb` (IndexedDB offline store), `vite-plugin-pwa` (Workbox Service Worker).
+* **Backend:** Node.js 22 (`tsx`), Express 4, Drizzle ORM, PostgreSQL 16, `@simplewebauthn` (Passkey/FIDO2), `argon2`, `nodemailer` (SMTP alerts).
+* **Infrastruktur & Deployment:** Docker Compose multi-container (`app`, `postgres`, `caddy` reverse-proxy dengan TLS otomatis).
+
+```
+[Klien PWA Offline / Browser]
+       │
+       ▼ (HTTPS / TLS)
+[Caddy Reverse Proxy]
+       │
+       ▼ (Port 3000)
+[Express Application Server]
+   ├── Session & RBAC Middleware
+   ├── WBS & S-Curve Calculation Engine (`src/server/scurve.ts`)
+   ├── Inspection & Dual-Track Approval Controller
+   └── Weather & EOT Logger
+       │
+       ▼ (Connection Pool)
+[PostgreSQL Database] (19 Entitas Drizzle ORM)
+```
+
+---
+
+## ⚡ Panduan Cepat (Quick Start)
+
+### 1. Lingkungan Pengembangan Lokal (Local Development)
 
 ```bash
-# Instal dependensi
+# 1. Kloning repository & instal dependensi
 npm install --legacy-peer-deps
 
-# Siapkan berkas environment
+# 2. Siapkan konfigurasi environment
 cp .env.example .env
+# Sesuaikan DATABASE_URL dan kredensial sesi pada .env
 
-# Jalankan pengujian unit rekayasa & otentikasi
+# 3. Jalankan suite pengujian unit (otentikasi, kurva-S, WBS, RBAC)
 npm test
 
-# Jalankan server pengembangan (port 3000)
+# 4. Jalankan server pengembangan terintegrasi (Express + Vite HMR di port 3000)
 npm run dev
 ```
 
-### 2. Deployment Single-Tenant (Docker Compose)
+### 2. Deployment Produksi (Docker Compose)
 
 ```bash
-# Bangun dan jalankan seluruh container (postgres, app, caddy)
+# 1. Bangun dan jalankan container secara terisolasi
 docker compose up -d --build
 
-# Terapkan skema database Drizzle & seed data awal
+# 2. Sinkronkan skema database Drizzle ke PostgreSQL
 docker compose exec app npm run db:push
+
+# 3. Inisialisasi akun pengguna awal, proyek contoh, dan master checklist
 docker compose exec app npm run db:seed
 
-# Periksa status kesehatan sistem
+# 4. Verifikasi status kesehatan container
 curl -k https://localhost/api/health
 ```
 
 ---
 
-## Perintah Kerja (Scripts)
+## 📜 Perintah Kerja (Scripts Reference)
 
 | Perintah | Deskripsi |
 |---|---|
-| `npm run dev` | Menjalankan server dev Express + Vite PWA |
-| `npm run build` | Kompilasi bundle produksi & Service Worker PWA ke `dist/` |
+| `npm run dev` | Menjalankan server dev Express + Vite PWA secara simultan |
+| `npm run build` | Kompilasi bundle produksi frontend dan Service Worker ke `dist/` |
 | `npm run lint` | Pemeriksaan tipe statis TypeScript (`tsc --noEmit`) |
-| `npm test` | Menjalankan suite pengujian unit deterministik (`tsx --test`) |
-| `npm run db:generate` | Menghasilkan berkas migrasi SQL Drizzle ke `drizzle/` |
-| `npm run db:push` | Mendorong perubahan skema secara langsung ke database PostgreSQL |
-| `npm run db:seed` | Mengisi data pengguna default, proyek, dan master template |
+| `npm test` | Menjalankan seluruh pengujian unit Node.js test runner (`tsx --test`) |
+| `npm run db:generate` | Menghasilkan berkas migrasi SQL Drizzle ke direktori `drizzle/` |
+| `npm run db:push` | Mendorong perubahan skema langsung ke database target |
+| `npm run db:seed` | Mengisi database dengan peran, akun pengujian, proyek, dan template acuan |
+
+---
+
+## 🔒 Kebijakan Keamanan & Integritas Data
+
+1. **No Self-Approval:** Sistem menolak persetujuan gerbang inspeksi jika pengguna yang menyetujui memiliki ID yang sama dengan pemohon inspeksi (`server.ts:474`).
+2. **No Self-Closing:** Pelaksana perbaikan dilarang menutup status temuan tanpa verifikasi dari QA/QC independen.
+3. **Forensic Evidence Integrity:** Setiap lampiran foto bukti diverifikasi dengan hashing SHA-256 untuk memastikan keabsahan audit.
+4. **Audit Trail Mutasi:** Perubahan kritis pada struktur WBS, status inspeksi, dan penimpaan jadwal terekam pada tabel `audit_logs`.

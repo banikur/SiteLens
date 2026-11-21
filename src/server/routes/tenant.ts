@@ -70,7 +70,7 @@ async function getOrCreateTenantProfile() {
 
 // ---------------- GET TENANT PROFILE & COMPLIANCE STATS ----------------
 
-tenantRouter.get('/profile', async (_req: Request, res: Response) => {
+tenantRouter.get('/profile', async (req: Request, res: Response) => {
   const db = getDb();
   if (!db) {
     res.status(503).json({ error: 'Database not configured.' });
@@ -84,8 +84,17 @@ tenantRouter.get('/profile', async (_req: Request, res: Response) => {
   }
 
   // Load all actions to check for disqualifying critical findings
+  const isGlobalAdmin =
+    req.authUser?.role === 'Project Director & Tenant Admin' ||
+    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+
+  const userProjects = req.authUser?.assignedProjects || [];
   const allActions = await db.select().from(correctiveActions);
-  const activeActions = allActions.map((a) => ({
+  const visibleActions = isGlobalAdmin
+    ? allActions
+    : allActions.filter((a) => a.projectId && userProjects.includes(a.projectId));
+
+  const activeActions = visibleActions.map((a) => ({
     ...a,
     createdAt: a.createdAt.toISOString(),
     resolvedAt: a.resolvedAt?.toISOString(),

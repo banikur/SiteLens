@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from 'express';
 import crypto from 'crypto';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { getDb } from '../db/index.ts';
 import {
   auditLogs,
@@ -20,7 +20,13 @@ import {
   projectMembers,
 } from '../db/schema.ts';
 import { hashSecret } from '../auth/crypto.ts';
-import { requireAuth, requireRole, requireProjectAccess } from '../auth/middleware.ts';
+import {
+  requireAuth,
+  requireRole,
+  requireProjectAccess,
+  assertProjectAccess,
+  getProjectIdByStageId,
+} from '../auth/middleware.ts';
 import { dispatchNotification } from '../services/notifications.ts';
 import {
   extractEvidenceFilename,
@@ -265,14 +271,22 @@ function applyEvidenceIntegrity(rawPhotos: unknown): EvidenceIntegrityResult {
 
 // ---------------- PROJECTS ----------------
 
-apiRouter.get('/projects', async (_req: Request, res: Response) => {
+apiRouter.get('/projects', async (req: Request, res: Response) => {
   const db = getDb();
   if (!db) {
     res.status(503).json({ error: 'Database not configured.' });
     return;
   }
 
+  const isGlobalAdmin =
+    req.authUser?.role === 'Project Director & Tenant Admin' ||
+    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+
   const allProjects = await db.select().from(projects);
+  const visibleProjects = isGlobalAdmin
+    ? allProjects
+    : allProjects.filter((p) => Array.isArray(req.authUser?.assignedProjects) && req.authUser.assignedProjects.includes(p.id));
+
   const allInspections = await db.select().from(inspections);
   const allActions = await db.select().from(correctiveActions);
 
@@ -292,7 +306,7 @@ apiRouter.get('/projects', async (_req: Request, res: Response) => {
     }
   }
 
-  const enriched = allProjects.map((projectItem) => {
+  const enriched = visibleProjects.map((projectItem) => {
     const stats = countsByProject.get(projectItem.id) || { inspections: 0, openActions: 0, totalScore: 0 };
     const avgScore = stats.inspections > 0 ? Math.round(stats.totalScore / stats.inspections) : 100;
 
@@ -861,6 +875,16 @@ apiRouter.get(
     }
 
     const stageScopeId = String(req.params.stageId || '');
+    const projectId = await getProjectIdByStageId(stageScopeId);
+    if (!projectId) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    if (!assertProjectAccess(req.authUser, projectId, res, false)) {
+      return;
+    }
+
     const [targetStage] = await db
       .select()
       .from(workStages)
@@ -881,8 +905,10 @@ apiRouter.get(
     const attemptIds = attempts.map((a) => a.id);
     let attachments: any[] = [];
     if (attemptIds.length > 0) {
-      const allAttachments = await db.select().from(evidenceAttachments);
-      attachments = allAttachments.filter((att) => att.attemptId && attemptIds.includes(att.attemptId));
+      attachments = await db
+        .select()
+        .from(evidenceAttachments)
+        .where(inArray(evidenceAttachments.attemptId, attemptIds));
     }
 
     res.json({
@@ -904,6 +930,16 @@ apiRouter.post(
     }
 
     const stageScopeId = String(req.params.stageId || '');
+    const projectId = await getProjectIdByStageId(stageScopeId);
+    if (!projectId) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    if (!assertProjectAccess(req.authUser, projectId, res, true)) {
+      return;
+    }
+
     const [targetStage] = await db
       .select()
       .from(workStages)
@@ -1031,6 +1067,16 @@ apiRouter.post(
     }
 
     const stageScopeId = String(req.params.stageId || '');
+    const projectId = await getProjectIdByStageId(stageScopeId);
+    if (!projectId) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    if (!assertProjectAccess(req.authUser, projectId, res, true)) {
+      return;
+    }
+
     const [targetStage] = await db
       .select()
       .from(workStages)
@@ -1494,20 +1540,30 @@ apiRouter.post(
 
 // ---------------- TEMPLATES (MASTER DATA + IMPORT) ----------------
 
-apiRouter.get('/templates', async (_req: Request, res: Response) => {
+apiRouter.get('/templates', async (req: Request, res: Response) => {
   const db = getDb();
   if (!db) {
     res.status(503).json({ error: 'Database not configured.' });
     return;
   }
 
+  const isGlobalAdmin =
+    req.authUser?.role === 'Project Director & Tenant Admin' ||
+    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+
+  const userProjects = req.authUser?.assignedProjects || [];
+
   const rows = await db
     .select()
     .from(checklistTemplates)
     .orderBy(desc(checklistTemplates.updatedAt));
 
+  const visible = isGlobalAdmin
+    ? rows
+    : rows.filter((t) => !t.projectId || t.isMasterTemplate || userProjects.includes(t.projectId));
+
   res.json({
-    templates: rows.map((t) => ({
+    templates: visible.map((t) => ({
       ...t,
       createdAt: t.createdAt.toISOString().split('T')[0],
       updatedAt: t.updatedAt.toISOString().split('T')[0],
@@ -1687,6 +1743,20 @@ apiRouter.delete(
       return;
     }
 
+    const [targetTmpl] = await db
+      .select()
+      .from(checklistTemplates)
+      .where(eq(checklistTemplates.id, req.params.id))
+      .limit(1);
+    if (!targetTmpl) {
+      res.status(404).json({ error: 'Template not found.' });
+      return;
+    }
+
+    if (targetTmpl.projectId && !assertProjectAccess(req.authUser, targetTmpl.projectId, res, true)) {
+      return;
+    }
+
     // Templates referenced by inspections are part of the audit record; deleting
     // them would orphan the evidence trail, so the delete is refused instead.
     const linked = await db
@@ -1709,10 +1779,35 @@ apiRouter.delete(
 
 // ---------------- INSPECTIONS + DYNAMIC WORKFLOW ----------------
 
-apiRouter.get('/inspections', async (_req: Request, res: Response) => {
+apiRouter.get('/inspections', async (req: Request, res: Response) => {
   const db = getDb();
   if (!db) {
     res.status(503).json({ error: 'Database not configured.' });
+    return;
+  }
+
+  const isGlobalAdmin =
+    req.authUser?.role === 'Project Director & Tenant Admin' ||
+    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+
+  const queryProjectId = req.query.projectId ? String(req.query.projectId) : null;
+  if (queryProjectId) {
+    if (!assertProjectAccess(req.authUser, queryProjectId, res, false)) {
+      return;
+    }
+    const filtered = await db
+      .select()
+      .from(inspections)
+      .where(eq(inspections.projectId, queryProjectId as any))
+      .orderBy(desc(inspections.createdAt));
+    res.json({
+      inspections: filtered.map((r) => ({
+        ...r,
+        submittedAt: r.submittedAt?.toISOString(),
+        reviewedAt: r.reviewedAt?.toISOString(),
+        createdAt: r.createdAt.toISOString(),
+      })),
+    });
     return;
   }
 
@@ -1721,8 +1816,13 @@ apiRouter.get('/inspections', async (_req: Request, res: Response) => {
     .from(inspections)
     .orderBy(desc(inspections.createdAt));
 
+  const userProjects = req.authUser?.assignedProjects || [];
+  const visible = isGlobalAdmin
+    ? rows
+    : rows.filter((r) => userProjects.includes(r.projectId));
+
   res.json({
-    inspections: rows.map((r) => ({
+    inspections: visible.map((r) => ({
       ...r,
       submittedAt: r.submittedAt?.toISOString(),
       reviewedAt: r.reviewedAt?.toISOString(),
@@ -1738,7 +1838,16 @@ apiRouter.post('/inspections', async (req: Request, res: Response) => {
     return;
   }
 
-  const body = req.body;
+  const body = req.body || {};
+  const requestedProjectId = String(body.projectId || '');
+  if (!requestedProjectId) {
+    res.status(400).json({ error: 'projectId is required.' });
+    return;
+  }
+
+  if (!assertProjectAccess(req.authUser, requestedProjectId, res, true)) {
+    return;
+  }
   if (body.clientMutationId) {
     const [existing] = await db
       .select()
@@ -1883,6 +1992,10 @@ apiRouter.post('/inspections/:id/review', async (req: Request, res: Response) =>
     return;
   }
 
+  if (!assertProjectAccess(req.authUser, insp.projectId, res, true)) {
+    return;
+  }
+
   const [tmpl] = await db
     .select()
     .from(checklistTemplates)
@@ -1987,6 +2100,10 @@ apiRouter.delete(
       return;
     }
 
+    if (!assertProjectAccess(req.authUser, existing.projectId, res, true)) {
+      return;
+    }
+
     // Approved inspections are signed audit evidence. They may be rejected or
     // superseded, but never silently erased.
     if (existing.status === 'approved') {
@@ -2008,10 +2125,34 @@ apiRouter.delete(
 
 // ---------------- CORRECTIVE ACTIONS (CAPA) ----------------
 
-apiRouter.get('/actions', async (_req: Request, res: Response) => {
+apiRouter.get('/actions', async (req: Request, res: Response) => {
   const db = getDb();
   if (!db) {
     res.status(503).json({ error: 'Database not configured.' });
+    return;
+  }
+
+  const isGlobalAdmin =
+    req.authUser?.role === 'Project Director & Tenant Admin' ||
+    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+
+  const queryProjectId = req.query.projectId ? String(req.query.projectId) : null;
+  if (queryProjectId) {
+    if (!assertProjectAccess(req.authUser, queryProjectId, res, false)) {
+      return;
+    }
+    const filtered = await db
+      .select()
+      .from(correctiveActions)
+      .where(eq(correctiveActions.projectId, queryProjectId as any))
+      .orderBy(desc(correctiveActions.createdAt));
+    res.json({
+      actions: filtered.map((a) => ({
+        ...a,
+        createdAt: a.createdAt.toISOString(),
+        resolvedAt: a.resolvedAt?.toISOString(),
+      })),
+    });
     return;
   }
 
@@ -2020,8 +2161,13 @@ apiRouter.get('/actions', async (_req: Request, res: Response) => {
     .from(correctiveActions)
     .orderBy(desc(correctiveActions.createdAt));
 
+  const userProjects = req.authUser?.assignedProjects || [];
+  const visible = isGlobalAdmin
+    ? rows
+    : rows.filter((a) => a.projectId && userProjects.includes(a.projectId));
+
   res.json({
-    actions: rows.map((a) => ({
+    actions: visible.map((a) => ({
       ...a,
       createdAt: a.createdAt.toISOString(),
       resolvedAt: a.resolvedAt?.toISOString(),
@@ -2064,6 +2210,15 @@ apiRouter.post('/actions', async (req: Request, res: Response) => {
       actionProjectId = existingProj.id;
       actionProjectName = existingProj.name;
     }
+  }
+
+  if (!actionProjectId) {
+    res.status(400).json({ error: 'projectId or valid inspectionId is required.' });
+    return;
+  }
+
+  if (!assertProjectAccess(req.authUser, actionProjectId, res, true)) {
+    return;
   }
 
   const [saved] = await db
@@ -2133,6 +2288,10 @@ apiRouter.patch('/actions/:id', async (req: Request, res: Response) => {
 
   if (!existingCapa) {
     res.status(404).json({ error: 'Corrective action not found.' });
+    return;
+  }
+
+  if (existingCapa.projectId && !assertProjectAccess(req.authUser, existingCapa.projectId, res, true)) {
     return;
   }
 

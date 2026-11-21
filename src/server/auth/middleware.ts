@@ -1,7 +1,16 @@
 import type { Request, Response, NextFunction } from 'express';
 import { and, eq, gt } from 'drizzle-orm';
 import { getDb } from '../db/index.ts';
-import { sessions, users, projectMembers } from '../db/schema.ts';
+import {
+  sessions,
+  users,
+  projectMembers,
+  workStages,
+  workWorkflows,
+  workNodes,
+  inspections,
+  correctiveActions,
+} from '../db/schema.ts';
 import { hashSessionToken } from './crypto.ts';
 import type { User, UserRole } from '../../types/index.ts';
 
@@ -119,6 +128,49 @@ export function requireRole(allowedRoles: UserRole[]) {
   };
 }
 
+export function checkProjectAccess(
+  user: AuthUser | null | undefined,
+  projectId: string,
+  isMutation = false
+): { allowed: boolean; status: number; error?: string } {
+  if (!user) {
+    return { allowed: false, status: 401, error: 'Authentication required.' };
+  }
+
+  const isGlobalAdmin =
+    user.role === 'Project Director & Tenant Admin' ||
+    user.role === 'HSE / Quality Manager & Tenant Admin';
+
+  const isAssigned =
+    isGlobalAdmin ||
+    (Array.isArray(user.assignedProjects) && user.assignedProjects.includes(projectId));
+
+  if (!isAssigned) {
+    return { allowed: false, status: 403, error: 'Forbidden: Access to this project is denied.' };
+  }
+
+  // Client / Vendor Viewer is strictly read-only: reject all write/mutation methods
+  if (user.role === 'Client / Vendor Viewer' && isMutation) {
+    return { allowed: false, status: 403, error: 'Forbidden: Client / Vendor Viewer has read-only access.' };
+  }
+
+  return { allowed: true, status: 200 };
+}
+
+export function assertProjectAccess(
+  user: AuthUser | null | undefined,
+  projectId: string,
+  res: Response,
+  isMutation = false
+): boolean {
+  const check = checkProjectAccess(user, projectId, isMutation);
+  if (!check.allowed) {
+    res.status(check.status).json({ error: check.error });
+    return false;
+  }
+  return true;
+}
+
 export function requireProjectAccess(paramName = 'projectId') {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.authUser) {
@@ -136,29 +188,62 @@ export function requireProjectAccess(paramName = 'projectId') {
       return;
     }
 
-    const isGlobalAdmin =
-      req.authUser.role === 'Project Director & Tenant Admin' ||
-      req.authUser.role === 'HSE / Quality Manager & Tenant Admin';
-
-    const isAssigned =
-      isGlobalAdmin ||
-      (Array.isArray(req.authUser.assignedProjects) &&
-        req.authUser.assignedProjects.includes(projectId));
-
-    if (!isAssigned) {
-      res.status(403).json({ error: 'Forbidden: Access to this project is denied.' });
-      return;
-    }
-
-    // Client / Vendor Viewer is strictly read-only: reject all write/mutation methods
     const isMutation = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method.toUpperCase());
-    if (req.authUser.role === 'Client / Vendor Viewer' && isMutation) {
-      res.status(403).json({ error: 'Forbidden: Client / Vendor Viewer has read-only access.' });
-      return;
-    }
+    const ok = assertProjectAccess(req.authUser, String(projectId), res, isMutation);
+    if (!ok) return;
 
     next();
   };
+}
+
+export async function getProjectIdByStageId(stageId: string): Promise<string | null> {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const rows = await db
+      .select({ projectId: workNodes.projectId })
+      .from(workStages)
+      .innerJoin(workWorkflows, eq(workStages.workflowId, workWorkflows.id))
+      .innerJoin(workNodes, eq(workWorkflows.nodeId, workNodes.id))
+      .where(eq(workStages.id, stageId as any))
+      .limit(1);
+    return rows[0]?.projectId ? String(rows[0].projectId) : null;
+  } catch (err) {
+    console.error('Error resolving projectId for stageId:', err);
+    return null;
+  }
+}
+
+export async function getProjectIdByInspectionId(inspectionId: string): Promise<string | null> {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const rows = await db
+      .select({ projectId: inspections.projectId })
+      .from(inspections)
+      .where(eq(inspections.id, inspectionId as any))
+      .limit(1);
+    return rows[0]?.projectId ? String(rows[0].projectId) : null;
+  } catch (err) {
+    console.error('Error resolving projectId for inspectionId:', err);
+    return null;
+  }
+}
+
+export async function getProjectIdByActionId(actionId: string): Promise<string | null> {
+  const db = getDb();
+  if (!db) return null;
+  try {
+    const rows = await db
+      .select({ projectId: correctiveActions.projectId })
+      .from(correctiveActions)
+      .where(eq(correctiveActions.id, actionId as any))
+      .limit(1);
+    return rows[0]?.projectId ? String(rows[0].projectId) : null;
+  } catch (err) {
+    console.error('Error resolving projectId for actionId:', err);
+    return null;
+  }
 }
 
 export async function getEffectiveProjectRole(
