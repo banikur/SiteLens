@@ -21,6 +21,7 @@ import {
   WifiOff,
   RefreshCw,
   Settings,
+  Compass,
 } from 'lucide-react';
 import { User } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -55,6 +56,7 @@ interface NavigationProps {
   isOnline?: boolean;
   pendingSyncCount?: number;
   onSyncNow?: () => void;
+  onOpenTour?: () => void;
 }
 
 export const Navigation: React.FC<NavigationProps> = ({
@@ -75,6 +77,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   isOnline = true,
   pendingSyncCount = 0,
   onSyncNow,
+  onOpenTour,
 }) => {
   const { lang, setLang, t, translateRole } = useLanguage();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -382,6 +385,18 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
         )}
 
+        {/* Guided Demo Tour Trigger */}
+        <div className="p-3 pb-0 bg-[#06090e]">
+          <button
+            type="button"
+            onClick={onOpenTour}
+            className="w-full py-2 px-3 rounded-lg bg-[#d4f038]/15 hover:bg-[#d4f038]/25 text-[#d4f038] border border-[#d4f038]/40 text-xs font-bold transition-all flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
+          >
+            <Compass className="w-4 h-4 text-[#d4f038]" />
+            <span>{lang === 'id' ? 'Panduan Alur Demo' : 'Guided Demo Tour'}</span>
+          </button>
+        </div>
+
         {/* Active Persona & User Switcher Card */}
         <div className="p-3 border-t border-slate-800 relative bg-[#06090e]">
           <button
@@ -479,7 +494,17 @@ export const Navigation: React.FC<NavigationProps> = ({
                   </button>
                 ))}
               </div>
-              <div className="px-3 pt-2 border-t border-slate-800 mt-1">
+              <div className="px-3 pt-2 border-t border-slate-800 mt-1 space-y-1">
+                <button
+                  onClick={() => {
+                    onLogout?.();
+                    setUserDropdownOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center space-x-1.5 py-1.5 text-[11px] text-[#d4f038] hover:underline transition-colors"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span>{lang === 'id' ? 'Ganti Role / Halaman Login' : 'Switch Role / Sign Out'}</span>
+                </button>
                 <button
                   onClick={() => {
                     onResetData();

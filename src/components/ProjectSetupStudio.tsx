@@ -20,6 +20,7 @@ import {
   Clock,
   CloudRain,
   RefreshCw,
+  UserCheck,
 } from 'lucide-react';
 import type { Project, User, WorkNode, SCurveSummary } from '../types';
 import {
@@ -34,6 +35,7 @@ import { NodeWorkflowModal } from './NodeWorkflowModal';
 import { SCurveChart } from './SCurveChart';
 import { BottleneckRadar } from './BottleneckRadar';
 import { WeatherLogModal } from './WeatherLogModal';
+import { WbsCanvasStudio } from './WbsCanvasStudio';
 import {
   buildWbsTree,
   flattenWbsTree,
@@ -60,6 +62,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
 
   // Studio tabs & subviews
   const [activeStudioTab, setActiveStudioTab] = useState<'wbs' | 'scurve' | 'radar'>('wbs');
+  const [wbsSubView, setWbsSubView] = useState<'canvas' | 'table'>('canvas');
   const [scurveData, setScurveData] = useState<SCurveSummary | null>(null);
   const [weatherModalOpen, setWeatherModalOpen] = useState(false);
 
@@ -76,10 +79,16 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
   const [formWbsCode, setFormWbsCode] = useState('');
   const [formName, setFormName] = useState('');
   const [formWeight, setFormWeight] = useState('0.00');
+  const [formVolume, setFormVolume] = useState('');
+  const [formUnit, setFormUnit] = useState('m3');
   const [formDocRef, setFormDocRef] = useState('');
   const [formRevision, setFormRevision] = useState('');
   const [formStartDate, setFormStartDate] = useState('');
   const [formEndDate, setFormEndDate] = useState('');
+  const [formAssignedEngineerId, setFormAssignedEngineerId] = useState('usr-sup-1');
+  const [formAssignedEngineerName, setFormAssignedEngineerName] = useState('Dave Kowalski (Site Engineer)');
+  const [formAssignedQcId, setFormAssignedQcId] = useState('usr-hse-1');
+  const [formAssignedQcName, setFormAssignedQcName] = useState('Elena Rostova (QA/QC Lead)');
 
   // Search & filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -165,10 +174,16 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
 
     setFormName('');
     setFormWeight('10.00');
+    setFormVolume('');
+    setFormUnit('m3');
     setFormDocRef('');
     setFormRevision('Rev A');
     setFormStartDate('');
     setFormEndDate('');
+    setFormAssignedEngineerId('usr-sup-1');
+    setFormAssignedEngineerName('Dave Kowalski (Site Engineer)');
+    setFormAssignedQcId('usr-hse-1');
+    setFormAssignedQcName('Elena Rostova (QA/QC Lead)');
     setNodeModalOpen(true);
   };
 
@@ -178,10 +193,16 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
     setFormWbsCode(node.wbsCode);
     setFormName(node.name);
     setFormWeight(String(node.weightPercent ?? '0.00'));
+    setFormVolume(node.volume != null ? String(node.volume) : '');
+    setFormUnit(node.unit || 'm3');
     setFormDocRef(node.documentReferenceNo || '');
     setFormRevision(node.activeRevision || '');
     setFormStartDate(node.plannedStartDate ? String(node.plannedStartDate).slice(0, 10) : '');
     setFormEndDate(node.plannedEndDate ? String(node.plannedEndDate).slice(0, 10) : '');
+    setFormAssignedEngineerId(node.assignedEngineerId || 'usr-sup-1');
+    setFormAssignedEngineerName(node.assignedEngineerName || 'Dave Kowalski (Site Engineer)');
+    setFormAssignedQcId(node.assignedQcId || 'usr-hse-1');
+    setFormAssignedQcName(node.assignedQcName || 'Elena Rostova (QA/QC Lead)');
     setNodeModalOpen(true);
   };
 
@@ -198,10 +219,16 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
         wbsCode: formWbsCode.trim(),
         name: formName.trim(),
         weightPercent: formWeight.trim() || '0.00',
+        volume: formVolume.trim() || null,
+        unit: formUnit.trim() || null,
         documentReferenceNo: formDocRef.trim() || null,
         activeRevision: formRevision.trim() || null,
         plannedStartDate: formStartDate || null,
         plannedEndDate: formEndDate || null,
+        assignedEngineerId: formAssignedEngineerId || null,
+        assignedEngineerName: formAssignedEngineerName || null,
+        assignedQcId: formAssignedQcId || null,
+        assignedQcName: formAssignedQcName || null,
       };
 
       if (editingNode) {
@@ -217,6 +244,28 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
       setTimeout(() => setActionSuccess(null), 4000);
     } catch (err: any) {
       alert(err?.message || 'Gagal menyimpan WBS node.');
+    }
+  };
+
+  const handleUpdateNodePosition = async (nodeId: string, x: number, y: number) => {
+    try {
+      await apiUpdateWbsNode(project.id, nodeId, { canvasX: x, canvasY: y });
+      setNodes((prev) =>
+        prev.map((n) => (n.id === nodeId ? { ...n, canvasX: x, canvasY: y } : n))
+      );
+    } catch (err) {
+      console.error('Failed to update node position on canvas:', err);
+    }
+  };
+
+  const handleReparentNode = async (childId: string, newParentId: string | null) => {
+    try {
+      await apiUpdateWbsNode(project.id, childId, { parentId: newParentId });
+      setActionSuccess('Hirarki node WBS berhasil dipindahkan dari kanvas.');
+      await loadWbsData();
+      setTimeout(() => setActionSuccess(null), 3500);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memindahkan parent node.');
     }
   };
 
@@ -448,251 +497,342 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
             )}
           </div>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="w-full sm:w-72">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari WBS Code, Nama, atau Dokumen..."
-            className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
-          />
-        </div>
-        <div className="text-xs text-slate-400">
-          Menampilkan {filteredNodes.length} dari {nodes.length} node
-        </div>
-      </div>
+          {/* View Mode Switcher: Working Tree Canvas vs Tabel Hirarkis */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-bold text-slate-900">Format Tampilan WBS:</span>
+              <span className="text-[11px] text-slate-500">
+                Pilih antara Blank Kanvas visual drag-and-drop atau Tabel Matriks hirarkis.
+              </span>
+            </div>
 
-      {/* WBS Tree Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium text-xs">
-              <tr>
-                <th className="py-3 px-4">WBS code & nama pekerjaan</th>
-                <th className="py-3 px-4 w-28 text-right">Bobot (%)</th>
-                <th className="py-3 px-4 w-44">Dokumen acuan & rev</th>
-                <th className="py-3 px-4 w-36">Jadwal rencana</th>
-                <th className="py-3 px-4 w-36">Progres (klaim / verifikasi)</th>
-                <th className="py-3 px-4 w-28 text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-sans">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    Memuat struktur WBS...
-                  </td>
-                </tr>
-              ) : filteredNodes.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    {searchQuery ? (
-                      'Tidak ada node yang cocok dengan pencarian.'
-                    ) : (
-                      <div className="space-y-2">
-                        <FolderTree className="w-8 h-8 mx-auto text-slate-300" />
-                        <p className="font-semibold text-slate-600">
-                          Belum ada struktur WBS untuk proyek ini.
-                        </p>
-                        {canEdit && (
-                          <div className="flex items-center justify-center space-x-2 pt-2">
-                            <button
-                              onClick={() => setPresetModalOpen(true)}
-                              className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800 font-medium hover:bg-slate-50 transition-colors"
-                            >
-                              Pilih preset starter pack
-                            </button>
-                            <button
-                              onClick={() => handleOpenAddModal('')}
-                              className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold shadow-xs transition-colors"
-                            >
-                              Buat node manual
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ) : (
-                filteredNodes.map((node) => {
-                  const hasChildren = node.children && node.children.length > 0;
-                  const isCollapsed = collapsedNodes.has(node.id);
-                  const rollup = calculateRollupProgress(node);
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => setWbsSubView('canvas')}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
+                  wbsSubView === 'canvas'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>Working Tree Canvas (Draw.io)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setWbsSubView('table')}
+                className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
+                  wbsSubView === 'table'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <FolderTree className="w-3.5 h-3.5" />
+                <span>Tabel Hirarkis</span>
+              </button>
+            </div>
+          </div>
 
-                  return (
-                    <tr
-                      key={node.id}
-                      className={`hover:bg-slate-50/80 transition-colors ${
-                        node.level === 0 ? 'bg-slate-50/40 font-semibold' : ''
-                      }`}
-                    >
-                      {/* WBS Code & Name with dynamic indentation */}
-                      <td className="py-2.5 px-4">
-                        <div
-                          className="flex items-center"
-                          style={{ paddingLeft: `${node.level * 24}px` }}
-                        >
-                          {hasChildren ? (
-                            <button
-                              onClick={() => toggleCollapse(node.id)}
-                              className="p-1 mr-1.5 text-slate-400 hover:text-slate-700"
-                            >
-                              {isCollapsed ? (
-                                <ChevronRight className="w-3.5 h-3.5" />
-                              ) : (
-                                <ChevronDown className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          ) : (
-                            <span className="w-3.5 mr-2 inline-block text-slate-300">
-                              &bull;
-                            </span>
-                          )}
+          {/* SubView 1: Draw.io Blank Canvas Working Tree */}
+          {wbsSubView === 'canvas' && (
+            <WbsCanvasStudio
+              nodes={nodes}
+              currentUser={currentUser}
+              canEdit={canEdit}
+              onAddNode={handleOpenAddModal}
+              onEditNode={handleOpenEditModal}
+              onDeleteNode={(n) => setDeleteConfirmNode(n)}
+              onOpenWorkflow={(n) => setSelectedWorkflowNode(n)}
+              onUpdateNodePosition={handleUpdateNodePosition}
+              onReparentNode={handleReparentNode}
+            />
+          )}
 
-                          <span className="font-mono font-bold text-[#d4f038] bg-[#0b0e14] border border-slate-800 px-1.5 py-0.5 rounded text-[10px] mr-2">
-                            {node.wbsCode}
-                          </span>
-                          <span
-                            className={`truncate ${
-                              node.level === 0
-                                ? 'text-slate-900 font-bold'
-                                : 'text-slate-700'
-                            }`}
-                          >
-                            {node.name}
-                          </span>
-                        </div>
-                      </td>
+          {/* SubView 2: Standard Hierarchical WBS Tree Table */}
+          {wbsSubView === 'table' && (
+            <>
+              {/* Filter and Search Bar */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="w-full sm:w-72">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cari WBS Code, Nama, atau Dokumen..."
+                    className="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+                  />
+                </div>
+                <div className="text-xs text-slate-400">
+                  Menampilkan {filteredNodes.length} dari {nodes.length} node
+                </div>
+              </div>
 
-                      {/* Weight Percent */}
-                      <td className="py-2.5 px-4 text-right font-mono tabular-nums font-bold text-slate-800">
-                        {Number(node.weightPercent).toFixed(2)}%
-                      </td>
-
-                      {/* Document Reference & Active Revision */}
-                      <td className="py-2.5 px-4">
-                        {node.documentReferenceNo ? (
-                          <div className="flex items-center space-x-1.5">
-                            <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            <span className="font-mono text-slate-700 truncate">
-                              {node.documentReferenceNo}
-                            </span>
-                            {node.activeRevision && (
-                              <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-mono text-[10px] font-medium">
-                                {node.activeRevision}
-                              </span>
+              {/* WBS Tree Table */}
+              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-medium text-xs">
+                      <tr>
+                        <th className="py-3 px-4">WBS code & nama pekerjaan</th>
+                        <th className="py-3 px-3 w-20 text-right">Volume</th>
+                        <th className="py-3 px-3 w-16 text-center">Satuan</th>
+                        <th className="py-3 px-4 w-28 text-right">Bobot (%)</th>
+                        <th className="py-3 px-4 w-44">Dokumen acuan & rev</th>
+                        <th className="py-3 px-4 w-36">Jadwal rencana</th>
+                        <th className="py-3 px-4 w-36">Progres (klaim / verifikasi)</th>
+                        <th className="py-3 px-4 w-28 text-right">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-sans">
+                      {loading ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-slate-400">
+                            Memuat struktur WBS...
+                          </td>
+                        </tr>
+                      ) : filteredNodes.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-slate-400">
+                            {searchQuery ? (
+                              'Tidak ada node yang cocok dengan pencarian.'
+                            ) : (
+                              <div className="space-y-2">
+                                <FolderTree className="w-8 h-8 mx-auto text-slate-300" />
+                                <p className="font-semibold text-slate-600">
+                                  Belum ada struktur WBS untuk proyek ini.
+                                </p>
+                                {canEdit && (
+                                  <div className="flex items-center justify-center space-x-2 pt-2">
+                                    <button
+                                      onClick={() => setPresetModalOpen(true)}
+                                      className="px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-800 font-medium hover:bg-slate-50 transition-colors"
+                                    >
+                                      Pilih preset starter pack
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenAddModal('')}
+                                      className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold shadow-xs transition-colors"
+                                    >
+                                      Buat node manual
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             )}
-                          </div>
-                        ) : (
-                          <span className="text-slate-300 italic text-[11px]">-</span>
-                        )}
-                      </td>
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredNodes.map((node) => {
+                          const hasChildren = node.children && node.children.length > 0;
+                          const isCollapsed = collapsedNodes.has(node.id);
+                          const rollup = calculateRollupProgress(node);
 
-                      {/* Planned Schedule */}
-                      <td className="py-2.5 px-4 text-slate-500 text-[11px]">
-                        {node.plannedStartDate || node.plannedEndDate ? (
-                          <div className="flex items-center space-x-1">
-                            <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span className="font-mono tabular-nums">
-                              {node.plannedStartDate
-                                ? String(node.plannedStartDate).slice(5, 10)
-                                : '...'}
-                              {' → '}
-                              {node.plannedEndDate
-                                ? String(node.plannedEndDate).slice(5, 10)
-                                : '...'}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-300 italic">-</span>
-                        )}
-                      </td>
+                          return (
+                            <tr
+                              key={node.id}
+                              className={`hover:bg-slate-50/80 transition-colors ${
+                                node.level === 0 ? 'bg-slate-50/40 font-semibold' : ''
+                              }`}
+                            >
+                              {/* WBS Code & Name with dynamic indentation */}
+                              <td className="py-2.5 px-4">
+                                <div
+                                  className="flex items-center"
+                                  style={{ paddingLeft: `${node.level * 24}px` }}
+                                >
+                                  {hasChildren ? (
+                                    <button
+                                      onClick={() => toggleCollapse(node.id)}
+                                      className="p-1 mr-1.5 text-slate-400 hover:text-slate-700"
+                                    >
+                                      {isCollapsed ? (
+                                        <ChevronRight className="w-3.5 h-3.5" />
+                                      ) : (
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  ) : (
+                                    <span className="w-3.5 mr-2 inline-block text-slate-300">
+                                      &bull;
+                                    </span>
+                                  )}
 
-                      {/* Progress Rollup */}
-                      <td className="py-2.5 px-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between text-[10px] font-mono tabular-nums">
-                            <span className="text-slate-400">
-                              Klaim: <b className="text-slate-700">{rollup.claimedProgress}%</b>
-                            </span>
-                            <span className="text-slate-900 font-bold">
-                              Verif: {rollup.verifiedProgress}%
-                            </span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-sm h-1.5 overflow-hidden flex border border-slate-200">
-                            <div
-                              className="bg-[#d4f038] h-1.5"
-                              style={{ width: `${Math.min(rollup.verifiedProgress, 100)}%` }}
-                              title={`Terverifikasi: ${rollup.verifiedProgress}%`}
-                            />
-                            <div
-                              className="bg-slate-300 h-1.5"
-                              style={{
-                                width: `${Math.max(
-                                  0,
-                                  Math.min(rollup.claimedProgress - rollup.verifiedProgress, 100)
-                                )}%`,
-                              }}
-                              title={`Klaim Belum Verifikasi: ${Math.max(
-                                0,
-                                rollup.claimedProgress - rollup.verifiedProgress
-                              )}%`}
-                            />
-                          </div>
-                        </div>
-                      </td>
+                                  <span className="font-mono font-bold text-[#d4f038] bg-[#0b0e14] border border-slate-800 px-1.5 py-0.5 rounded text-[10px] mr-2">
+                                    {node.wbsCode}
+                                  </span>
+                                  <div className="truncate">
+                                    <span
+                                      className={`${
+                                        node.level === 0
+                                          ? 'text-slate-900 font-bold'
+                                          : 'text-slate-700'
+                                      }`}
+                                    >
+                                      {node.name}
+                                    </span>
+                                    {(node.assignedEngineerName || node.assignedQcName) && (
+                                      <div className="flex items-center space-x-1.5 mt-0.5 text-[10px] font-mono">
+                                        {node.assignedEngineerName && (
+                                          <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 border border-slate-200" title="Site Engineer (Pelaksana)">
+                                            SE: {node.assignedEngineerName.split(' ')[0]}
+                                          </span>
+                                        )}
+                                        {node.assignedQcName && (
+                                          <span className="px-1.5 py-0.2 rounded bg-[#d4f038]/20 text-slate-900 border border-[#d4f038]/40 font-semibold" title="QA/QC Verifikator">
+                                            QC: {node.assignedQcName.split(' ')[0]}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
 
-                      {/* Action Buttons */}
-                      <td className="py-2.5 px-4 text-right">
-                        <div className="flex items-center justify-end space-x-1">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedWorkflowNode(node)}
-                            className="px-2 py-1 rounded bg-[#0b0e14] hover:bg-[#161c28] text-[#d4f038] border border-slate-800 font-mono text-[10px] font-bold flex items-center space-x-1 transition-colors"
-                            title="Buka Alur Multi-Stage Workflow & Hold Point"
-                          >
-                            <ShieldCheck className="w-3 h-3 text-[#d4f038]" />
-                            <span>Workflow</span>
-                          </button>
+                              {/* Volume */}
+                              <td className="py-2.5 px-3 text-right font-mono tabular-nums text-slate-700">
+                                {node.volume != null && String(node.volume).trim() !== '' ? String(node.volume) : '-'}
+                              </td>
 
-                          {canEdit && (
-                            <>
-                              <button
-                                onClick={() => handleOpenAddModal(node.id)}
-                                className="p-1 rounded hover:bg-amber-100 text-amber-700 transition-colors"
-                                title="Tambah Sub-Node di bawah item ini"
-                              >
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleOpenEditModal(node)}
-                                className="p-1 rounded hover:bg-slate-100 text-slate-600 transition-colors"
-                                title="Edit Node"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirmNode(node)}
-                                className="p-1 rounded hover:bg-rose-100 text-rose-600 transition-colors"
-                                title="Hapus Node"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                              {/* Satuan */}
+                              <td className="py-2.5 px-3 text-center font-mono text-slate-600">
+                                {node.unit ? (
+                                  <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px]">
+                                    {node.unit}
+                                  </span>
+                                ) : (
+                                  '-'
+                                )}
+                              </td>
+
+                              {/* Weight Percent */}
+                              <td className="py-2.5 px-4 text-right font-mono tabular-nums font-bold text-slate-800">
+                                {Number(node.weightPercent).toFixed(2)}%
+                              </td>
+
+                              {/* Document Reference & Active Revision */}
+                              <td className="py-2.5 px-4">
+                                {node.documentReferenceNo ? (
+                                  <div className="flex items-center space-x-1.5">
+                                    <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span className="font-mono text-slate-700 truncate">
+                                      {node.documentReferenceNo}
+                                    </span>
+                                    {node.activeRevision && (
+                                      <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-700 font-mono text-[10px] font-medium">
+                                        {node.activeRevision}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-300 italic text-[11px]">-</span>
+                                )}
+                              </td>
+
+                              {/* Planned Schedule */}
+                              <td className="py-2.5 px-4 text-slate-500 text-[11px]">
+                                {node.plannedStartDate || node.plannedEndDate ? (
+                                  <div className="flex items-center space-x-1">
+                                    <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                                    <span className="font-mono tabular-nums">
+                                      {node.plannedStartDate
+                                        ? String(node.plannedStartDate).slice(5, 10)
+                                        : '...'}
+                                      {' → '}
+                                      {node.plannedEndDate
+                                        ? String(node.plannedEndDate).slice(5, 10)
+                                        : '...'}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-slate-300 italic">-</span>
+                                )}
+                              </td>
+
+                              {/* Progress Rollup */}
+                              <td className="py-2.5 px-4">
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between text-[10px] font-mono tabular-nums">
+                                    <span className="text-slate-400">
+                                      Klaim: <b className="text-slate-700">{rollup.claimedProgress}%</b>
+                                    </span>
+                                    <span className="text-slate-900 font-bold">
+                                      Verif: {rollup.verifiedProgress}%
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-slate-100 rounded-sm h-1.5 overflow-hidden flex border border-slate-200">
+                                    <div
+                                      className="bg-[#d4f038] h-1.5"
+                                      style={{ width: `${Math.min(rollup.verifiedProgress, 100)}%` }}
+                                      title={`Terverifikasi: ${rollup.verifiedProgress}%`}
+                                    />
+                                    <div
+                                      className="bg-slate-300 h-1.5"
+                                      style={{
+                                        width: `${Math.max(
+                                          0,
+                                          Math.min(rollup.claimedProgress - rollup.verifiedProgress, 100)
+                                        )}%`,
+                                      }}
+                                      title={`Klaim Belum Verifikasi: ${Math.max(
+                                        0,
+                                        rollup.claimedProgress - rollup.verifiedProgress
+                                      )}%`}
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Action Buttons */}
+                              <td className="py-2.5 px-4 text-right">
+                                <div className="flex items-center justify-end space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedWorkflowNode(node)}
+                                    className="px-2 py-1 rounded bg-[#0b0e14] hover:bg-[#161c28] text-[#d4f038] border border-slate-800 font-mono text-[10px] font-bold flex items-center space-x-1 transition-colors"
+                                    title="Buka Alur Multi-Stage Workflow & Hold Point"
+                                  >
+                                    <ShieldCheck className="w-3 h-3 text-[#d4f038]" />
+                                    <span>Workflow</span>
+                                  </button>
+
+                                  {canEdit && (
+                                    <>
+                                      <button
+                                        onClick={() => handleOpenAddModal(node.id)}
+                                        className="p-1 rounded hover:bg-amber-100 text-amber-700 transition-colors"
+                                        title="Tambah Sub-Node di bawah item ini"
+                                      >
+                                        <Plus className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleOpenEditModal(node)}
+                                        className="p-1 rounded hover:bg-slate-100 text-slate-600 transition-colors"
+                                        title="Edit Node"
+                                      >
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => setDeleteConfirmNode(node)}
+                                        className="p-1 rounded hover:bg-rose-100 text-rose-600 transition-colors"
+                                        title="Hapus Node"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
       </>
       )}
 
@@ -702,6 +842,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
           {scurveData ? (
             <SCurveChart
               scurve={scurveData}
+              nodes={flatNodes}
               currentUser={currentUser}
               onRefresh={() => {
                 loadSCurveData();
@@ -907,6 +1048,34 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                 />
               </div>
 
+              {/* Volume & Satuan (Format Otentik Wingdik) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Volume pekerjaan
+                  </label>
+                  <input
+                    type="text"
+                    value={formVolume}
+                    onChange={(e) => setFormVolume(e.target.value)}
+                    placeholder="Contoh: 120 atau 450"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-800"
+                  />
+                </div>
+                <div>
+                  <label className="block font-medium text-slate-700 text-xs mb-1">
+                    Satuan / Unit
+                  </label>
+                  <input
+                    type="text"
+                    value={formUnit}
+                    onChange={(e) => setFormUnit(e.target.value)}
+                    placeholder="Contoh: m3, titik, kg, ls"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-800"
+                  />
+                </div>
+              </div>
+
               {/* Document Reference & Revision */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
@@ -958,6 +1127,63 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                     onChange={(e) => setFormEndDate(e.target.value)}
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-800"
                   />
+                </div>
+              </div>
+
+              {/* Personnel Assignment per Node */}
+              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="font-bold text-slate-800 text-xs flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5">
+                    <UserCheck className="w-3.5 h-3.5 text-slate-700" />
+                    <span>Penugasan Personel Lapangan (WBS Assignment)</span>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-mono">Four-Eyes Workflow</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-medium text-slate-700 text-[11px] mb-1">
+                      Site Engineer (Pelaksana) *
+                    </label>
+                    <select
+                      value={formAssignedEngineerId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormAssignedEngineerId(val);
+                        const match = [
+                          { id: 'usr-sup-1', name: 'Dave Kowalski (Site Engineer)' },
+                          { id: 'usr-eng-1', name: 'Priya Patel (Site Engineer)' },
+                          { id: 'usr-op-1', name: 'Raymond Briggs (Site Officer)' },
+                        ].find((u) => u.id === val);
+                        setFormAssignedEngineerName(match ? match.name : '');
+                      }}
+                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 bg-white focus:outline-none focus:border-slate-800"
+                    >
+                      <option value="usr-sup-1">Dave Kowalski (Site Engineer)</option>
+                      <option value="usr-eng-1">Priya Patel (Site Engineer)</option>
+                      <option value="usr-op-1">Raymond Briggs (Site Officer)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-medium text-slate-700 text-[11px] mb-1">
+                      QA/QC Inspector (Verifikator) *
+                    </label>
+                    <select
+                      value={formAssignedQcId}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFormAssignedQcId(val);
+                        const match = [
+                          { id: 'usr-hse-1', name: 'Elena Rostova (QA/QC Lead)' },
+                          { id: 'usr-qc-1', name: 'Marcus Chen (QA/QC Inspector)' },
+                        ].find((u) => u.id === val);
+                        setFormAssignedQcName(match ? match.name : '');
+                      }}
+                      className="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs text-slate-900 bg-white focus:outline-none focus:border-slate-800"
+                    >
+                      <option value="usr-hse-1">Elena Rostova (QA/QC Lead)</option>
+                      <option value="usr-qc-1">Marcus Chen (QA/QC Inspector)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 

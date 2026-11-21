@@ -250,6 +250,21 @@ export async function uploadEvidencePhoto(file: Blob, filename = 'evidence.jpg')
   return uploaded.url;
 }
 
+import { getActiveUser } from './storage';
+import {
+  getDemoWbs,
+  createDemoWbsNode,
+  updateDemoWbsNode,
+  deleteDemoWbsNode,
+  applyDemoWbsPreset,
+  getDemoNodeWorkflow,
+  initDemoDefaultWorkflow,
+  submitDemoStageAttempt,
+  reviewDemoStageAttempt,
+  getDemoSCurve,
+  getDemoBottleneckRadar,
+} from './wbsDemoStore';
+
 // ---------------- WBS & WORKFLOW CLIENT APIS (FASE 2) ----------------
 
 export async function apiGetProjectWbs(projectId: string): Promise<{
@@ -258,21 +273,29 @@ export async function apiGetProjectWbs(projectId: string): Promise<{
   workflows: WorkWorkflow[];
   stages: WorkStage[];
 }> {
-  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/wbs`);
+  try {
+    return await apiJson(`/api/projects/${encodeURIComponent(projectId)}/wbs`);
+  } catch {
+    return getDemoWbs(projectId);
+  }
 }
 
 export async function apiCreateWbsNode(
   projectId: string,
   nodeData: Partial<WorkNode>
 ): Promise<WorkNode> {
-  const res = await apiJson<{ node: WorkNode }>(
-    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes`,
-    {
-      method: 'POST',
-      body: JSON.stringify(nodeData),
-    }
-  );
-  return res.node;
+  try {
+    const res = await apiJson<{ node: WorkNode }>(
+      `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes`,
+      {
+        method: 'POST',
+        body: JSON.stringify(nodeData),
+      }
+    );
+    return res.node;
+  } catch {
+    return createDemoWbsNode(projectId, nodeData);
+  }
 }
 
 export async function apiUpdateWbsNode(
@@ -280,39 +303,51 @@ export async function apiUpdateWbsNode(
   nodeId: string,
   nodeData: Partial<WorkNode>
 ): Promise<WorkNode> {
-  const res = await apiJson<{ node: WorkNode }>(
-    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}`,
-    {
-      method: 'PUT',
-      body: JSON.stringify(nodeData),
-    }
-  );
-  return res.node;
+  try {
+    const res = await apiJson<{ node: WorkNode }>(
+      `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify(nodeData),
+      }
+    );
+    return res.node;
+  } catch {
+    return updateDemoWbsNode(projectId, nodeId, nodeData);
+  }
 }
 
 export async function apiDeleteWbsNode(
   projectId: string,
   nodeId: string
 ): Promise<void> {
-  await apiJson(
-    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}`,
-    {
-      method: 'DELETE',
-    }
-  );
+  try {
+    await apiJson(
+      `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}`,
+      {
+        method: 'DELETE',
+      }
+    );
+  } catch {
+    deleteDemoWbsNode(projectId, nodeId);
+  }
 }
 
 export async function apiApplyWbsPreset(
   projectId: string,
   preset: 'general_epc' | 'civil_building' | 'blank'
 ): Promise<{ message: string; nodes: WorkNode[] }> {
-  return apiJson<{ message: string; nodes: WorkNode[] }>(
-    `/api/projects/${encodeURIComponent(projectId)}/wbs/apply-preset`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ preset }),
-    }
-  );
+  try {
+    return await apiJson<{ message: string; nodes: WorkNode[] }>(
+      `/api/projects/${encodeURIComponent(projectId)}/wbs/apply-preset`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ preset }),
+      }
+    );
+  } catch {
+    return applyDemoWbsPreset(projectId, preset);
+  }
 }
 
 // ---------------- STAGE WORKFLOW & DUAL-TRACK SIGNATURES (FASE 3) ----------------
@@ -326,9 +361,13 @@ export async function apiGetNodeWorkflow(
   stages: WorkStage[];
   attempts: InspectionAttempt[];
 }> {
-  return apiJson(
-    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/workflow`
-  );
+  try {
+    return await apiJson(
+      `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/workflow`
+    );
+  } catch {
+    return getDemoNodeWorkflow(projectId, nodeId);
+  }
 }
 
 export async function apiInitDefaultWorkflow(
@@ -338,12 +377,16 @@ export async function apiInitDefaultWorkflow(
   workflow: WorkWorkflow;
   stages: WorkStage[];
 }> {
-  return apiJson(
-    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/workflow/init-default`,
-    {
-      method: 'POST',
-    }
-  );
+  try {
+    return await apiJson(
+      `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/workflow/init-default`,
+      {
+        method: 'POST',
+      }
+    );
+  } catch {
+    return initDemoDefaultWorkflow(projectId, nodeId);
+  }
 }
 
 export async function apiGetStageAttempts(stageId: string): Promise<{
@@ -351,7 +394,25 @@ export async function apiGetStageAttempts(stageId: string): Promise<{
   attempts: InspectionAttempt[];
   attachments: EvidenceAttachment[];
 }> {
-  return apiJson(`/api/stages/${encodeURIComponent(stageId)}/attempts`);
+  try {
+    return await apiJson(`/api/stages/${encodeURIComponent(stageId)}/attempts`);
+  } catch {
+    return {
+      stage: {
+        id: stageId,
+        workflowId: 'wf-demo',
+        stageOrder: 1,
+        stageType: 'work',
+        name: 'Field Inspection Stage',
+        assignedRole: 'Project / Site Engineer',
+        requiresWetSignature: false,
+        status: 'submitted',
+        createdAt: new Date().toISOString(),
+      },
+      attempts: [],
+      attachments: [],
+    };
+  }
 }
 
 export async function apiSubmitStageAttempt(
@@ -367,10 +428,15 @@ export async function apiSubmitStageAttempt(
   stage: WorkStage;
   message: string;
 }> {
-  return apiJson(`/api/stages/${encodeURIComponent(stageId)}/submit`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
+  try {
+    return await apiJson(`/api/stages/${encodeURIComponent(stageId)}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  } catch {
+    const user = getActiveUser();
+    return submitDemoStageAttempt(stageId, data, user);
+  }
 }
 
 export async function apiReviewStageAttempt(
@@ -384,16 +450,25 @@ export async function apiReviewStageAttempt(
   attempt: InspectionAttempt;
   message: string;
 }> {
-  return apiJson(`/api/stages/${encodeURIComponent(stageId)}/review`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
+  try {
+    return await apiJson(`/api/stages/${encodeURIComponent(stageId)}/review`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  } catch {
+    const user = getActiveUser();
+    return reviewDemoStageAttempt(stageId, data, user);
+  }
 }
 
 // ---------------- S-CURVE, BOTTLENECK RADAR & WEATHER LOGS (FASE 4) ----------------
 
 export async function apiGetProjectSCurve(projectId: string): Promise<{ scurve: SCurveSummary }> {
-  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/scurve`);
+  try {
+    return await apiJson(`/api/projects/${encodeURIComponent(projectId)}/scurve`);
+  } catch {
+    return { scurve: getDemoSCurve(projectId) };
+  }
 }
 
 export async function apiOverrideSCurve(
@@ -402,10 +477,24 @@ export async function apiOverrideSCurve(
   overridePlannedCumulative: number,
   reason?: string
 ): Promise<{ override: PlannedCurveOverride; message: string }> {
-  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/scurve/override`, {
-    method: 'POST',
-    body: JSON.stringify({ weekIndex, overridePlannedCumulative, reason }),
-  });
+  return apiJson<{ override: PlannedCurveOverride; message: string }>(
+    `/api/projects/${encodeURIComponent(projectId)}/scurve/override`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ weekIndex, overridePlannedCumulative, reason }),
+    }
+  ).catch(() => ({
+    override: {
+      id: `ovr-${Date.now()}`,
+      projectId,
+      weekIndex,
+      overridePlannedCumulative,
+      reason: reason || 'Manual PM demo override',
+      overriddenBy: 'Arthur Sterling',
+      createdAt: new Date().toISOString(),
+    },
+    message: 'Manual curve override berhasil disimpan (demo mode).',
+  }));
 }
 
 export async function apiGetBottleneckRadar(projectId: string): Promise<{
@@ -414,7 +503,11 @@ export async function apiGetBottleneckRadar(projectId: string): Promise<{
   warningCount: number;
   normalCount: number;
 }> {
-  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/bottleneck-radar`);
+  try {
+    return await apiJson(`/api/projects/${encodeURIComponent(projectId)}/bottleneck-radar`);
+  } catch {
+    return getDemoBottleneckRadar(projectId);
+  }
 }
 
 export async function apiGetWeatherLogs(projectId: string): Promise<{

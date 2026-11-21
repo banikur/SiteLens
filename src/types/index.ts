@@ -338,6 +338,14 @@ export interface WorkNode {
   claimedProgressPercent: number;
   verifiedProgressPercent: number;
   sortOrder: number;
+  volume?: number | string | null;
+  unit?: string | null;
+  canvasX?: number | null;
+  canvasY?: number | null;
+  assignedEngineerId?: string | null;
+  assignedEngineerName?: string | null;
+  assignedQcId?: string | null;
+  assignedQcName?: string | null;
   createdAt: string | Date;
   updatedAt: string | Date;
 }

@@ -43,6 +43,7 @@ import { TeamManagement } from './components/TeamManagement';
 import { AITemplateGeneratorModal } from './components/AITemplateGeneratorModal';
 import { OcrScannerModal } from './components/OcrScannerModal';
 import { AuthScreen } from './components/AuthScreen';
+import { DemoTourModal } from './components/DemoTourModal';
 import { SecuritySettingsModal } from './components/SecuritySettingsModal';
 import { SettingsView } from './components/SettingsView';
 import { TenantComplianceView } from './components/TenantComplianceView';
@@ -94,6 +95,7 @@ function SiteLensWorkspace() {
   const [authEnabled, setAuthEnabled] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
   const [authUser, setAuthUser] = useState<AuthenticatedUser | null>(null);
+  const [tourModalOpen, setTourModalOpen] = useState(false);
   const [securityModalOpen, setSecurityModalOpen] = useState(false);
   const [isOnline, setIsOnline] = useState<boolean>(
     typeof navigator !== 'undefined' ? navigator.onLine : true
@@ -472,12 +474,19 @@ function SiteLensWorkspace() {
     );
   }
 
-  if (authEnabled && !authUser) {
+  if (!authUser) {
     return (
       <AuthScreen
         onAuthenticated={(user) => {
           setAuthUser(user);
           setCurrentUser(user);
+          if (!sessionStorage.getItem('sitelens_tour_seen')) {
+            sessionStorage.setItem('sitelens_tour_seen', '1');
+            setTourModalOpen(true);
+          }
+        }}
+        onStartGuidedTour={() => {
+          setTourModalOpen(true);
         }}
       />
     );
@@ -508,8 +517,11 @@ function SiteLensWorkspace() {
         totalTemplatesCount={templates.length}
         authEnabled={authEnabled}
         onOpenSecurity={() => setSecurityModalOpen(true)}
+        onOpenTour={() => setTourModalOpen(true)}
         onLogout={async () => {
-          await logoutSession();
+          try {
+            await logoutSession();
+          } catch {}
           setAuthUser(null);
         }}
         isOnline={isOnline}
@@ -737,6 +749,22 @@ function SiteLensWorkspace() {
         onClose={() => setSecurityModalOpen(false)}
         onUpdated={(updates) => {
           setAuthUser((prev) => (prev ? { ...prev, ...updates } : prev));
+        }}
+      />
+
+      {/* DEMO GUIDED TOUR MODAL */}
+      <DemoTourModal
+        isOpen={tourModalOpen}
+        onClose={() => setTourModalOpen(false)}
+        onSelectTab={(tab) => {
+          setEditingTemplate(null);
+          setExecutingTemplate(null);
+          setCurrentTab(tab);
+        }}
+        onSwitchUser={handleSwitchUser}
+        allUsers={users}
+        onOpenProjectStudio={() => {
+          setCurrentTab('projects');
         }}
       />
     </div>

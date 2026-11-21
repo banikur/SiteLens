@@ -240,19 +240,30 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
             </div>
           )}
 
-          {/* Workflow Status Banner */}
+          {/* Workflow Status Banner & Personnel Assignment */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <span className="text-[11px] font-medium text-slate-500 block">
-                Target standar & revisi aktif:
-              </span>
-              <span className="font-bold text-slate-800">
-                {node.documentReferenceNo || 'N/A'} {node.activeRevision ? `(${node.activeRevision})` : ''}
-              </span>
-              <div className="flex items-center space-x-3 mt-1 text-[11px] text-slate-500 font-mono tabular-nums">
-                <span>Bobot WBS: <b className="text-slate-700">{Number(node.weightPercent).toFixed(2)}%</b></span>
-                <span>•</span>
-                <span>Progres terverifikasi: <b className="text-slate-900">{node.verifiedProgressPercent}%</b></span>
+              <div className="flex items-center space-x-2">
+                <span className="text-[11px] font-medium text-slate-500">
+                  Target acuan gambar:
+                </span>
+                <span className="font-bold text-slate-800">
+                  {node.documentReferenceNo || 'DWG-STD-001'} {node.activeRevision ? `(${node.activeRevision})` : '(Rev B)'}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[11px]">
+                <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 font-mono">
+                  Bobot: <b>{Number(node.weightPercent).toFixed(2)}%</b>
+                </span>
+                <span className="px-2 py-0.5 rounded bg-[#d4f038]/20 border border-[#d4f038]/40 text-slate-900 font-mono font-bold">
+                  Terverifikasi: {node.verifiedProgressPercent}%
+                </span>
+                <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 font-mono">
+                  SE: {node.assignedEngineerName || 'Dave Kowalski (Site Engineer)'}
+                </span>
+                <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 font-mono">
+                  QC: {node.assignedQcName || 'Elena Rostova (QA/QC Lead)'}
+                </span>
               </div>
             </div>
 
