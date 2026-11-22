@@ -72,11 +72,11 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dist
+          name: dist-${{ github.sha }}
           path: dist/
-          retention-days: 7
+          retention-days: 30
 
-  # ── 3. Merge develop → main ───────────────────────────────────────────────────
+  # ── 3. Promote develop → main ─────────────────────────────────────────────────
   promote:
     name: Promote develop → main
     needs: build
@@ -101,10 +101,32 @@ jobs:
           git merge --ff-only origin/develop
           git push origin main
 
-      - name: Tag release
-        run: |
-          TAG="release-$(date -u +'%Y%m%d-%H%M%S')-${GITHUB_SHA::7}"
-          git tag "$TAG"
-          git push origin "$TAG"
+  # ── 4. Semantic Release (runs on main after promote) ─────────────────────────
+  release:
+    name: Semantic Release
+    needs: promote
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Semantic Release
         env:
-          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
