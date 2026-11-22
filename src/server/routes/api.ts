@@ -516,9 +516,60 @@ apiRouter.put(
     }
 
     const body = req.body || {};
+
+    let newParentId: string | null = existingNode.parentId;
+    if (body.parentId !== undefined) {
+      if (body.parentId === null || body.parentId === '') {
+        newParentId = null;
+      } else {
+        const requestedParentId = String(body.parentId);
+        if (requestedParentId === existingNode.id) {
+          res.status(400).json({ error: 'Cannot set parent to self (cycle detected).' });
+          return;
+        }
+
+        const [targetParent] = await db
+          .select()
+          .from(workNodes)
+          .where(and(eq(workNodes.id, requestedParentId as any), eq(workNodes.projectId, projectScopeId as any)))
+          .limit(1);
+
+        if (!targetParent) {
+          res.status(400).json({ error: 'Parent node does not exist or does not belong to this project.' });
+          return;
+        }
+
+        // Cycle check: verify targetParent is not a descendant of existingNode
+        const projectNodes = await db
+          .select({ id: workNodes.id, parentId: workNodes.parentId })
+          .from(workNodes)
+          .where(eq(workNodes.projectId, projectScopeId as any));
+
+        const parentMap = new Map<string, string | null>();
+        for (const n of projectNodes) {
+          parentMap.set(n.id, n.parentId);
+        }
+
+        let currId: string | null = targetParent.id;
+        const visited = new Set<string>();
+        while (currId) {
+          if (currId === existingNode.id) {
+            res.status(400).json({ error: 'Cannot set parent to a descendant node (cycle detected).' });
+            return;
+          }
+          if (visited.has(currId)) break;
+          visited.add(currId);
+          currId = parentMap.get(currId) || null;
+        }
+
+        newParentId = targetParent.id;
+      }
+    }
+
     const [updatedNode] = await db
       .update(workNodes)
       .set({
+        parentId: newParentId,
         wbsCode: body.wbsCode ? String(body.wbsCode).trim() : existingNode.wbsCode,
         name: body.name ? String(body.name).trim() : existingNode.name,
         weightPercent: body.weightPercent !== undefined ? String(body.weightPercent) : existingNode.weightPercent,
@@ -537,6 +588,8 @@ apiRouter.put(
     await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_WBS_NODE', 'work_node', updatedNode.id, {
       wbsCode: updatedNode.wbsCode,
       name: updatedNode.name,
+      parentId: updatedNode.parentId,
+      sortOrder: updatedNode.sortOrder,
     });
 
     res.json({ node: updatedNode });
