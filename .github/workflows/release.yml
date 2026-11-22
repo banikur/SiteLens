@@ -1,0 +1,110 @@
+name: Release — develop → main
+
+on:
+  push:
+    branches: [develop]
+
+concurrency:
+  group: release
+  cancel-in-progress: false   # never cancel an in-flight release
+
+jobs:
+  # ── 1. CI Gate ──────────────────────────────────────────────────────────────
+  ci:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sitelens
+          POSTGRES_PASSWORD: sitelens
+          POSTGRES_DB: sitelens_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://sitelens:sitelens@localhost:5432/sitelens_test
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+  # ── 2. Build ─────────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    needs: ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  # ── 3. Merge develop → main ───────────────────────────────────────────────────
+  promote:
+    name: Promote develop → main
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fast-forward main from develop
+        run: |
+          git checkout main
+          git merge --ff-only origin/develop
+          git push origin main
+
+      - name: Tag release
+        run: |
+          TAG="release-$(date -u +'%Y%m%d-%H%M%S')-${GITHUB_SHA::7}"
+          git tag "$TAG"
+          git push origin "$TAG"
+        env:
+          GITHUB_SHA: ${{ github.sha }}
