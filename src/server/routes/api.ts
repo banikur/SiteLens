@@ -2435,7 +2435,7 @@ apiRouter.patch(
       return;
     }
 
-    const { role, title, isActive, assignedProjects, certifications, password } = req.body ?? {};
+    const { name, role, title, isActive, assignedProjects, certifications, password } = req.body ?? {};
     const updates: Record<string, any> = {};
 
     if (role !== undefined && (typeof role !== 'string' || !VALID_ROLES.includes(role as UserRole))) {
@@ -2473,6 +2473,7 @@ apiRouter.patch(
       }
     }
 
+    if (typeof name === 'string' && name.trim()) updates.name = name.trim();
     if (role) updates.role = nextRole;
     if (typeof title === 'string') updates.title = title.slice(0, 120);
     if (typeof isActive === 'boolean') updates.isActive = isActive;

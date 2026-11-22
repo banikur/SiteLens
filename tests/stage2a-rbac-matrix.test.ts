@@ -70,9 +70,11 @@ function createTestApp() {
 
 const PRJ_A_ID = 'aaaaaaaa-1111-4111-8111-111111111111';
 const PRJ_B_ID = 'bbbbbbbb-2222-4222-8222-222222222222';
+const PRJ_PRESET_ID = 'cccccccc-3333-4333-8333-333333333333';
 
 const NODE_A_ID = '11111111-aaaa-4aaa-8aaa-111111111111';
 const NODE_B_ID = '22222222-bbbb-4bbb-8bbb-222222222222';
+const NODE_FOR_INIT_WORKFLOW_ID = '11111111-eeee-4eee-8eee-111111111111';
 const WORKFLOW_A_ID = '33333333-aaaa-4aaa-8aaa-333333333333';
 const STAGE_A_ID = '44444444-aaaa-4aaa-8aaa-444444444444';
 const ATTEMPT_A_ID = '55555555-aaaa-4aaa-8aaa-555555555555';
@@ -213,6 +215,17 @@ async function seedMatrixDatabase() {
       status: 'active',
       capaLockoutSeverities: ['critical', 'high'],
     },
+    {
+      id: PRJ_PRESET_ID,
+      name: 'Preset Test Project',
+      client: 'Preset Client',
+      leadManager: 'Preset Lead',
+      location: 'Bandung',
+      code: 'PRJ-PRESET',
+      zones: [{ id: 'z1', name: 'Z1', description: 'Zone', safetyLevel: 'standard' }],
+      status: 'active',
+      capaLockoutSeverities: ['critical', 'high'],
+    },
   ]);
 
   // Insert Users & Sessions for each role
@@ -268,6 +281,15 @@ async function seedMatrixDatabase() {
       name: 'Structural Work A',
       weightPercent: '100.00',
       sortOrder: 1,
+    },
+    {
+      id: NODE_FOR_INIT_WORKFLOW_ID,
+      projectId: PRJ_A_ID,
+      parentId: null,
+      wbsCode: '50',
+      name: 'Node for Workflow Init',
+      weightPercent: '0.00',
+      sortOrder: 50,
     },
     {
       id: NODE_TO_DELETE_ID,
@@ -547,7 +569,7 @@ const MUTATION_ROUTES: MutationRouteSpec[] = [
   {
     name: 'POST /projects/:projectId/wbs/apply-preset',
     method: 'POST',
-    path: `/api/projects/${PRJ_A_ID}/wbs/apply-preset`,
+    path: `/api/projects/${PRJ_PRESET_ID}/wbs/apply-preset`,
     requiredPermissions: [PERMISSIONS.WBS_EDIT_STRUCTURE],
     payload: {
       preset: 'civil_foundation',
@@ -556,7 +578,7 @@ const MUTATION_ROUTES: MutationRouteSpec[] = [
   {
     name: 'POST /projects/:projectId/wbs/nodes/:nodeId/workflow/init-default',
     method: 'POST',
-    path: `/api/projects/${PRJ_A_ID}/wbs/nodes/${NODE_A_ID}/workflow/init-default`,
+    path: `/api/projects/${PRJ_A_ID}/wbs/nodes/${NODE_FOR_INIT_WORKFLOW_ID}/workflow/init-default`,
     requiredPermissions: [PERMISSIONS.WBS_EDIT_STRUCTURE],
   },
   {

@@ -594,7 +594,8 @@ export function requirePermission(permissionOrList: PermissionKey | PermissionKe
     const perms = await resolveUserPermissions(req.authUser.id, targetProjectId);
 
     // 1. Break-Glass Emergency Bypass Check (F.1.E)
-    if (perms.hasBreakGlass) {
+    const isBreakGlassRequested = req.headers['x-break-glass'] === 'true';
+    if (isBreakGlassRequested && perms.hasBreakGlass) {
       await logSecurityAudit(
         req.authUser.id,
         req.authUser.name,

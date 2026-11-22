@@ -87,6 +87,7 @@ export async function attachSessionUser(
         hasBreakGlass: perms.hasBreakGlass,
         hasOrgScope: perms.hasOrgScope,
         assignedProjectIds: Array.from(perms.assignedProjectIds),
+        isBreakGlassRequested: req.headers['x-break-glass'] === 'true',
       };
     }
   } catch (err) {
@@ -147,25 +148,15 @@ export function checkProjectAccess(
   }
 
   // 1. Break-glass emergency authorization (F.1.E)
-  if (user.hasBreakGlass) {
+  if (user.hasBreakGlass && (user as any).isBreakGlassRequested) {
     return { allowed: true, status: 200 };
   }
 
   const isAssigned =
     Array.isArray(user.assignedProjectIds) && user.assignedProjectIds.includes(projectId);
 
-  // 2. Organization scope (Opsi 2: read-all universal, mutations require explicit project assignment)
+  // 2. Organization scope (universal project access; mutation permissions enforced by requirePermission)
   if (user.hasOrgScope) {
-    if (!isMutation) {
-      return { allowed: true, status: 200 };
-    }
-    if (!isAssigned) {
-      return {
-        allowed: false,
-        status: 403,
-        error: 'Forbidden: Project mutations require explicit project assignment.',
-      };
-    }
     return { allowed: true, status: 200 };
   }
 

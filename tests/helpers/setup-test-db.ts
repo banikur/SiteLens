@@ -26,7 +26,10 @@ export async function ensureTestDatabaseSchema() {
     const notifCheck = await client.query(
       "SELECT column_name FROM information_schema.columns WHERE table_name = 'notification_settings' AND column_name = 'notify_on_critical_capa'"
     );
-    if (colCheck.rows[0]?.data_type !== 'uuid' || notifCheck.rows.length === 0) {
+    const weatherCheck = await client.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'daily_weather_logs' AND column_name = 'recorded_by'"
+    );
+    if (colCheck.rows[0]?.data_type !== 'uuid' || notifCheck.rows.length === 0 || weatherCheck.rows.length === 0) {
       needsInit = true;
     }
   }
@@ -337,21 +340,21 @@ export async function ensureTestDatabaseSchema() {
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         "project_id" uuid NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
         "week_index" integer NOT NULL,
-        "planned_cumulative_percent" numeric(5, 2) NOT NULL,
-        "justification" text NOT NULL,
-        "overridden_by_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+        "override_planned_cumulative" numeric(5, 2) NOT NULL,
+        "reason" text,
+        "overridden_by" uuid NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
 
       CREATE TABLE "daily_weather_logs" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         "project_id" uuid NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
-        "log_date" date NOT NULL,
+        "log_date" timestamp with time zone NOT NULL,
+        "weather_condition" text DEFAULT 'cerah' NOT NULL,
         "rain_hours" numeric(4, 2) DEFAULT '0.00' NOT NULL,
-        "weather_condition" text DEFAULT 'Clear' NOT NULL,
-        "is_work_halted" boolean DEFAULT false NOT NULL,
-        "impact_notes" text,
-        "recorded_by_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+        "work_impact" text DEFAULT 'tidak_ada' NOT NULL,
+        "notes" text,
+        "recorded_by" uuid NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
     `;
