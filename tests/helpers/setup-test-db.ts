@@ -12,13 +12,21 @@ export async function ensureTestDatabaseSchema() {
 
   // If table 'projects' has text id or if we are setting up, recreate schema cleanly
   let needsInit = false;
-  if (!tables.includes('work_stages') || !tables.includes('evidence_attachments')) {
+  if (
+    !tables.includes('work_stages') ||
+    !tables.includes('evidence_attachments') ||
+    !tables.includes('permissions') ||
+    !tables.includes('role_assignments')
+  ) {
     needsInit = true;
   } else {
     const colCheck = await client.query(
       "SELECT data_type FROM information_schema.columns WHERE table_name = 'projects' AND column_name = 'id'"
     );
-    if (colCheck.rows[0]?.data_type !== 'uuid') {
+    const notifCheck = await client.query(
+      "SELECT column_name FROM information_schema.columns WHERE table_name = 'notification_settings' AND column_name = 'notify_on_critical_capa'"
+    );
+    if (colCheck.rows[0]?.data_type !== 'uuid' || notifCheck.rows.length === 0) {
       needsInit = true;
     }
   }
@@ -39,6 +47,7 @@ export async function ensureTestDatabaseSchema() {
         "status" text DEFAULT 'active' NOT NULL,
         "zones" jsonb DEFAULT '[]'::jsonb NOT NULL,
         "lead_manager" text NOT NULL,
+        "capa_lockout_severities" text[] DEFAULT ARRAY['critical', 'high']::text[] NOT NULL,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
 
@@ -64,6 +73,41 @@ export async function ensureTestDatabaseSchema() {
         "expires_at" timestamp with time zone NOT NULL,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
+
+      CREATE TABLE "permissions" (
+        "id" text PRIMARY KEY NOT NULL,
+        "module" text NOT NULL,
+        "description" text NOT NULL,
+        "scope_level" text NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
+      );
+
+      CREATE TABLE "roles" (
+        "id" text PRIMARY KEY NOT NULL,
+        "name" text NOT NULL,
+        "is_system" boolean DEFAULT false NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+      );
+
+      CREATE TABLE "role_permissions" (
+        "role_id" text NOT NULL REFERENCES "roles"("id") ON DELETE CASCADE,
+        "permission_id" text NOT NULL REFERENCES "permissions"("id") ON DELETE CASCADE,
+        PRIMARY KEY ("role_id", "permission_id")
+      );
+
+      CREATE TABLE "role_assignments" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+        "role_id" text NOT NULL REFERENCES "roles"("id") ON DELETE RESTRICT,
+        "scope_type" text NOT NULL,
+        "project_id" uuid REFERENCES "projects"("id") ON DELETE CASCADE,
+        "is_active" boolean DEFAULT true NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
+      );
+
+      CREATE UNIQUE INDEX "role_assignments_project_uniq" ON "role_assignments" ("user_id", "project_id") WHERE scope_type = 'project';
+      CREATE UNIQUE INDEX "role_assignments_org_uniq" ON "role_assignments" ("user_id") WHERE scope_type = 'organization';
 
       CREATE TABLE "webauthn_credentials" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -172,7 +216,10 @@ export async function ensureTestDatabaseSchema() {
         "smtp_pass" text,
         "smtp_from" text,
         "webhook_url" text,
-        "webhook_type" text DEFAULT 'generic'
+        "webhook_type" text DEFAULT 'generic',
+        "notify_on_critical_capa" boolean DEFAULT true NOT NULL,
+        "notify_on_approval" boolean DEFAULT true NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now() NOT NULL
       );
 
       CREATE TABLE "tenant_profiles" (
@@ -313,4 +360,8 @@ export async function ensureTestDatabaseSchema() {
   }
 
   await client.end();
+
+  // Ensure RBAC catalog (permissions and built-in roles) is synced
+  const { syncRbacCatalog } = await import('../../src/server/auth/rbac.ts');
+  await syncRbacCatalog();
 }

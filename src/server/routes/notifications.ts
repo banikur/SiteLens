@@ -2,7 +2,8 @@ import { Router, type Request, type Response } from 'express';
 import { eq } from 'drizzle-orm';
 import { getDb } from '../db/index.ts';
 import { notificationSettings } from '../db/schema.ts';
-import { requireAuth, requireRole } from '../auth/middleware.ts';
+import { requireAuth } from '../auth/middleware.ts';
+import { requirePermission, PERMISSIONS } from '../auth/rbac.ts';
 import {
   dispatchNotification,
   getEffectiveNotificationConfig,
@@ -10,7 +11,7 @@ import {
 
 export const notificationsRouter = Router();
 notificationsRouter.use(requireAuth);
-notificationsRouter.use(requireRole(['HSE / Quality Manager & Tenant Admin']));
+notificationsRouter.use(requirePermission(PERMISSIONS.ADMIN_SETTINGS));
 
 const MASKED_PASS = '••••••••';
 

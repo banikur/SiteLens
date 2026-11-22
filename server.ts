@@ -7,6 +7,7 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import { checkDbHealth } from './src/server/db/index.ts';
 import { attachSessionUser, requireAuth } from './src/server/auth/middleware.ts';
+import { syncRbacCatalog, requirePermission, PERMISSIONS } from './src/server/auth/rbac.ts';
 import { authRouter } from './src/server/routes/auth.ts';
 import { apiRouter } from './src/server/routes/api.ts';
 import { uploadsRouter } from './src/server/routes/uploads.ts';
@@ -65,6 +66,7 @@ function getAiClient(): GoogleGenAI | null {
 }
 
 async function startServer() {
+  await syncRbacCatalog();
   const app = express();
   const PORT = 3000;
 
@@ -146,7 +148,7 @@ async function startServer() {
   });
 
   // AI Checklist Template Generator Endpoint
-  app.post('/api/templates/generate', requireAuth, async (req, res) => {
+  app.post('/api/templates/generate', requireAuth, requirePermission(PERMISSIONS.TEMPLATE_MANAGE), async (req, res) => {
     try {
       if (!req.authUser) {
         res.status(401).json({ error: 'Authentication required.' });

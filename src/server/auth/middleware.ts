@@ -13,6 +13,7 @@ import {
 } from '../db/schema.ts';
 import { hashSessionToken } from './crypto.ts';
 import type { User, UserRole } from '../../types/index.ts';
+import { resolveUserPermissions } from './rbac.ts';
 
 export const SESSION_COOKIE_NAME = 'sitelens_session';
 export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
@@ -20,6 +21,9 @@ export const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7; // 7 days
 export interface AuthUser extends User {
   username: string;
   hasPin: boolean;
+  hasBreakGlass?: boolean;
+  hasOrgScope?: boolean;
+  assignedProjectIds?: string[];
 }
 
 declare global {
@@ -66,6 +70,8 @@ export async function attachSessionUser(
 
     if (rows.length > 0 && rows[0].user.isActive) {
       const u = rows[0].user;
+      const perms = await resolveUserPermissions(u.id);
+
       req.sessionId = rows[0].sessionId;
       req.authUser = {
         id: u.id,
@@ -78,6 +84,9 @@ export async function attachSessionUser(
         assignedProjects: u.assignedProjects,
         certifications: u.certifications,
         hasPin: Boolean(u.pinHash),
+        hasBreakGlass: perms.hasBreakGlass,
+        hasOrgScope: perms.hasOrgScope,
+        assignedProjectIds: Array.from(perms.assignedProjectIds),
       };
     }
   } catch (err) {
@@ -137,21 +146,32 @@ export function checkProjectAccess(
     return { allowed: false, status: 401, error: 'Authentication required.' };
   }
 
-  const isGlobalAdmin =
-    user.role === 'Project Director & Tenant Admin' ||
-    user.role === 'HSE / Quality Manager & Tenant Admin';
-
-  const isAssigned =
-    isGlobalAdmin ||
-    (Array.isArray(user.assignedProjects) && user.assignedProjects.includes(projectId));
-
-  if (!isAssigned) {
-    return { allowed: false, status: 403, error: 'Forbidden: Access to this project is denied.' };
+  // 1. Break-glass emergency authorization (F.1.E)
+  if (user.hasBreakGlass) {
+    return { allowed: true, status: 200 };
   }
 
-  // Client / Vendor Viewer is strictly read-only: reject all write/mutation methods
-  if (user.role === 'Client / Vendor Viewer' && isMutation) {
-    return { allowed: false, status: 403, error: 'Forbidden: Client / Vendor Viewer has read-only access.' };
+  const isAssigned =
+    Array.isArray(user.assignedProjectIds) && user.assignedProjectIds.includes(projectId);
+
+  // 2. Organization scope (Opsi 2: read-all universal, mutations require explicit project assignment)
+  if (user.hasOrgScope) {
+    if (!isMutation) {
+      return { allowed: true, status: 200 };
+    }
+    if (!isAssigned) {
+      return {
+        allowed: false,
+        status: 403,
+        error: 'Forbidden: Project mutations require explicit project assignment.',
+      };
+    }
+    return { allowed: true, status: 200 };
+  }
+
+  // 3. Project scope user: must be assigned to project
+  if (!isAssigned) {
+    return { allowed: false, status: 403, error: 'Forbidden: Access to this project is denied.' };
   }
 
   return { allowed: true, status: 200 };

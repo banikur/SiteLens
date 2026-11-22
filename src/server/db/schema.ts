@@ -7,7 +7,10 @@ import {
   timestamp,
   jsonb,
   uuid,
+  primaryKey,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import type {
   UserRole,
   ChecklistCategory,
@@ -83,6 +86,10 @@ export const projects = pgTable('projects', {
   status: text('status').$type<'active' | 'completed' | 'on_hold'>().notNull().default('active'),
   zones: jsonb('zones').$type<ProjectZone[]>().notNull().default([]),
   leadManager: text('lead_manager').notNull(),
+  capaLockoutSeverities: text('capa_lockout_severities')
+    .array()
+    .notNull()
+    .default(sql`ARRAY['critical', 'high']::text[]`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -382,5 +389,62 @@ export const dailyWeatherLogs = pgTable('daily_weather_logs', {
     .references(() => users.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const permissions = pgTable('permissions', {
+  id: text('id').primaryKey(),
+  module: text('module').notNull(),
+  description: text('description').notNull(),
+  scopeLevel: text('scope_level').$type<'organization' | 'project' | 'organization_or_project'>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const roles = pgTable('roles', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  isSystem: boolean('is_system').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const rolePermissions = pgTable(
+  'role_permissions',
+  {
+    roleId: text('role_id')
+      .notNull()
+      .references(() => roles.id, { onDelete: 'cascade' }),
+    permissionId: text('permission_id')
+      .notNull()
+      .references(() => permissions.id, { onDelete: 'cascade' }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.roleId, table.permissionId] }),
+  ]
+);
+
+export const roleAssignments = pgTable(
+  'role_assignments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    roleId: text('role_id')
+      .notNull()
+      .references(() => roles.id, { onDelete: 'restrict' }),
+    scopeType: text('scope_type').$type<'organization' | 'project'>().notNull(),
+    projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('role_assignments_project_uniq')
+      .on(table.userId, table.projectId)
+      .where(sql`scope_type = 'project'`),
+    uniqueIndex('role_assignments_org_uniq')
+      .on(table.userId)
+      .where(sql`scope_type = 'organization'`),
+  ]
+);
+
 
 

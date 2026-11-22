@@ -18,15 +18,20 @@ import {
   plannedCurveOverrides,
   dailyWeatherLogs,
   projectMembers,
+  roleAssignments,
 } from '../db/schema.ts';
 import { hashSecret } from '../auth/crypto.ts';
 import {
   requireAuth,
-  requireRole,
   requireProjectAccess,
   assertProjectAccess,
   getProjectIdByStageId,
 } from '../auth/middleware.ts';
+import {
+  requirePermission,
+  PERMISSIONS,
+  resolveUserPermissions,
+} from '../auth/rbac.ts';
 import { dispatchNotification } from '../services/notifications.ts';
 import {
   extractEvidenceFilename,
@@ -83,6 +88,11 @@ function resolveClientTimestamp(value: unknown, now: Date): Date {
   const skew = now.getTime() - parsed.getTime();
   if (skew < -5 * 60 * 1000 || skew > MAX_BACKDATE_MS) return now;
   return parsed;
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function resolveUuid(id: unknown): string {
+  return typeof id === 'string' && UUID_REGEX.test(id) ? id : crypto.randomUUID();
 }
 
 
@@ -278,14 +288,12 @@ apiRouter.get('/projects', async (req: Request, res: Response) => {
     return;
   }
 
-  const isGlobalAdmin =
-    req.authUser?.role === 'Project Director & Tenant Admin' ||
-    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+  const isGlobalAdmin = Boolean(req.authUser?.hasOrgScope || req.authUser?.hasBreakGlass);
 
   const allProjects = await db.select().from(projects);
   const visibleProjects = isGlobalAdmin
     ? allProjects
-    : allProjects.filter((p) => Array.isArray(req.authUser?.assignedProjects) && req.authUser.assignedProjects.includes(p.id));
+    : allProjects.filter((p) => Array.isArray(req.authUser?.assignedProjectIds) && req.authUser.assignedProjectIds.includes(p.id));
 
   const allInspections = await db.select().from(inspections);
   const allActions = await db.select().from(correctiveActions);
@@ -323,7 +331,7 @@ apiRouter.get('/projects', async (req: Request, res: Response) => {
 
 apiRouter.post(
   '/projects',
-  requireRole(['HSE / Quality Manager & Tenant Admin', 'Office / Integrity Engineer']),
+  requirePermission(PERMISSIONS.PROJECT_CREATE),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -332,32 +340,49 @@ apiRouter.post(
     }
 
     const p = req.body;
-    const id = p.id || `proj-${crypto.randomUUID().slice(0, 8)}`;
-    const [saved] = await db
-      .insert(projects)
-      .values({
-        id,
-        name: p.name,
-        code: p.code,
-        client: p.client,
-        location: p.location,
-        status: p.status || 'active',
-        zones: Array.isArray(p.zones) ? p.zones : [],
-        leadManager: p.leadManager || req.authUser.name,
-      })
-      .onConflictDoUpdate({
-        target: projects.id,
-        set: {
+    const id = resolveUuid(p.id);
+
+    const [saved] = await db.transaction(async (tx) => {
+      const [savedProject] = await tx
+        .insert(projects)
+        .values({
+          id,
           name: p.name,
           code: p.code,
           client: p.client,
           location: p.location,
           status: p.status || 'active',
           zones: Array.isArray(p.zones) ? p.zones : [],
-          leadManager: p.leadManager || req.authUser.name,
-        },
-      })
-      .returning();
+          leadManager: p.leadManager || req.authUser!.name,
+        })
+        .onConflictDoUpdate({
+          target: projects.id,
+          set: {
+            name: p.name,
+            code: p.code,
+            client: p.client,
+            location: p.location,
+            status: p.status || 'active',
+            zones: Array.isArray(p.zones) ? p.zones : [],
+            leadManager: p.leadManager || req.authUser!.name,
+          },
+        })
+        .returning();
+
+      // Auto-assign project creator (F.1.D)
+      await tx
+        .insert(roleAssignments)
+        .values({
+          userId: req.authUser!.id as any,
+          roleId: 'project_manager',
+          scopeType: 'project',
+          projectId: savedProject.id as any,
+          isActive: true,
+        })
+        .onConflictDoNothing();
+
+      return [savedProject];
+    });
 
     await logAudit(req.authUser.id, req.authUser.name, 'UPSERT_PROJECT', 'project', saved.id, {
       code: saved.code,
@@ -422,7 +447,7 @@ apiRouter.post(
   '/projects/:projectId/wbs/nodes',
   requireAuth,
   requireProjectAccess('projectId'),
-  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  requirePermission([PERMISSIONS.WBS_EDIT_STRUCTURE, PERMISSIONS.WBS_EDIT_DETAIL]),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -494,7 +519,7 @@ apiRouter.put(
   '/projects/:projectId/wbs/nodes/:nodeId',
   requireAuth,
   requireProjectAccess('projectId'),
-  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  requirePermission([PERMISSIONS.WBS_EDIT_STRUCTURE, PERMISSIONS.WBS_EDIT_DETAIL]),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -600,7 +625,7 @@ apiRouter.delete(
   '/projects/:projectId/wbs/nodes/:nodeId',
   requireAuth,
   requireProjectAccess('projectId'),
-  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  requirePermission(PERMISSIONS.WBS_EDIT_STRUCTURE),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -636,7 +661,7 @@ apiRouter.post(
   '/projects/:projectId/wbs/apply-preset',
   requireAuth,
   requireProjectAccess('projectId'),
-  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  requirePermission(PERMISSIONS.WBS_EDIT_STRUCTURE),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -838,7 +863,7 @@ apiRouter.post(
   '/projects/:projectId/wbs/nodes/:nodeId/workflow/init-default',
   requireAuth,
   requireProjectAccess('projectId'),
-  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  requirePermission(PERMISSIONS.WBS_EDIT_STRUCTURE),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -975,6 +1000,7 @@ apiRouter.get(
 apiRouter.post(
   '/stages/:stageId/submit',
   requireAuth,
+  requirePermission(PERMISSIONS.STAGE_EXECUTE),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -1001,12 +1027,6 @@ apiRouter.post(
 
     if (!targetStage) {
       res.status(404).json({ error: 'Stage not found.' });
-      return;
-    }
-
-    // Check Client / Vendor Viewer prohibition
-    if (req.authUser.role === 'Client / Vendor Viewer') {
-      res.status(403).json({ error: 'Client / Vendor Viewer is read-only and cannot submit inspection attempts.' });
       return;
     }
 
@@ -1106,12 +1126,7 @@ apiRouter.post(
 apiRouter.post(
   '/stages/:stageId/review',
   requireAuth,
-  requireRole([
-    'QA/QC Lead / Owner Inspector',
-    'Project Director & Tenant Admin',
-    'HSE / Quality Manager & Tenant Admin',
-    'Project / Site Engineer',
-  ]),
+  requirePermission(PERMISSIONS.STAGE_APPROVE),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -1319,7 +1334,7 @@ apiRouter.post(
   '/projects/:projectId/scurve/override',
   requireAuth,
   requireProjectAccess('projectId'),
-  requireRole(['Project Director & Tenant Admin', 'Project / Site Engineer']),
+  requirePermission(PERMISSIONS.SCURVE_OVERRIDE),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -1536,12 +1551,7 @@ apiRouter.post(
   '/projects/:projectId/weather-logs',
   requireAuth,
   requireProjectAccess('projectId'),
-  requireRole([
-    'Project Director & Tenant Admin',
-    'Project / Site Engineer',
-    'HSE / Quality Manager & Tenant Admin',
-    'Field / QC Inspector',
-  ]),
+  requirePermission(PERMISSIONS.WEATHER_LOG),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -1600,11 +1610,9 @@ apiRouter.get('/templates', async (req: Request, res: Response) => {
     return;
   }
 
-  const isGlobalAdmin =
-    req.authUser?.role === 'Project Director & Tenant Admin' ||
-    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+  const isGlobalAdmin = Boolean(req.authUser?.hasOrgScope || req.authUser?.hasBreakGlass);
 
-  const userProjects = req.authUser?.assignedProjects || [];
+  const userProjects = req.authUser?.assignedProjectIds || [];
 
   const rows = await db
     .select()
@@ -1624,7 +1632,7 @@ apiRouter.get('/templates', async (req: Request, res: Response) => {
   });
 });
 
-apiRouter.post('/templates', async (req: Request, res: Response) => {
+apiRouter.post('/templates', requirePermission(PERMISSIONS.TEMPLATE_MANAGE), async (req: Request, res: Response) => {
   const db = getDb();
   if (!db || !req.authUser) {
     res.status(503).json({ error: 'Database not configured.' });
@@ -1632,7 +1640,7 @@ apiRouter.post('/templates', async (req: Request, res: Response) => {
   }
 
   const t = req.body as ChecklistTemplate;
-  const id = t.id || `tmpl-${crypto.randomUUID().slice(0, 8)}`;
+  const id = resolveUuid(t.id);
   const now = new Date();
 
   let verifiedProjectId: string | null = null;
@@ -1713,7 +1721,7 @@ apiRouter.post('/templates', async (req: Request, res: Response) => {
   });
 });
 
-apiRouter.post('/templates/import', async (req: Request, res: Response) => {
+apiRouter.post('/templates/import', requirePermission(PERMISSIONS.TEMPLATE_MANAGE), async (req: Request, res: Response) => {
   const db = getDb();
   if (!db || !req.authUser) {
     res.status(503).json({ error: 'Database not configured.' });
@@ -1731,7 +1739,7 @@ apiRouter.post('/templates/import', async (req: Request, res: Response) => {
 
   for (const t of incoming as ChecklistTemplate[]) {
     if (!t.title || !t.category) continue;
-    const id = t.id || `tmpl-pack-${crypto.randomUUID().slice(0, 8)}`;
+    const id = resolveUuid(t.id);
     const templateProjectId: string | null = null;
     await db
       .insert(checklistTemplates)
@@ -1788,7 +1796,7 @@ apiRouter.post('/templates/import', async (req: Request, res: Response) => {
 
 apiRouter.delete(
   '/templates/:id',
-  requireRole(['HSE / Quality Manager & Tenant Admin', 'Office / Integrity Engineer']),
+  requirePermission(PERMISSIONS.TEMPLATE_DELETE),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -1839,9 +1847,7 @@ apiRouter.get('/inspections', async (req: Request, res: Response) => {
     return;
   }
 
-  const isGlobalAdmin =
-    req.authUser?.role === 'Project Director & Tenant Admin' ||
-    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+  const isGlobalAdmin = Boolean(req.authUser?.hasOrgScope || req.authUser?.hasBreakGlass);
 
   const queryProjectId = req.query.projectId ? String(req.query.projectId) : null;
   if (queryProjectId) {
@@ -1869,7 +1875,7 @@ apiRouter.get('/inspections', async (req: Request, res: Response) => {
     .from(inspections)
     .orderBy(desc(inspections.createdAt));
 
-  const userProjects = req.authUser?.assignedProjects || [];
+  const userProjects = req.authUser?.assignedProjectIds || [];
   const visible = isGlobalAdmin
     ? rows
     : rows.filter((r) => userProjects.includes(r.projectId));
@@ -1884,257 +1890,251 @@ apiRouter.get('/inspections', async (req: Request, res: Response) => {
   });
 });
 
-apiRouter.post('/inspections', async (req: Request, res: Response) => {
-  const db = getDb();
-  if (!db || !req.authUser) {
-    res.status(503).json({ error: 'Database not configured.' });
-    return;
-  }
+apiRouter.post(
+  '/inspections',
+  requirePermission([PERMISSIONS.INSPECTION_ROUTINE, PERMISSIONS.INSPECTION_ADHOC]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
 
-  const body = req.body || {};
-  const requestedProjectId = String(body.projectId || '');
-  if (!requestedProjectId) {
-    res.status(400).json({ error: 'projectId is required.' });
-    return;
-  }
+    const body = req.body || {};
+    const requestedProjectId = String(body.projectId || '');
+    if (!requestedProjectId) {
+      res.status(400).json({ error: 'projectId is required.' });
+      return;
+    }
 
-  if (!assertProjectAccess(req.authUser, requestedProjectId, res, true)) {
-    return;
-  }
-  if (body.clientMutationId) {
-    const [existing] = await db
+    if (!assertProjectAccess(req.authUser, requestedProjectId, res, true)) {
+      return;
+    }
+    if (body.clientMutationId) {
+      const [existing] = await db
+        .select()
+        .from(inspections)
+        .where(eq(inspections.clientMutationId, body.clientMutationId))
+        .limit(1);
+      if (existing) {
+        res.json({
+          inspection: {
+            ...existing,
+            submittedAt: existing.submittedAt?.toISOString(),
+            reviewedAt: existing.reviewedAt?.toISOString(),
+            createdAt: existing.createdAt.toISOString(),
+          },
+          deduplicated: true,
+        });
+        return;
+      }
+    }
+
+    const [tmpl] = await db
       .select()
-      .from(inspections)
-      .where(eq(inspections.clientMutationId, body.clientMutationId))
+      .from(checklistTemplates)
+      .where(eq(checklistTemplates.id, body.templateId))
       .limit(1);
-    if (existing) {
-      res.json({
-        inspection: {
-          ...existing,
-          submittedAt: existing.submittedAt?.toISOString(),
-          reviewedAt: existing.reviewedAt?.toISOString(),
-          createdAt: existing.createdAt.toISOString(),
-        },
-        deduplicated: true,
+
+    const answers =
+      body.answers && typeof body.answers === 'object' ? (body.answers as Record<string, unknown>) : {};
+
+    // The client-supplied score, counts and status are ignored. Everything that
+    // decides whether an inspection passes is recomputed here from the template.
+    const score = computeInspectionScore(tmpl, answers);
+    const applicableSteps = resolveApplicableWorkflowSteps(
+      tmpl,
+      score.failedCount,
+      score.scorePercent
+    );
+
+    const initialStatus: InspectionStatus = applicableSteps.length > 0 ? 'under_review' : 'approved';
+
+    const evidence = applyEvidenceIntegrity(body.evidencePhotos);
+    if (evidence.fatal.length > 0) {
+      res.status(409).json({
+        error: 'Evidence integrity verification failed. Re-upload the affected photos.',
+        issues: evidence.fatal,
       });
       return;
     }
-  }
 
-  const [tmpl] = await db
-    .select()
-    .from(checklistTemplates)
-    .where(eq(checklistTemplates.id, body.templateId))
-    .limit(1);
+    const [matchedProj] = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.id, body.projectId))
+      .limit(1);
 
-  const answers =
-    body.answers && typeof body.answers === 'object' ? (body.answers as Record<string, unknown>) : {};
+    const targetProjectId = matchedProj ? matchedProj.id : body.projectId;
+    const targetProjectName = matchedProj ? matchedProj.name : body.projectName;
 
-  // The client-supplied score, counts and status are ignored. Everything that
-  // decides whether an inspection passes is recomputed here from the template.
-  const score = computeInspectionScore(tmpl, answers);
-  const applicableSteps = resolveApplicableWorkflowSteps(
-    tmpl,
-    score.failedCount,
-    score.scorePercent
-  );
+    const id = resolveUuid(body.id);
+    const now = new Date();
+    const submittedAt = resolveClientTimestamp(body.submittedAt, now);
 
-  const initialStatus: InspectionStatus = applicableSteps.length > 0 ? 'under_review' : 'approved';
+    const [saved] = await db
+      .insert(inspections)
+      .values({
+        id,
+        clientMutationId: body.clientMutationId || null,
+        templateId: body.templateId,
+        templateTitle: tmpl?.title ?? body.templateTitle,
+        category: tmpl?.category ?? body.category,
+        projectId: targetProjectId,
+        projectName: targetProjectName,
+        siteZone: body.siteZone,
+        inspectorId: req.authUser.id,
+        inspectorName: req.authUser.name,
+        inspectorRole: req.authUser.role,
+        status: initialStatus,
+        currentStepIndex: 0,
+        approvalHistory: [],
+        answers,
+        evidencePhotos: evidence.photos,
+        signatureData: body.signatureData || null,
+        scorePercent: score.scorePercent,
+        passedCount: score.passedCount,
+        failedCount: score.failedCount,
+        nonApplicableCount: score.nonApplicableCount,
+        notes: typeof body.notes === 'string' ? body.notes.slice(0, 4000) : null,
+        submittedAt,
+        createdAt: now,
+      })
+      .returning();
 
-  const evidence = applyEvidenceIntegrity(body.evidencePhotos);
-  if (evidence.fatal.length > 0) {
-    res.status(409).json({
-      error: 'Evidence integrity verification failed. Re-upload the affected photos.',
-      issues: evidence.fatal,
+    await logAudit(req.authUser.id, req.authUser.name, 'SUBMIT_INSPECTION', 'inspection', saved.id, {
+      templateTitle: saved.templateTitle,
+      status: saved.status,
+      applicableSteps: applicableSteps.length,
+      scorePercent: saved.scorePercent,
+      evidencePhotos: saved.evidencePhotos.length,
+      evidenceWarnings: evidence.warnings,
     });
-    return;
-  }
 
-  const [matchedProj] = await db
-    .select({ id: projects.id, name: projects.name })
-    .from(projects)
-    .where(eq(projects.id, body.projectId))
-    .limit(1);
+    if (saved.status === 'under_review') {
+      void dispatchNotification({
+        eventType: 'approval',
+        title: `Approval Required: ${saved.templateTitle}`,
+        message: `${saved.inspectorName} submitted an inspection for ${saved.projectName} (${saved.siteZone}). Score: ${saved.scorePercent}%.`,
+        metadata: { inspectionId: saved.id, projectId: saved.projectId },
+      });
+    }
 
-  const targetProjectId = matchedProj ? matchedProj.id : body.projectId;
-  const targetProjectName = matchedProj ? matchedProj.name : body.projectName;
-
-  const id = body.id || `insp-${crypto.randomUUID().slice(0, 8)}`;
-  const now = new Date();
-  const submittedAt = resolveClientTimestamp(body.submittedAt, now);
-
-  const [saved] = await db
-    .insert(inspections)
-    .values({
-      id,
-      clientMutationId: body.clientMutationId || null,
-      templateId: body.templateId,
-      templateTitle: tmpl?.title ?? body.templateTitle,
-      category: tmpl?.category ?? body.category,
-      projectId: targetProjectId,
-      projectName: targetProjectName,
-      siteZone: body.siteZone,
-      inspectorId: req.authUser.id,
-      inspectorName: req.authUser.name,
-      inspectorRole: req.authUser.role,
-      status: initialStatus,
-      currentStepIndex: 0,
-      approvalHistory: [],
-      answers,
-      evidencePhotos: evidence.photos,
-      signatureData: body.signatureData || null,
-      scorePercent: score.scorePercent,
-      passedCount: score.passedCount,
-      failedCount: score.failedCount,
-      nonApplicableCount: score.nonApplicableCount,
-      notes: typeof body.notes === 'string' ? body.notes.slice(0, 4000) : null,
-      submittedAt,
-      createdAt: now,
-    })
-    .returning();
-
-  await logAudit(req.authUser.id, req.authUser.name, 'SUBMIT_INSPECTION', 'inspection', saved.id, {
-    templateTitle: saved.templateTitle,
-    status: saved.status,
-    applicableSteps: applicableSteps.length,
-    scorePercent: saved.scorePercent,
-    evidencePhotos: saved.evidencePhotos.length,
-    evidenceWarnings: evidence.warnings,
+    res.status(201).json({
+      inspection: {
+        ...saved,
+        submittedAt: saved.submittedAt?.toISOString(),
+        reviewedAt: saved.reviewedAt?.toISOString(),
+        createdAt: saved.createdAt.toISOString(),
+      },
+    });
   });
 
-  if (saved.status === 'under_review') {
+apiRouter.post(
+  '/inspections/:id/review',
+  requirePermission(PERMISSIONS.INSPECTION_REVIEW),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const { decision, notes } = req.body ?? {};
+    if (decision !== 'approved' && decision !== 'rejected') {
+      res.status(400).json({ error: 'Decision must be approved or rejected.' });
+      return;
+    }
+
+    const [insp] = await db
+      .select()
+      .from(inspections)
+      .where(eq(inspections.id, req.params.id))
+      .limit(1);
+
+    if (!insp) {
+      res.status(404).json({ error: 'Inspection not found.' });
+      return;
+    }
+
+    if (!assertProjectAccess(req.authUser, insp.projectId, res, true)) {
+      return;
+    }
+
+    const [tmpl] = await db
+      .select()
+      .from(checklistTemplates)
+      .where(eq(checklistTemplates.id, insp.templateId))
+      .limit(1);
+
+    const steps = resolveApplicableWorkflowSteps(tmpl, insp.failedCount, insp.scorePercent);
+    const currentStep = steps[insp.currentStepIndex];
+
+    const entry: ApprovalDecision = {
+      stepOrder: currentStep?.order ?? insp.currentStepIndex + 1,
+      stepLabel: currentStep?.label ?? 'Final Review',
+      role: req.authUser.role,
+      actorId: req.authUser.id,
+      actorName: req.authUser.name,
+      decision,
+      notes: typeof notes === 'string' ? notes : undefined,
+      decidedAt: new Date().toISOString(),
+    };
+
+    const nextHistory = [...(insp.approvalHistory || []), entry];
+    const nextStepIndex = insp.currentStepIndex + 1;
+    const isFinalApproved = decision === 'approved' && nextStepIndex >= steps.length;
+    const nextStatus: InspectionStatus =
+      decision === 'rejected'
+        ? 'rejected'
+        : isFinalApproved
+          ? 'approved'
+          : 'under_review';
+
+    const now = new Date();
+    const [updated] = await db
+      .update(inspections)
+      .set({
+        status: nextStatus,
+        currentStepIndex: decision === 'approved' ? nextStepIndex : insp.currentStepIndex,
+        approvalHistory: nextHistory,
+        reviewedBy: req.authUser.name,
+        reviewedRole: req.authUser.role,
+        reviewedAt: now,
+        reviewNotes: typeof notes === 'string' ? notes : insp.reviewNotes,
+      })
+      .where(eq(inspections.id, insp.id))
+      .returning();
+
+    await logAudit(
+      req.authUser.id,
+      req.authUser.name,
+      decision === 'approved' ? 'APPROVE_INSPECTION_STEP' : 'REJECT_INSPECTION',
+      'inspection',
+      updated.id,
+      { step: entry.stepLabel, nextStatus }
+    );
+
     void dispatchNotification({
       eventType: 'approval',
-      title: `Approval Required: ${saved.templateTitle}`,
-      message: `${saved.inspectorName} submitted an inspection for ${saved.projectName} (${saved.siteZone}). Score: ${saved.scorePercent}%.`,
-      metadata: { inspectionId: saved.id, projectId: saved.projectId },
+      title: `Inspection ${nextStatus.toUpperCase()}: ${updated.templateTitle}`,
+      message: `${req.authUser.name} (${req.authUser.role}) marked "${entry.stepLabel}" as ${decision}.`,
+      metadata: { inspectionId: updated.id, nextStatus },
     });
-  }
 
-  res.status(201).json({
-    inspection: {
-      ...saved,
-      submittedAt: saved.submittedAt?.toISOString(),
-      reviewedAt: saved.reviewedAt?.toISOString(),
-      createdAt: saved.createdAt.toISOString(),
-    },
-  });
-});
-
-apiRouter.post('/inspections/:id/review', async (req: Request, res: Response) => {
-  const db = getDb();
-  if (!db || !req.authUser) {
-    res.status(503).json({ error: 'Database not configured.' });
-    return;
-  }
-
-  const { decision, notes } = req.body ?? {};
-  if (decision !== 'approved' && decision !== 'rejected') {
-    res.status(400).json({ error: 'Decision must be approved or rejected.' });
-    return;
-  }
-
-  const [insp] = await db
-    .select()
-    .from(inspections)
-    .where(eq(inspections.id, req.params.id))
-    .limit(1);
-
-  if (!insp) {
-    res.status(404).json({ error: 'Inspection not found.' });
-    return;
-  }
-
-  if (!assertProjectAccess(req.authUser, insp.projectId, res, true)) {
-    return;
-  }
-
-  const [tmpl] = await db
-    .select()
-    .from(checklistTemplates)
-    .where(eq(checklistTemplates.id, insp.templateId))
-    .limit(1);
-
-  const steps = resolveApplicableWorkflowSteps(tmpl, insp.failedCount, insp.scorePercent);
-  const currentStep = steps[insp.currentStepIndex];
-
-  if (
-    currentStep &&
-    req.authUser.role !== currentStep.role &&
-    req.authUser.role !== 'HSE / Quality Manager & Tenant Admin' &&
-    req.authUser.role !== 'Authorized Inspector (API 510/570) & Verifikator K3'
-  ) {
-    res.status(403).json({
-      error: `Step "${currentStep.label}" requires role ${currentStep.role} (or Authorized Inspector / Tenant Admin).`,
+    res.json({
+      inspection: {
+        ...updated,
+        submittedAt: updated.submittedAt?.toISOString(),
+        reviewedAt: updated.reviewedAt?.toISOString(),
+        createdAt: updated.createdAt.toISOString(),
+      },
     });
-    return;
-  }
-
-  const entry: ApprovalDecision = {
-    stepOrder: currentStep?.order ?? insp.currentStepIndex + 1,
-    stepLabel: currentStep?.label ?? 'Final Review',
-    role: req.authUser.role,
-    actorId: req.authUser.id,
-    actorName: req.authUser.name,
-    decision,
-    notes: typeof notes === 'string' ? notes : undefined,
-    decidedAt: new Date().toISOString(),
-  };
-
-  const nextHistory = [...(insp.approvalHistory || []), entry];
-  const nextStepIndex = insp.currentStepIndex + 1;
-  const isFinalApproved = decision === 'approved' && nextStepIndex >= steps.length;
-  const nextStatus: InspectionStatus =
-    decision === 'rejected'
-      ? 'rejected'
-      : isFinalApproved
-      ? 'approved'
-      : 'under_review';
-
-  const now = new Date();
-  const [updated] = await db
-    .update(inspections)
-    .set({
-      status: nextStatus,
-      currentStepIndex: decision === 'approved' ? nextStepIndex : insp.currentStepIndex,
-      approvalHistory: nextHistory,
-      reviewedBy: req.authUser.name,
-      reviewedRole: req.authUser.role,
-      reviewedAt: now,
-      reviewNotes: typeof notes === 'string' ? notes : insp.reviewNotes,
-    })
-    .where(eq(inspections.id, insp.id))
-    .returning();
-
-  await logAudit(
-    req.authUser.id,
-    req.authUser.name,
-    decision === 'approved' ? 'APPROVE_INSPECTION_STEP' : 'REJECT_INSPECTION',
-    'inspection',
-    updated.id,
-    { step: entry.stepLabel, nextStatus }
-  );
-
-  void dispatchNotification({
-    eventType: 'approval',
-    title: `Inspection ${nextStatus.toUpperCase()}: ${updated.templateTitle}`,
-    message: `${req.authUser.name} (${req.authUser.role}) marked "${entry.stepLabel}" as ${decision}.`,
-    metadata: { inspectionId: updated.id, nextStatus },
   });
-
-  res.json({
-    inspection: {
-      ...updated,
-      submittedAt: updated.submittedAt?.toISOString(),
-      reviewedAt: updated.reviewedAt?.toISOString(),
-      createdAt: updated.createdAt.toISOString(),
-    },
-  });
-});
 
 apiRouter.delete(
   '/inspections/:id',
-  requireRole(['HSE / Quality Manager & Tenant Admin']),
+  requirePermission(PERMISSIONS.INSPECTION_DELETE),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -2185,9 +2185,7 @@ apiRouter.get('/actions', async (req: Request, res: Response) => {
     return;
   }
 
-  const isGlobalAdmin =
-    req.authUser?.role === 'Project Director & Tenant Admin' ||
-    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+  const isGlobalAdmin = Boolean(req.authUser?.hasOrgScope || req.authUser?.hasBreakGlass);
 
   const queryProjectId = req.query.projectId ? String(req.query.projectId) : null;
   if (queryProjectId) {
@@ -2214,7 +2212,7 @@ apiRouter.get('/actions', async (req: Request, res: Response) => {
     .from(correctiveActions)
     .orderBy(desc(correctiveActions.createdAt));
 
-  const userProjects = req.authUser?.assignedProjects || [];
+  const userProjects = req.authUser?.assignedProjectIds || [];
   const visible = isGlobalAdmin
     ? rows
     : rows.filter((a) => a.projectId && userProjects.includes(a.projectId));
@@ -2228,7 +2226,7 @@ apiRouter.get('/actions', async (req: Request, res: Response) => {
   });
 });
 
-apiRouter.post('/actions', async (req: Request, res: Response) => {
+apiRouter.post('/actions', requirePermission(PERMISSIONS.CAPA_CREATE), async (req: Request, res: Response) => {
   const db = getDb();
   if (!db || !req.authUser) {
     res.status(503).json({ error: 'Database not configured.' });
@@ -2236,7 +2234,7 @@ apiRouter.post('/actions', async (req: Request, res: Response) => {
   }
 
   const a = req.body;
-  const id = a.id || `act-${crypto.randomUUID().slice(0, 8)}`;
+  const id = resolveUuid(a.id);
 
   let actionProjectId: string = a.projectId;
   let actionProjectName: string = a.projectName;
@@ -2287,8 +2285,8 @@ apiRouter.post('/actions', async (req: Request, res: Response) => {
       issueDescription: a.issueDescription,
       severity: a.severity || 'medium',
       assigneeId: a.assigneeId || null,
-      assignedToName: a.assignedToName,
-      assignedToRole: a.assignedToRole,
+      assignedToName: a.assignedToName || 'Unassigned',
+      assignedToRole: a.assignedToRole || 'Unassigned',
       dueDate: a.dueDate,
       status: a.status || 'OPEN',
       resolutionNotes: a.resolutionNotes || null,
@@ -2318,87 +2316,88 @@ apiRouter.post('/actions', async (req: Request, res: Response) => {
   });
 });
 
-apiRouter.patch('/actions/:id', async (req: Request, res: Response) => {
-  const db = getDb();
-  if (!db || !req.authUser) {
-    res.status(503).json({ error: 'Database not configured.' });
-    return;
-  }
-
-  const { status, resolutionNotes } = req.body ?? {};
-  const isResolved =
-    status === 'CLOSED' ||
-    status === 'EFFECTIVENESS_MONITORING' ||
-    status === 'resolved' ||
-    status === 'verified';
-
-  // Four-Eyes Principle Enforcement (PRD Section 1 & 7.2)
-  const [existingCapa] = await db
-    .select()
-    .from(correctiveActions)
-    .where(eq(correctiveActions.id, req.params.id))
-    .limit(1);
-
-  if (!existingCapa) {
-    res.status(404).json({ error: 'Corrective action not found.' });
-    return;
-  }
-
-  if (existingCapa.projectId && !assertProjectAccess(req.authUser, existingCapa.projectId, res, true)) {
-    return;
-  }
-
-  // Action Owner cannot self-verify or close their own corrective action
-  if (status === 'CLOSED' || status === 'verified') {
-    const isOwner =
-      (existingCapa.assigneeId && existingCapa.assigneeId === req.authUser.id) ||
-      existingCapa.assignedToName.toLowerCase() === req.authUser.name.toLowerCase();
-
-    if (isOwner && req.authUser.role !== 'HSE / Quality Manager & Tenant Admin') {
-      res.status(403).json({
-        error: 'Four-eyes violation: Action Owner is strictly prohibited from verifying or closing their own action.',
-      });
+apiRouter.patch(
+  '/actions/:id',
+  requirePermission([PERMISSIONS.CAPA_UPDATE_PROGRESS, PERMISSIONS.CAPA_CLOSE]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
       return;
     }
-    const verifierRoles: UserRole[] = [
-      'Authorized Inspector (API 510/570) & Verifikator K3',
-      'HSE / Quality Manager & Tenant Admin',
-    ];
-    if (!verifierRoles.includes(req.authUser.role)) {
-      res.status(403).json({
-        error: 'Only an Authorized Inspector (API 510/570) or HSE / Quality Manager can verify and close a CAPA.',
-      });
+
+    const { status, resolutionNotes } = req.body ?? {};
+    const isResolved =
+      status === 'CLOSED' ||
+      status === 'EFFECTIVENESS_MONITORING' ||
+      status === 'resolved' ||
+      status === 'verified';
+
+    // Four-Eyes Principle Enforcement (PRD Section 1 & 7.2)
+    const [existingCapa] = await db
+      .select()
+      .from(correctiveActions)
+      .where(eq(correctiveActions.id, req.params.id))
+      .limit(1);
+
+    if (!existingCapa) {
+      res.status(404).json({ error: 'Corrective action not found.' });
       return;
     }
-  }
 
-  const [updated] = await db
-    .update(correctiveActions)
-    .set({
-      status,
-      resolutionNotes: resolutionNotes ?? undefined,
-      resolvedAt: isResolved ? new Date() : undefined,
-    })
-    .where(eq(correctiveActions.id, req.params.id))
-    .returning();
+    if (existingCapa.projectId && !assertProjectAccess(req.authUser, existingCapa.projectId, res, true)) {
+      return;
+    }
 
-  if (!updated) {
-    res.status(404).json({ error: 'Corrective action not found.' });
-    return;
-  }
+    // Action Owner cannot self-verify or close their own corrective action (Four-Eyes Principle F.5.B #21 & #22)
+    if (status === 'CLOSED' || status === 'verified') {
+      const isOwner =
+        (existingCapa.assigneeId && existingCapa.assigneeId === req.authUser.id) ||
+        (existingCapa.assignedToName && existingCapa.assignedToName.toLowerCase() === req.authUser.name.toLowerCase());
 
-  await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_CAPA', 'corrective_action', updated.id, {
-    status: updated.status,
+      if (isOwner) {
+        res.status(403).json({
+          error: 'Four-eyes violation: Action Owner is strictly prohibited from verifying or closing their own action.',
+        });
+        return;
+      }
+
+      const perms = await resolveUserPermissions(req.authUser.id, existingCapa.projectId);
+      if (!perms.hasBreakGlass && !perms.projectPermissions.has('capa.close') && !perms.orgPermissions.has('capa.close')) {
+        res.status(403).json({
+          error: 'Only users with capa.close permission can verify and close a CAPA.',
+        });
+        return;
+      }
+    }
+
+    const [updated] = await db
+      .update(correctiveActions)
+      .set({
+        status,
+        resolutionNotes: resolutionNotes ?? undefined,
+        resolvedAt: isResolved ? new Date() : undefined,
+      })
+      .where(eq(correctiveActions.id, req.params.id))
+      .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: 'Corrective action not found.' });
+      return;
+    }
+
+    await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_CAPA', 'corrective_action', updated.id, {
+      status: updated.status,
+    });
+
+    res.json({
+      action: {
+        ...updated,
+        createdAt: updated.createdAt.toISOString(),
+        resolvedAt: updated.resolvedAt?.toISOString(),
+      },
+    });
   });
-
-  res.json({
-    action: {
-      ...updated,
-      createdAt: updated.createdAt.toISOString(),
-      resolvedAt: updated.resolvedAt?.toISOString(),
-    },
-  });
-});
 
 // ---------------- USERS & AUDIT LOGS ----------------
 
@@ -2428,7 +2427,7 @@ apiRouter.get('/users', async (_req: Request, res: Response) => {
 
 apiRouter.patch(
   '/users/:id',
-  requireRole(['HSE / Quality Manager & Tenant Admin']),
+  requirePermission(PERMISSIONS.ADMIN_USERS),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -2453,22 +2452,20 @@ apiRouter.patch(
     const nextRole = (role as UserRole | undefined) ?? target.role;
     const nextActive = typeof isActive === 'boolean' ? isActive : target.isActive;
 
-    // Never allow the last active administrator to be demoted or deactivated:
-    // doing so would lock every tenant administrator out permanently.
-    if (
-      target.role === 'HSE / Quality Manager & Tenant Admin' &&
-      (nextRole !== 'HSE / Quality Manager & Tenant Admin' || nextActive === false)
-    ) {
-      const admins = await db
-        .select({ id: users.id })
-        .from(users)
+    // Never allow the last active administrator to be demoted or deactivated (F.5.B #23)
+    const targetPerms = await resolveUserPermissions(target.id);
+    const isTargetAdmin = targetPerms.orgPermissions.has('admin.roles') || targetPerms.orgPermissions.has('admin.users');
+    if (isTargetAdmin && (nextActive === false || (role !== undefined && role !== target.role))) {
+      const activeAdmins = await db
+        .select({ userId: roleAssignments.userId })
+        .from(roleAssignments)
         .where(
           and(
-            eq(users.role, 'HSE / Quality Manager & Tenant Admin'),
-            eq(users.isActive, true)
+            eq(roleAssignments.scopeType, 'organization'),
+            eq(roleAssignments.isActive, true)
           )
         );
-      if (admins.filter((a) => a.id !== target.id).length === 0) {
+      if (activeAdmins.filter((a) => a.userId !== target.id).length === 0) {
         res.status(409).json({
           error: 'Cannot remove the last active tenant administrator.',
         });
@@ -2521,7 +2518,7 @@ apiRouter.patch(
   }
 );
 
-apiRouter.post('/users', requireRole(['HSE / Quality Manager & Tenant Admin']), async (req: Request, res: Response) => {
+apiRouter.post('/users', requirePermission(PERMISSIONS.ADMIN_USERS), async (req: Request, res: Response) => {
   const db = getDb();
   if (!db || !req.authUser) {
     res.status(503).json({ error: 'Database not configured.' });
@@ -2582,11 +2579,7 @@ apiRouter.post('/users', requireRole(['HSE / Quality Manager & Tenant Admin']), 
 
 apiRouter.get(
   '/audit-logs',
-  requireRole([
-    'HSE / Quality Manager & Tenant Admin',
-    'Authorized Inspector (API 510/570) & Verifikator K3',
-    'Office / Integrity Engineer',
-  ]),
+  requirePermission(PERMISSIONS.ADMIN_AUDIT),
   async (_req: Request, res: Response) => {
     const db = getDb();
     if (!db) {

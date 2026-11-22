@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import { getDb } from '../db/index.ts';
 import { tenantProfiles, correctiveActions, auditLogs } from '../db/schema.ts';
 import { requireAuth } from '../auth/middleware.ts';
+import { requirePermission, PERMISSIONS } from '../auth/rbac.ts';
 import {
   STANDARD_NAK_REFERENCE,
   DEFAULT_SMK3_ELEMENTS,
@@ -84,9 +85,7 @@ tenantRouter.get('/profile', async (req: Request, res: Response) => {
   }
 
   // Load all actions to check for disqualifying critical findings
-  const isGlobalAdmin =
-    req.authUser?.role === 'Project Director & Tenant Admin' ||
-    req.authUser?.role === 'HSE / Quality Manager & Tenant Admin';
+  const isGlobalAdmin = Boolean(req.authUser?.hasOrgScope || req.authUser?.hasBreakGlass);
 
   const userProjects = req.authUser?.assignedProjects || [];
   const allActions = await db.select().from(correctiveActions);
@@ -145,15 +144,10 @@ tenantRouter.get('/profile', async (req: Request, res: Response) => {
 
 // ---------------- UPDATE TENANT PROFILE (TENANT ADMIN ONLY) ----------------
 
-tenantRouter.put('/profile', async (req: Request, res: Response) => {
+tenantRouter.put('/profile', requirePermission(PERMISSIONS.TENANT_COMPLIANCE_MANAGE), async (req: Request, res: Response) => {
   const db = getDb();
   if (!db || !req.authUser) {
     res.status(503).json({ error: 'Database not configured.' });
-    return;
-  }
-
-  if (req.authUser.role !== 'HSE / Quality Manager & Tenant Admin') {
-    res.status(403).json({ error: 'Forbidden: Only HSE / Quality Manager & Tenant Admin can update tenant compliance profile.' });
     return;
   }
 
@@ -214,15 +208,10 @@ tenantRouter.put('/profile', async (req: Request, res: Response) => {
 
 // ---------------- CHEMICAL INVENTORY MANAGEMENT ----------------
 
-tenantRouter.post('/chemicals', async (req: Request, res: Response) => {
+tenantRouter.post('/chemicals', requirePermission(PERMISSIONS.TENANT_COMPLIANCE_MANAGE), async (req: Request, res: Response) => {
   const db = getDb();
   if (!db || !req.authUser) {
     res.status(503).json({ error: 'Database not configured.' });
-    return;
-  }
-
-  if (req.authUser.role !== 'HSE / Quality Manager & Tenant Admin') {
-    res.status(403).json({ error: 'Forbidden: Only HSE / Quality Manager & Tenant Admin can modify chemical inventory.' });
     return;
   }
 
@@ -269,15 +258,10 @@ tenantRouter.post('/chemicals', async (req: Request, res: Response) => {
   });
 });
 
-tenantRouter.delete('/chemicals/:id', async (req: Request, res: Response) => {
+tenantRouter.delete('/chemicals/:id', requirePermission(PERMISSIONS.TENANT_COMPLIANCE_MANAGE), async (req: Request, res: Response) => {
   const db = getDb();
   if (!db || !req.authUser) {
     res.status(503).json({ error: 'Database not configured.' });
-    return;
-  }
-
-  if (req.authUser.role !== 'HSE / Quality Manager & Tenant Admin') {
-    res.status(403).json({ error: 'Forbidden: Only HSE / Quality Manager & Tenant Admin can modify chemical inventory.' });
     return;
   }
 
