@@ -15,3 +15,6 @@ data/
 *.manifest.json
 /.codegraph
 /docs
+
+# DB backup dumps — contain credentials/data, never commit
+tests/backup_*.sql

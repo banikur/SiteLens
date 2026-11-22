@@ -31,6 +31,7 @@ import {
   requirePermission,
   PERMISSIONS,
   resolveUserPermissions,
+  seedLegacyRoleAssignments,
 } from '../auth/rbac.ts';
 import { dispatchNotification } from '../services/notifications.ts';
 import {
@@ -2562,6 +2563,11 @@ apiRouter.post('/users', requirePermission(PERMISSIONS.ADMIN_USERS), async (req:
     username: created.username,
     role: created.role,
   });
+
+  // Shim (Tahap 2a): Write role_assignments from legacy role + assignedProjects fields.
+  // Runs idempotently — same mapping as seedLegacyRoleAssignments (rbac.ts:398).
+  // This ensures new users are not locked out before Tahap 2a-2 frontend rollout.
+  await seedLegacyRoleAssignments();
 
   res.status(201).json({
     user: {

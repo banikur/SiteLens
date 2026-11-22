@@ -24,6 +24,7 @@ export interface AuthUser extends User {
   hasBreakGlass?: boolean;
   hasOrgScope?: boolean;
   assignedProjectIds?: string[];
+  isBreakGlassRequested?: boolean;
 }
 
 declare global {
