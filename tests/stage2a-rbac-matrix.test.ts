@@ -9,7 +9,7 @@
  *   - Each role uses an empty / minimal body — only tests authz, not business logic.
  *   - restoreDeletables() called once before 7.d (not 7x inside 7.a).
  *
- * Coverage: 7 roles × 22 mutation routes from Table F.5 = 154 assertions.
+ * Coverage: 7 roles × 23 mutation routes from Table F.5 (incl. POST /uploads) = 161 assertions.
  * NOTE: PUT /projects/:projectId is listed in F.5 but not yet implemented (Tahap 2b).
  *
  * Allowed criteria: status ∈ {200,201,204,400,404,409,422} — not 401/403/5xx.
@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 import express, { type Request, type Response } from 'express';
 import cookieParser from 'cookie-parser';
 import supertest from 'supertest';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 import { ensureTestDatabaseSchema, TEST_DATABASE_URL } from './helpers/setup-test-db.ts';
 
@@ -35,9 +35,10 @@ import {
   BUILTIN_ROLES,
   PERMISSION_DEFINITIONS,
   seedLegacyRoleAssignments,
+  syncUserLegacyAssignments,
   requirePermission,
 } from '../src/server/auth/rbac.ts';
-import { hashSecret } from '../src/server/auth/crypto.ts';
+import { hashSecret, hashSessionToken } from '../src/server/auth/crypto.ts';
 import { apiRouter } from '../src/server/routes/api.ts';
 import { tenantRouter } from '../src/server/routes/tenant.ts';
 import { notificationsRouter } from '../src/server/routes/notifications.ts';
@@ -208,7 +209,7 @@ test('Tahap 2a: RBAC Matrix, Route Registry Reflection & Isolation Verification'
       // so they are whitelisted here with explicit comment: auth-only, no additional permission needed.
       'POST /api/auth/webauthn/register-options',
       'POST /api/auth/webauthn/register-verify',
-      'POST /api/uploads',
+      // POST /api/uploads now has requirePermission(EVIDENCE_UPLOAD) — removed from whitelist (Tahap 2a item 4)
     ]);
 
     const discovered = scanAppRoutes(app);
@@ -367,5 +368,222 @@ test('Tahap 2a: RBAC Matrix, Route Registry Reflection & Isolation Verification'
       `login-options must be public (got ${loginOpts.status})`);
     assert.notEqual(loginVerify.status, 401,
       `login-verify must be public (got ${loginVerify.status})`);
+  });
+
+  // =========================================================================
+  // 7.g. Golden Test: scanner-discovered routes match MUTATION_ROUTES catalogue
+  // =========================================================================
+  await t.test('7.g. Golden: scanner-discovered mutation routes match F.5 catalogue', async () => {
+    const publicAuthPaths = new Set([
+      '/api/auth/login', '/api/auth/pin-login', '/api/auth/logout',
+      '/api/auth/webauthn/login-options', '/api/auth/webauthn/login-verify',
+      '/api/auth/pin-setup', '/api/auth/webauthn/register-options',
+      '/api/auth/webauthn/register-verify',
+    ]);
+
+    const discovered = scanAppRoutes(app)
+      .filter((r) => r.method !== 'GET' && !publicAuthPaths.has(r.fullPath));
+
+    const discoveredKeys = new Set(discovered.map((r) => `${r.method} ${r.fullPath}`));
+
+    // Normalize MUTATION_ROUTES names (e.g. "POST /projects/:projectId/wbs/nodes" -> "POST /api/projects/:projectId/wbs/nodes")
+    const cataloguePatternKeys = new Set(
+      MUTATION_ROUTES.map((r) => {
+        const parts = r.name.split(' ');
+        const method = parts[0];
+        const p = parts.slice(1).join(' ');
+        return `${method} /api${p.startsWith('/') ? p : '/' + p}`;
+      })
+    );
+
+    // Routes in Express scanner that are not in MUTATION_ROUTES:
+    // 1. POST /api/notifications/test (test webhook/email notification)
+    // 2. POST /api/projects/:projectId/scurve/override (F.5 row 9 manual curve override)
+    // 3. POST /api/templates/import (template batch import)
+    // 4. POST /api/templates/generate (AI-assisted checklist generation)
+    const expectedAdditionalRoutes = new Set([
+      'POST /api/notifications/test',
+      'POST /api/projects/:projectId/scurve/override',
+      'POST /api/templates/import',
+      'POST /api/templates/generate',
+    ]);
+
+    // Golden check 1: All 23 catalogue routes MUST exist in discovered Express registry
+    for (const key of cataloguePatternKeys) {
+      assert.ok(
+        discoveredKeys.has(key),
+        `Catalogue route '${key}' not found in Express router registry!`
+      );
+    }
+
+    // Golden check 2: All discovered routes beyond the 23 must be explicitly accounted for
+    const unaccountedRoutes = [...discoveredKeys].filter(
+      (k) => !cataloguePatternKeys.has(k) && !expectedAdditionalRoutes.has(k)
+    );
+
+    assert.equal(
+      unaccountedRoutes.length,
+      0,
+      `Unexpected undocumented mutation routes in Express registry:\n${unaccountedRoutes.join('\n')}`
+    );
+  });
+
+  // =========================================================================
+  // 7.h. Break-glass: audit written; non-break_glass role rejected
+  //      Break-glass permission held by: head_office_pmo only
+  // =========================================================================
+  await t.test('7.h. break_glass: audit written; non-break_glass role rejected', async () => {
+    const db = getDb();
+    if (!db) throw new Error('DB unavailable');
+
+    const { auditLogs } = await import('../src/server/db/schema.ts');
+
+    // 1. head_office_pmo has system.break_glass → with X-Break-Glass: true, any protected route passes
+    const pmoToken = ROLE_USER_MAP.head_office_pmo.token;
+
+    // Count audit logs before
+    const beforeCount = (await db.select().from(auditLogs)).length;
+
+    // POST /api/projects is [ORG]-scoped and head_office_pmo has PROJECT_CREATE
+    // But even if NOT allowed, break-glass bypasses. Use a route where PMO would normally
+    // be denied: weather-log on a project-scoped route (PRJ-scope, pmo lacks it without assignment)
+    const bgRes = await (supertest(app) as any)
+      .post(`/api/projects/${PRJ_A_ID}/weather-logs`)
+      .set('Cookie', `sitelens_session=${pmoToken}`)
+      .set('X-Break-Glass', 'true')
+      .send({ logDate: '2026-11-24', rainHours: 0, weatherCondition: 'Clear', isWorkHalted: false })
+      .set('Content-Type', 'application/json');
+
+    // Break-glass should let through (not 403)
+    assert.notEqual(bgRes.status, 403,
+      `break_glass should bypass 403 for head_office_pmo, got ${bgRes.status}: ${JSON.stringify(bgRes.body)}`);
+
+    // Audit log must be written (CRITICAL_SECURITY_AUDIT)
+    const afterLogs = await db.select().from(auditLogs);
+    const breakGlassLog = afterLogs.find((l: any) =>
+      l.action === 'CRITICAL_SECURITY_AUDIT' && l.entityType === 'system_break_glass'
+    );
+    assert.ok(breakGlassLog,
+      `CRITICAL_SECURITY_AUDIT log entry must be created when break_glass is used. Logs after: ${afterLogs.length}, before: ${beforeCount}`);
+
+    // 2. field_inspector does NOT have system.break_glass → X-Break-Glass header has no effect
+    const fiToken = ROLE_USER_MAP.field_inspector.token;
+    const fiRes = await (supertest(app) as any)
+      .post('/api/projects')
+      .set('Cookie', `sitelens_session=${fiToken}`)
+      .set('X-Break-Glass', 'true')
+      .send({ name: 'BG Test', client: 'C', leadManager: 'M', location: 'L', code: 'BG-99', zones: [] })
+      .set('Content-Type', 'application/json');
+
+    assert.equal(fiRes.status, 403,
+      `field_inspector without break_glass permission must still get 403 even with X-Break-Glass header, got ${fiRes.status}`);
+  });
+
+  // =========================================================================
+  // 7.i. Lazy-seed removed & syncUserLegacyAssignments verification
+  //      (items 1 & 3 of Tahap 2a continuation)
+  // =========================================================================
+  await t.test('7.i. Lazy-seed removed & syncUserLegacyAssignments verification', async () => {
+    const db = getDb();
+    if (!db) throw new Error('DB unavailable');
+    const { sessions } = await import('../src/server/db/schema.ts');
+
+    // Create a user with a valid role but NO role_assignments
+    const orphanId = 'eeeeeeee-0001-4000-8000-000000000001';
+    const orphanRawToken = 'orphan-raw-token-stage2a';
+    const orphanSessionId = hashSessionToken(orphanRawToken);
+
+    // Clean prior runs
+    await db.delete(roleAssignments).where(eq(roleAssignments.userId, orphanId));
+    await db.delete(sessions).where(eq(sessions.id, orphanSessionId));
+    await db.delete(users).where(eq(users.id, orphanId));
+
+    // Insert user without any role_assignments
+    await db.insert(users).values({
+      id: orphanId,
+      username: 'orphan_user',
+      email: 'orphan@sitelens.local',
+      name: 'Orphan User',
+      title: 'Engineer',
+      role: 'Project / Site Engineer',
+      assignedProjects: [PRJ_A_ID],
+      passwordHash: 'x',
+      isActive: true,
+    });
+
+    // Insert session for orphan (no role_assignments — zero rows)
+    await db.insert(sessions).values({
+      id: orphanSessionId,
+      userId: orphanId,
+      expiresAt: new Date(Date.now() + 3_600_000),
+    });
+
+    // 1. With lazy-seed removed, this user MUST get 403 (no assignments = no access)
+    const resNoAssignment = await req('GET', `/api/projects/${PRJ_A_ID}/wbs`, orphanRawToken);
+    assert.equal(resNoAssignment.status, 403,
+      `User with zero role_assignments must get 403 (lazy-seed removed). Got ${resNoAssignment.status}: ${JSON.stringify(resNoAssignment.body)}`);
+
+    // 2. Call syncUserLegacyAssignments → creates role_assignments with source='legacy_sync'
+    await syncUserLegacyAssignments(orphanId);
+
+    const initialAssignments = await db.select().from(roleAssignments).where(eq(roleAssignments.userId, orphanId));
+    assert.ok(initialAssignments.length > 0, 'Sync must create role assignments');
+    assert.equal(initialAssignments[0].source, 'legacy_sync', 'Source must be legacy_sync');
+    assert.equal(initialAssignments[0].roleId, 'site_engineer', 'Role must map to site_engineer');
+
+    // User now has access
+    const resAfterSync = await req('GET', `/api/projects/${PRJ_A_ID}/wbs`, orphanRawToken);
+    assert.equal(resAfterSync.status, 200, 'User must have access after syncUserLegacyAssignments');
+
+    // 3. Idempotency: running sync twice must NOT create duplicate rows
+    await syncUserLegacyAssignments(orphanId);
+    const assignmentsAfterSecondSync = await db.select().from(roleAssignments).where(eq(roleAssignments.userId, orphanId));
+    assert.equal(assignmentsAfterSecondSync.length, initialAssignments.length,
+      'Running sync twice must be idempotent and not create duplicate assignments');
+
+    // 4. Manual assignment isolation: create a manual assignment
+    const manualAssignId = 'eeeeeeee-0002-4000-8000-000000000002';
+    await db.insert(roleAssignments).values({
+      id: manualAssignId as any,
+      userId: orphanId,
+      roleId: 'field_inspector',
+      scopeType: 'project',
+      projectId: PRJ_B_ID as any,
+      isActive: true,
+      source: 'manual',
+    });
+
+    // 5. Demote / change user: remove PRJ_A from assignedProjects and change role to Client Viewer
+    await db.update(users).set({
+      role: 'Client / Vendor Viewer',
+      assignedProjects: [],
+    }).where(eq(users.id, orphanId));
+
+    await syncUserLegacyAssignments(orphanId);
+
+    // PRJ_A legacy_sync assignment must now be deactivated (isActive = false)
+    const prjAAssignment = await db.select().from(roleAssignments).where(
+      and(
+        eq(roleAssignments.userId, orphanId),
+        eq(roleAssignments.projectId, PRJ_A_ID as any),
+        eq(roleAssignments.source, 'legacy_sync')
+      )
+    );
+    assert.equal(prjAAssignment[0]?.isActive, false, 'Removed project assignment must be deactivated (isActive=false)');
+
+    // Manual assignment must remain active and UNTOUCHED
+    const manualAssignment = await db.select().from(roleAssignments).where(eq(roleAssignments.id, manualAssignId as any));
+    assert.equal(manualAssignment[0]?.isActive, true, 'Manual assignment must remain active');
+    assert.equal(manualAssignment[0]?.source, 'manual', 'Manual assignment source must remain manual');
+    assert.equal(manualAssignment[0]?.roleId, 'field_inspector', 'Manual assignment roleId must remain field_inspector');
+
+    // User should now be denied access to PRJ_A
+    const resRevoked = await req('GET', `/api/projects/${PRJ_A_ID}/wbs`, orphanRawToken);
+    assert.equal(resRevoked.status, 403, 'User with removed project assignment must be denied with 403');
+
+    // Cleanup
+    await db.delete(roleAssignments).where(eq(roleAssignments.userId, orphanId));
+    await db.delete(sessions).where(eq(sessions.id, orphanSessionId));
+    await db.delete(users).where(eq(users.id, orphanId));
   });
 });

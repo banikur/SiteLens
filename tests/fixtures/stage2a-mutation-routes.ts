@@ -261,4 +261,17 @@ export const MUTATION_ROUTES: MutationRouteSpec[] = [
     requiredPermissions: [PERMISSIONS.ADMIN_SETTINGS],
     body: { notifyOnCriticalCapa: false, notifyOnApproval: false, smtpHost: null },
   },
+
+  // --- Uploads / Evidence ---
+  // Note: multer runs INSIDE the handler (after requirePermission middleware).
+  // Forbidden roles get 403 (permission check first).
+  // Allowed roles get 400 (multer: missing file) — this is correct, NOT a finding.
+  {
+    name: 'POST /uploads',
+    method: 'POST',
+    path: '/api/uploads',
+    requiredPermissions: [PERMISSIONS.EVIDENCE_UPLOAD],
+    body: {},
+    validationBeforePermission: true, // multer inside handler → allowed roles get 400 (no file)
+  },
 ];

@@ -28,6 +28,7 @@ import { hashSessionToken, hashSecret } from '../src/server/auth/crypto.ts';
 import { authRouter } from '../src/server/routes/auth.ts';
 import { apiRouter } from '../src/server/routes/api.ts';
 import { tenantRouter } from '../src/server/routes/tenant.ts';
+import { seedLegacyRoleAssignments } from '../src/server/auth/rbac.ts';
 import { uploadsRouter } from '../src/server/routes/uploads.ts';
 
 // Create Express test app mounting real middleware and routers
@@ -265,6 +266,9 @@ async function seedTestData() {
     dueDate: '2026-12-01',
     status: 'OPEN',
   });
+
+  // Seed RBAC assignments for legacy test users
+  await seedLegacyRoleAssignments();
 }
 
 // HTTP request helper

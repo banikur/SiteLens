@@ -43,6 +43,13 @@
       "when": 1795361182725,
       "tag": "0005_secret_diamondback",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795372989947,
+      "tag": "0006_real_alice",
+      "breakpoints": true
     }
   ]
 }

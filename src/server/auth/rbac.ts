@@ -77,6 +77,9 @@ export const PERMISSIONS = {
   ADMIN_AUDIT: 'admin.audit',                       // [ORG] Melihat log jejak audit mutasi
   ADMIN_SETTINGS: 'admin.settings',                 // [ORG] Konfigurasi server & integrasi
   SYSTEM_BREAK_GLASS: 'system.break_glass',         // [ORG] Akses pemulihan bencana (teraudit penuh)
+
+  // Bukti Foto & Dokumen
+  EVIDENCE_UPLOAD: 'evidence.upload',               // [PRJ] Upload foto/dokumen bukti inspeksi
 } as const;
 
 export type PermissionKey = typeof PERMISSIONS[keyof typeof PERMISSIONS];
@@ -146,6 +149,9 @@ export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { id: PERMISSIONS.ADMIN_AUDIT, module: 'admin', description: 'Melihat log jejak audit mutasi', scopeLevel: 'organization' },
   { id: PERMISSIONS.ADMIN_SETTINGS, module: 'admin', description: 'Konfigurasi server & integrasi', scopeLevel: 'organization' },
   { id: PERMISSIONS.SYSTEM_BREAK_GLASS, module: 'system', description: 'Akses pemulihan bencana (teraudit penuh)', scopeLevel: 'organization' },
+
+  // Bukti Foto & Dokumen
+  { id: PERMISSIONS.EVIDENCE_UPLOAD, module: 'evidence', description: 'Upload foto/dokumen bukti inspeksi', scopeLevel: 'project' },
 ];
 
 // -----------------------------------------------------------------------------
@@ -175,6 +181,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
       PERMISSIONS.CAPA_CREATE,
       PERMISSIONS.TEMPLATE_VIEW,
       PERMISSIONS.REPORT_VIEW,
+      PERMISSIONS.EVIDENCE_UPLOAD,
     ],
   },
   {
@@ -189,6 +196,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
       PERMISSIONS.CAPA_UPDATE_PROGRESS,
       PERMISSIONS.TEMPLATE_VIEW,
       PERMISSIONS.REPORT_VIEW,
+      PERMISSIONS.EVIDENCE_UPLOAD,
     ],
   },
   {
@@ -210,6 +218,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
       PERMISSIONS.REPORT_VIEW,
       PERMISSIONS.REPORT_EXPORT,
       PERMISSIONS.WEATHER_LOG,
+      PERMISSIONS.EVIDENCE_UPLOAD,
     ],
   },
   {
@@ -233,6 +242,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
       PERMISSIONS.SCHEDULE_MANAGE,
       PERMISSIONS.REPORT_VIEW,
       PERMISSIONS.REPORT_EXPORT,
+      PERMISSIONS.EVIDENCE_UPLOAD,
     ],
   },
   {
@@ -258,6 +268,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
       PERMISSIONS.WEATHER_LOG,
       PERMISSIONS.SCURVE_OVERRIDE,
       PERMISSIONS.ADMIN_AUDIT,
+      PERMISSIONS.EVIDENCE_UPLOAD,
     ],
   },
   {
@@ -420,6 +431,7 @@ export async function seedLegacyRoleAssignments() {
           scopeType: 'organization',
           projectId: null,
           isActive: true,
+          source: 'legacy_sync',
         })
         .onConflictDoNothing();
 
@@ -433,6 +445,7 @@ export async function seedLegacyRoleAssignments() {
             scopeType: 'project',
             projectId: p.id,
             isActive: true,
+            source: 'legacy_sync',
           })
           .onConflictDoNothing();
       }
@@ -460,11 +473,166 @@ export async function seedLegacyRoleAssignments() {
             scopeType: 'project',
             projectId: prjId as any,
             isActive: true,
+            source: 'legacy_sync',
           })
           .onConflictDoNothing();
       }
     }
   }
+}
+
+// -----------------------------------------------------------------------------
+// G.1.D: Per-User Synchronisation of legacy role_assignments (Tahap 2a item 3)
+// Transactional, idempotent. Only touches rows where source = 'legacy_sync'.
+// NEVER modifies rows where source = 'manual'.
+// Call after any change to users.role, users.assignedProjects, or users.isActive.
+// -----------------------------------------------------------------------------
+export async function syncUserLegacyAssignments(userId: string): Promise<void> {
+  const db = getDb();
+  if (!db || !userId) return;
+
+  await syncRbacCatalog();
+
+  const [u] = await db.select().from(users).where(eq(users.id, userId as any)).limit(1);
+  if (!u) return;
+
+  await db.transaction(async (tx) => {
+    if (!u.isActive) {
+      // Deactivate all legacy_sync rows for this user
+      await tx
+        .update(roleAssignments)
+        .set({ isActive: false })
+        .where(
+          and(
+            eq(roleAssignments.userId, userId as any),
+            eq(roleAssignments.source as any, 'legacy_sync')
+          )
+        );
+      return;
+    }
+
+    const isGlobalAdmin =
+      u.role === 'Project Director & Tenant Admin' ||
+      u.role === 'HSE / Quality Manager & Tenant Admin';
+
+    if (isGlobalAdmin) {
+      // Upsert org-scope head_office_pmo
+      await tx
+        .insert(roleAssignments)
+        .values({
+          userId: u.id,
+          roleId: 'head_office_pmo',
+          scopeType: 'organization',
+          projectId: null,
+          isActive: true,
+          source: 'legacy_sync',
+        } as any)
+        .onConflictDoNothing();
+
+      // Reactivate if previously deactivated
+      await tx
+        .update(roleAssignments)
+        .set({ isActive: true })
+        .where(
+          and(
+            eq(roleAssignments.userId, userId as any),
+            eq(roleAssignments.roleId, 'head_office_pmo'),
+            eq(roleAssignments.scopeType, 'organization'),
+            eq(roleAssignments.source as any, 'legacy_sync')
+          )
+        );
+
+      // Deactivate all project-scope legacy_sync rows (global admin covers all via org-scope)
+      await tx
+        .update(roleAssignments)
+        .set({ isActive: false })
+        .where(
+          and(
+            eq(roleAssignments.userId, userId as any),
+            eq(roleAssignments.scopeType, 'project'),
+            eq(roleAssignments.source as any, 'legacy_sync')
+          )
+        );
+    } else {
+      // Map role string -> roleId
+      let targetRoleId = 'client_viewer';
+      if (u.role === 'Project / Site Engineer' || u.role === 'Office / Integrity Engineer') {
+        targetRoleId = 'site_engineer';
+      } else if (u.role === 'QA/QC Lead / Owner Inspector' || u.role === 'Authorized Inspector (API 510/570) & Verifikator K3') {
+        targetRoleId = 'qaqc_lead';
+      } else if (u.role === 'Field / QC Inspector' || u.role === 'Field Inspector / Petugas K3') {
+        targetRoleId = 'field_inspector';
+      } else if (u.role === 'Action Owner / Subcontractor' || u.role === 'Action Owner / Pelaksana Perbaikan') {
+        targetRoleId = 'subcontractor';
+      }
+
+      const currentProjectIds = new Set<string>(
+        Array.isArray(u.assignedProjects) ? (u.assignedProjects as string[]).filter(Boolean) : []
+      );
+
+      // Deactivate legacy_sync rows for projects no longer in assignedProjects
+      const existingRows = await tx
+        .select({ id: roleAssignments.id, projectId: roleAssignments.projectId })
+        .from(roleAssignments)
+        .where(
+          and(
+            eq(roleAssignments.userId, userId as any),
+            eq(roleAssignments.scopeType, 'project'),
+            eq(roleAssignments.source as any, 'legacy_sync'),
+            eq(roleAssignments.isActive, true)
+          )
+        );
+
+      for (const row of existingRows) {
+        if (!row.projectId || !currentProjectIds.has(String(row.projectId))) {
+          await tx
+            .update(roleAssignments)
+            .set({ isActive: false })
+            .where(eq(roleAssignments.id, row.id));
+        }
+      }
+
+      // Upsert rows for current assigned projects
+      for (const prjId of currentProjectIds) {
+        await tx
+          .insert(roleAssignments)
+          .values({
+            userId: u.id,
+            roleId: targetRoleId,
+            scopeType: 'project',
+            projectId: prjId as any,
+            isActive: true,
+            source: 'legacy_sync',
+          } as any)
+          .onConflictDoNothing();
+
+        // Reactivate if previously deactivated (conflict key: userId+projectId for scope=project)
+        await tx
+          .update(roleAssignments)
+          .set({ isActive: true, roleId: targetRoleId })
+          .where(
+            and(
+              eq(roleAssignments.userId, userId as any),
+              eq(roleAssignments.projectId, prjId as any),
+              eq(roleAssignments.scopeType, 'project'),
+              eq(roleAssignments.source as any, 'legacy_sync')
+            )
+          );
+      }
+
+      // Deactivate org-scope legacy_sync rows (non-admin user shouldn't have org scope)
+      await tx
+        .update(roleAssignments)
+        .set({ isActive: false })
+        .where(
+          and(
+            eq(roleAssignments.userId, userId as any),
+            eq(roleAssignments.scopeType, 'organization'),
+            eq(roleAssignments.source as any, 'legacy_sync')
+          )
+        );
+    }
+  });
 }
 
 // -----------------------------------------------------------------------------
@@ -474,6 +642,7 @@ export interface EffectivePermissions {
   userId: string;
   orgPermissions: Set<string>;
   projectPermissions: Set<string>;
+  allProjectPermissions: Set<string>;
   allEffectivePermissions: Set<string>;
   hasOrgScope: boolean;
   hasBreakGlass: boolean;
@@ -489,6 +658,7 @@ export async function resolveUserPermissions(
     userId,
     orgPermissions: new Set(),
     projectPermissions: new Set(),
+    allProjectPermissions: new Set(),
     allEffectivePermissions: new Set(),
     hasOrgScope: false,
     hasBreakGlass: false,
@@ -507,14 +677,9 @@ export async function resolveUserPermissions(
     .innerJoin(rolePermissions, eq(roleAssignments.roleId, rolePermissions.roleId))
     .where(and(eq(roleAssignments.userId, userId as any), eq(roleAssignments.isActive, true)));
 
-  // If no assignments exist at all, auto-seed legacy roles if needed
-  if (rows.length === 0) {
-    await seedLegacyRoleAssignments();
-    return resolveUserPermissions(userId, targetProjectId);
-  }
-
   const orgPerms = new Set<string>();
   const projPerms = new Set<string>();
+  const allProjPerms = new Set<string>();
   const assignedProjects = new Set<string>();
   let hasOrg = false;
 
@@ -524,19 +689,21 @@ export async function resolveUserPermissions(
       orgPerms.add(r.permissionId);
     } else if (r.scopeType === 'project' && r.projectId) {
       assignedProjects.add(String(r.projectId));
+      allProjPerms.add(r.permissionId);
       if (targetProjectId && String(r.projectId) === String(targetProjectId)) {
         projPerms.add(r.permissionId);
       }
     }
   }
 
-  const allEffective = new Set<string>([...orgPerms, ...projPerms]);
+  const allEffective = new Set<string>([...orgPerms, ...allProjPerms]);
   const hasBreakGlass = orgPerms.has(PERMISSIONS.SYSTEM_BREAK_GLASS);
 
   return {
     userId,
     orgPermissions: orgPerms,
     projectPermissions: projPerms,
+    allProjectPermissions: allProjPerms,
     allEffectivePermissions: allEffective,
     hasOrgScope: hasOrg,
     hasBreakGlass,
@@ -627,14 +794,21 @@ export function requirePermission(permissionOrList: PermissionKey | PermissionKe
           break;
         }
       } else if (scopeLevel === 'project') {
-        // [PRJ]: Requires explicit project assignment with this permission on targetProjectId
-        if (perms.projectPermissions.has(key)) {
+        // [PRJ]: Requires explicit project assignment with this permission on targetProjectId.
+        // If route has no target project context (e.g. general POST /api/uploads), check any assigned project.
+        const hasProjectPerm = targetProjectId
+          ? perms.projectPermissions.has(key)
+          : perms.allProjectPermissions.has(key);
+        if (hasProjectPerm) {
           isAllowed = true;
           break;
         }
       } else if (scopeLevel === 'organization_or_project') {
         // [ORG/PRJ]: Universal read if org assignment, or project-scoped read
-        if (perms.orgPermissions.has(key) || perms.projectPermissions.has(key)) {
+        const hasProjectPerm = targetProjectId
+          ? perms.projectPermissions.has(key)
+          : perms.allProjectPermissions.has(key);
+        if (perms.orgPermissions.has(key) || hasProjectPerm) {
           isAllowed = true;
           break;
         }

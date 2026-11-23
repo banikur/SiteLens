@@ -32,6 +32,7 @@ import {
   PERMISSIONS,
   resolveUserPermissions,
   seedLegacyRoleAssignments,
+  syncUserLegacyAssignments,
 } from '../auth/rbac.ts';
 import { dispatchNotification } from '../services/notifications.ts';
 import {
@@ -2503,6 +2504,13 @@ apiRouter.patch(
       updatedFields: Object.keys(updates),
     });
 
+    // Tahap 2a item 3: sync per-user legacy role_assignments when role, assignedProjects, or isActive changed
+    if (role !== undefined || assignedProjects !== undefined || isActive !== undefined) {
+      await syncUserLegacyAssignments(updated.id).catch((e) =>
+        console.error('[rbac] syncUserLegacyAssignments failed:', e)
+      );
+    }
+
     res.json({
       user: {
         id: updated.id,
@@ -2567,7 +2575,7 @@ apiRouter.post('/users', requirePermission(PERMISSIONS.ADMIN_USERS), async (req:
   // Shim (Tahap 2a): Write role_assignments from legacy role + assignedProjects fields.
   // Runs idempotently — same mapping as seedLegacyRoleAssignments (rbac.ts:398).
   // This ensures new users are not locked out before Tahap 2a-2 frontend rollout.
-  await seedLegacyRoleAssignments();
+  await syncUserLegacyAssignments(created.id);
 
   res.status(201).json({
     user: {

@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
 import { requireAuth } from '../auth/middleware.ts';
+import { requirePermission, PERMISSIONS } from '../auth/rbac.ts';
 import {
   EVIDENCE_INTEGRITY_VERSION,
   EVIDENCE_URL_PREFIX,
@@ -220,7 +221,7 @@ function handleUpload(req: Request, res: Response) {
   });
 }
 
-uploadsRouter.post('/', requireAuth, (req: Request, res: Response) => {
+uploadsRouter.post('/', requireAuth, requirePermission(PERMISSIONS.EVIDENCE_UPLOAD), (req: Request, res: Response) => {
   upload.single('file')(req, res, (err: unknown) => {
     if (err) {
       if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {

@@ -434,6 +434,7 @@ export const roleAssignments = pgTable(
     scopeType: text('scope_type').$type<'organization' | 'project'>().notNull(),
     projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
     isActive: boolean('is_active').notNull().default(true),
+    source: text('source').$type<'legacy_sync' | 'manual'>().notNull().default('manual'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [

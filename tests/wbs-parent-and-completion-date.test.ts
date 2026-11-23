@@ -27,6 +27,7 @@ import {
 import { attachSessionUser } from '../src/server/auth/middleware.ts';
 import { hashSessionToken, hashSecret } from '../src/server/auth/crypto.ts';
 import { apiRouter } from '../src/server/routes/api.ts';
+import { seedLegacyRoleAssignments } from '../src/server/auth/rbac.ts';
 
 function createTestApp() {
   const app = express();
@@ -221,6 +222,9 @@ async function seedData() {
     status: 'submitted',
     answers: { test: 'passed' },
   });
+
+  // Seed RBAC assignments for legacy test users
+  await seedLegacyRoleAssignments();
 }
 
 async function req(
