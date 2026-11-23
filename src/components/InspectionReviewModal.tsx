@@ -13,7 +13,7 @@ import { getStoredTemplates } from '../services/storage';
 
 interface InspectionReviewModalProps {
   inspection: InspectionRecord | null;
-  currentUser: { name: string; role: UserRole };
+  currentUser: { name: string; role: UserRole; title?: string };
   onClose: () => void;
   onApprove: (id: string, notes: string) => void;
   onReject: (id: string, notes: string) => void;
@@ -252,7 +252,7 @@ export const InspectionReviewModal: React.FC<InspectionReviewModalProps> = ({
               className="w-full border border-slate-300 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
               placeholder={t.reviewModal.assessmentPlaceholder
                 .replace('{name}', currentUser.name)
-                .replace('{role}', translateRole(currentUser.role))}
+                .replace('{role}', currentUser.title || translateRole(currentUser.role))}
             />
           </div>
         </div>

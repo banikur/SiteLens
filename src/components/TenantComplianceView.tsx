@@ -28,6 +28,7 @@ import {
   STANDARD_NAK_REFERENCE,
 } from '../services/tenantClient.ts';
 import { useLanguage } from '../i18n/LanguageContext';
+import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 
 interface TenantComplianceViewProps {
   currentUserRole?: UserRole;
@@ -51,7 +52,8 @@ export const TenantComplianceView: React.FC<TenantComplianceViewProps> = ({
   const [chemQty, setChemQty] = useState<number>(10000);
   const [chemNak, setChemNak] = useState<number>(50000);
 
-  const isTenantAdmin = currentUserRole === 'HSE / Quality Manager & Tenant Admin';
+  const { can, isLoading: isLoadingPerms } = usePermission();
+  const isTenantAdmin = !isLoadingPerms && can(PERMISSIONS.TENANT_COMPLIANCE_MANAGE);
 
   const loadData = async () => {
     setLoading(true);

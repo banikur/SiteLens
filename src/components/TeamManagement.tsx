@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { User, UserRole } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 
 interface TeamManagementProps {
   users: User[];
@@ -150,7 +151,10 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
 }) => {
   const { lang, t, translateRole } = useLanguage();
   const isId = lang === 'id';
-  const isTenantAdmin = activeUser.role === 'HSE / Quality Manager & Tenant Admin';
+  const { can, isLoading: isLoadingPerms } = usePermission();
+  const isTenantAdmin =
+    !isLoadingPerms &&
+    (can(PERMISSIONS.ADMIN_USERS) || can(PERMISSIONS.PROJECT_MANAGE_MEMBERS));
   const descriptions = isId ? ROLE_DESCRIPTIONS_ID : ROLE_DESCRIPTIONS_EN;
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -328,7 +332,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                         {user.name}
                       </h2>
                       <div className="text-xs font-semibold text-amber-700 mt-0.5">
-                        {translateRole(user.role)}
+                        {user.title ? `${user.title} (${translateRole(user.role)})` : translateRole(user.role)}
                       </div>
                       <div className="text-[10px] text-slate-400">
                         {user.email}

@@ -24,6 +24,7 @@ import {
 import { canProceedToStage, validateFourEyes } from '../utils/workflow';
 import { SignatureCanvasModal } from './SignatureCanvasModal';
 import { PhysicalSheetModal } from './PhysicalSheetModal';
+import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 
 interface NodeWorkflowModalProps {
   isOpen: boolean;
@@ -199,7 +200,8 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
     }
   };
 
-  const isViewer = currentUser.role === 'Client / Vendor Viewer';
+  const { can, isLoading: isLoadingPerms } = usePermission();
+  const isViewer = isLoadingPerms || !can(PERMISSIONS.STAGE_EXECUTE, project.id);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">

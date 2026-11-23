@@ -134,6 +134,13 @@ export async function apiSaveProject(project: Project): Promise<Project> {
   return res.project;
 }
 
+export async function apiGetMyProjectPermissions(projectId: string): Promise<string[]> {
+  const res = await apiJson<{ projectId: string; effectivePermissions: string[] }>(
+    `/api/projects/${encodeURIComponent(projectId)}/my-permissions`
+  );
+  return res.effectivePermissions || [];
+}
+
 export interface EvidenceGps {
   latitude: number;
   longitude: number;

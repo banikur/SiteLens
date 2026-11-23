@@ -23,6 +23,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import type { Project, User, WorkNode, SCurveSummary } from '../types';
+import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 import {
   apiGetProjectWbs,
   apiCreateWbsNode,
@@ -94,12 +95,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
 
-  // Check if current user is read-only Viewer
-  const isViewer = currentUser.role === 'Client / Vendor Viewer';
-  const canEdit =
-    currentUser.role === 'Project Director & Tenant Admin' ||
-    currentUser.role === 'Project / Site Engineer' ||
-    currentUser.role === 'HSE / Quality Manager & Tenant Admin';
+  // Permissions: Fail-closed when loading or missing permission
+  const { can, isLoading: isLoadingPerms } = usePermission();
+  const canEdit = !isLoadingPerms && (can(PERMISSIONS.WBS_EDIT_STRUCTURE, project.id) || can(PERMISSIONS.WBS_EDIT_DETAIL, project.id));
+  const isViewer = isLoadingPerms || !canEdit;
 
   const loadWbsData = async () => {
     try {

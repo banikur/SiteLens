@@ -8,6 +8,12 @@ export interface AuthenticatedUser extends User {
   username: string;
   hasPin: boolean;
   passkeysCount: number;
+  globalPermissions?: string[];
+}
+
+export interface CurrentUserResponse {
+  user: AuthenticatedUser;
+  globalPermissions: string[];
 }
 
 export interface HealthStatus {
@@ -30,7 +36,22 @@ export async function fetchCurrentUser(): Promise<AuthenticatedUser | null> {
   const res = await fetch('/api/auth/me', { credentials: 'include' });
   if (!res.ok) return null;
   const data = await res.json();
-  return data.user ?? null;
+  if (!data.user) return null;
+  return {
+    ...data.user,
+    globalPermissions: data.globalPermissions || [],
+  };
+}
+
+export async function fetchCurrentUserWithPermissions(): Promise<CurrentUserResponse | null> {
+  const res = await fetch('/api/auth/me', { credentials: 'include' });
+  if (!res.ok) return null;
+  const data = await res.json();
+  if (!data.user) return null;
+  return {
+    user: data.user,
+    globalPermissions: data.globalPermissions || [],
+  };
 }
 
 export async function loginWithPassword(

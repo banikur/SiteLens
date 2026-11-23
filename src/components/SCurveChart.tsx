@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { SCurveSummary, User, WorkNode } from '../types';
 import { apiOverrideSCurve } from '../services/api';
+import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 
 interface SCurveChartProps {
   scurve: SCurveSummary;
@@ -40,9 +41,10 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
   const [overrideReason, setOverrideReason] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
 
+  const { can, isLoading: isLoadingPerms } = usePermission();
   const canOverride =
-    currentUser.role === 'Project Director & Tenant Admin' ||
-    currentUser.role === 'Project / Site Engineer';
+    !isLoadingPerms &&
+    (can(PERMISSIONS.SCURVE_OVERRIDE, (scurve as any).projectId) || can(PERMISSIONS.SCURVE_OVERRIDE));
 
   const points = scurve.points || [];
   const weekCount = Math.max(1, points.length);

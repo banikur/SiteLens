@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Bell, History, Send, Save, CheckCircle2, AlertCircle } from 'lucide-react';
 import { User } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 
 interface SettingsViewProps {
   currentUser: User;
@@ -32,7 +33,10 @@ interface AuditLogEntry {
 export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser }) => {
   const { lang } = useLanguage();
   const isId = lang === 'id';
-  const isAdmin = currentUser.role === 'HSE / Quality Manager & Tenant Admin';
+  const { can, isLoading: isLoadingPerms } = usePermission();
+  const isAdmin =
+    !isLoadingPerms &&
+    (can(PERMISSIONS.ADMIN_ROLES) || can(PERMISSIONS.ADMIN_USERS) || can(PERMISSIONS.ADMIN_SETTINGS));
 
   const [config, setConfig] = useState<NotificationConfig>({
     smtpHost: '',

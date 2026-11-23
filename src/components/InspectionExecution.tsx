@@ -362,7 +362,7 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
           </span>
           <span className="font-medium text-slate-700">
             {t.execution.inspectorLabel} {currentUser.name} (
-            {translateRole(currentUser.role)})
+            {currentUser.title || translateRole(currentUser.role)})
           </span>
         </div>
       </div>

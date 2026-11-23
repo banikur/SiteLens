@@ -21,6 +21,7 @@ import {
   SESSION_COOKIE_NAME,
   SESSION_TTL_MS,
 } from '../auth/middleware.ts';
+import { resolveUserPermissions } from '../auth/rbac.ts';
 
 export const authRouter = Router();
 
@@ -232,9 +233,12 @@ authRouter.get('/me', async (req: Request, res: Response) => {
     passkeysCount = creds.length;
   }
 
+  const perms = await resolveUserPermissions(req.authUser.id);
+
   res.json({
     authenticated: true,
     user: { ...req.authUser, passkeysCount },
+    globalPermissions: Array.from(perms.orgPermissions),
   });
 });
 

@@ -401,6 +401,24 @@ apiRouter.post(
   }
 );
 
+// Blueprint Tahap 2a-2 (Bagian 6.C): Real-time effective permissions for active project
+apiRouter.get(
+  '/projects/:projectId/my-permissions',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    if (!req.authUser) {
+      res.status(401).json({ error: 'Authentication required.' });
+      return;
+    }
+    const targetProjectId = String(req.params.projectId);
+    const perms = await resolveUserPermissions(req.authUser.id, targetProjectId);
+    res.json({
+      projectId: targetProjectId,
+      effectivePermissions: Array.from(perms.allEffectivePermissions),
+    });
+  }
+);
+
 // ---------------- WBS TREE & WORKFLOWS (FASE 2) ----------------
 
 apiRouter.get(

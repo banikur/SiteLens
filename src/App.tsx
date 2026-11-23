@@ -47,6 +47,7 @@ import { DemoTourModal } from './components/DemoTourModal';
 import { SecuritySettingsModal } from './components/SecuritySettingsModal';
 import { SettingsView } from './components/SettingsView';
 import { TenantComplianceView } from './components/TenantComplianceView';
+import { AuthProvider } from './context/AuthContext';
 import {
   AuthenticatedUser,
   fetchCurrentUser,
@@ -774,7 +775,9 @@ function SiteLensWorkspace() {
 export default function App() {
   return (
     <LanguageProvider>
-      <SiteLensWorkspace />
+      <AuthProvider>
+        <SiteLensWorkspace />
+      </AuthProvider>
     </LanguageProvider>
   );
 }

@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { User } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
+import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 
 export type ActiveTab =
   | 'dashboard'
@@ -80,6 +81,7 @@ export const Navigation: React.FC<NavigationProps> = ({
   onOpenTour,
 }) => {
   const { lang, setLang, t, translateRole } = useLanguage();
+  const { can, isLoading: isLoadingPerms } = usePermission();
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -132,7 +134,9 @@ export const Navigation: React.FC<NavigationProps> = ({
       label: lang === 'id' ? 'Kepatuhan & Profil' : 'Dual-Compliance',
       icon: Shield,
     },
-    ...(authEnabled && ['HSE / Quality Manager & Tenant Admin', 'Office / Integrity Engineer'].includes(activeUser.role)
+    ...(authEnabled &&
+    !isLoadingPerms &&
+    (can(PERMISSIONS.ADMIN_ROLES) || can(PERMISSIONS.ADMIN_SETTINGS) || can(PERMISSIONS.ADMIN_USERS))
       ? [
           {
             id: 'settings' as ActiveTab,

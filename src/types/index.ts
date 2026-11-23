@@ -1,3 +1,5 @@
+export * from './permissions';
+
 export type UserRole =
   | 'Field / QC Inspector'
   | 'Action Owner / Subcontractor'

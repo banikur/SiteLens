@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { DailyWeatherLog, Project, User } from '../types';
 import { apiGetWeatherLogs, apiCreateWeatherLog } from '../services/api';
+import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 
 interface WeatherLogModalProps {
   project: Project;
@@ -89,7 +90,8 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
     }
   };
 
-  const isViewer = currentUser.role === 'Client / Vendor Viewer';
+  const { can, isLoading: isLoadingPerms } = usePermission();
+  const isViewer = isLoadingPerms || !can(PERMISSIONS.WEATHER_LOG, project.id);
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
