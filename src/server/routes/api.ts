@@ -19,6 +19,9 @@ import {
   dailyWeatherLogs,
   projectMembers,
   roleAssignments,
+  roles,
+  permissions,
+  rolePermissions,
 } from '../db/schema.ts';
 import { hashSecret } from '../auth/crypto.ts';
 import {
@@ -412,10 +415,222 @@ apiRouter.get(
     }
     const targetProjectId = String(req.params.projectId);
     const perms = await resolveUserPermissions(req.authUser.id, targetProjectId);
+    const effective = new Set([...perms.orgPermissions, ...perms.projectPermissions]);
     res.json({
       projectId: targetProjectId,
-      effectivePermissions: Array.from(perms.allEffectivePermissions),
+      effectivePermissions: Array.from(effective),
     });
+  }
+);
+
+// Blueprint Tahap 2b (Bagian 882 & Section F.5): Project metadata update
+apiRouter.put(
+  '/projects/:projectId',
+  requirePermission([PERMISSIONS.PROJECT_EDIT, PERMISSIONS.PROJECT_CREATE]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+    const projectId = String(req.params.projectId);
+    const [existing] = await db.select().from(projects).where(eq(projects.id, projectId as any));
+    if (!existing) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const { name, code, client, location, status, zones, leadManager, capaLockoutSeverities } = req.body ?? {};
+    const updates: Partial<typeof projects.$inferInsert> = {};
+    if (typeof name === 'string' && name.trim()) updates.name = name.trim();
+    if (typeof code === 'string' && code.trim()) updates.code = code.trim();
+    if (typeof client === 'string' && client.trim()) updates.client = client.trim();
+    if (typeof location === 'string' && location.trim()) updates.location = location.trim();
+    if (status && ['active', 'completed', 'on_hold'].includes(status)) updates.status = status;
+    if (Array.isArray(zones)) updates.zones = zones;
+    if (typeof leadManager === 'string' && leadManager.trim()) updates.leadManager = leadManager.trim();
+    if (Array.isArray(capaLockoutSeverities)) updates.capaLockoutSeverities = capaLockoutSeverities;
+
+    const [updated] = await db
+      .update(projects)
+      .set(updates)
+      .where(eq(projects.id, projectId as any))
+      .returning();
+
+    await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_PROJECT', 'project', projectId, updates);
+
+    res.json({ project: updated });
+  }
+);
+
+// Blueprint Tahap 2b (Bagian B.2 & Section 124): Project Members Management
+apiRouter.get(
+  '/projects/:projectId/members',
+  requirePermission([PERMISSIONS.PROJECT_MANAGE_MEMBERS, PERMISSIONS.ADMIN_USERS]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+    const projectId = String(req.params.projectId);
+
+    const rows = await db
+      .select({
+        id: roleAssignments.id,
+        userId: users.id,
+        username: users.username,
+        name: users.name,
+        email: users.email,
+        title: users.title,
+        avatar: users.avatar,
+        roleId: roles.id,
+        roleName: roles.name,
+        isSystem: roles.isSystem,
+        source: roleAssignments.source,
+        isActive: roleAssignments.isActive,
+        createdAt: roleAssignments.createdAt,
+      })
+      .from(roleAssignments)
+      .innerJoin(users, eq(roleAssignments.userId, users.id))
+      .innerJoin(roles, eq(roleAssignments.roleId, roles.id))
+      .where(
+        and(
+          eq(roleAssignments.scopeType, 'project'),
+          eq(roleAssignments.projectId, projectId as any),
+          eq(roleAssignments.isActive, true)
+        )
+      );
+
+    res.json({ members: rows });
+  }
+);
+
+apiRouter.post(
+  '/projects/:projectId/members',
+  requirePermission([PERMISSIONS.PROJECT_MANAGE_MEMBERS, PERMISSIONS.ADMIN_USERS]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+    const projectId = String(req.params.projectId);
+    const { userId, roleId } = req.body ?? {};
+
+    if (!userId || !roleId) {
+      res.status(400).json({ error: 'userId and roleId are required.' });
+      return;
+    }
+
+    const [targetProject] = await db.select().from(projects).where(eq(projects.id, projectId as any));
+    if (!targetProject) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const [targetUser] = await db.select().from(users).where(eq(users.id, userId as any));
+    if (!targetUser) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    const [targetRole] = await db.select().from(roles).where(eq(roles.id, String(roleId)));
+    if (!targetRole) {
+      res.status(404).json({ error: 'Role not found.' });
+      return;
+    }
+
+    // Upsert assignment for (userId, projectId)
+    const [existing] = await db
+      .select()
+      .from(roleAssignments)
+      .where(
+        and(
+          eq(roleAssignments.userId, userId as any),
+          eq(roleAssignments.projectId, projectId as any),
+          eq(roleAssignments.scopeType, 'project')
+        )
+      );
+
+    let assignment;
+    if (existing) {
+      [assignment] = await db
+        .update(roleAssignments)
+        .set({ roleId: String(roleId), isActive: true, source: 'manual' })
+        .where(eq(roleAssignments.id, existing.id))
+        .returning();
+    } else {
+      [assignment] = await db
+        .insert(roleAssignments)
+        .values({
+          userId: userId as any,
+          roleId: String(roleId),
+          scopeType: 'project',
+          projectId: projectId as any,
+          isActive: true,
+          source: 'manual',
+        })
+        .returning();
+    }
+
+    await logAudit(
+      req.authUser.id,
+      req.authUser.name,
+      'PROJECT_MEMBER_ASSIGNED',
+      'project',
+      projectId,
+      { userId, roleId, assignmentId: assignment.id }
+    );
+
+    res.status(201).json({ assignment });
+  }
+);
+
+apiRouter.delete(
+  '/projects/:projectId/members/:userId',
+  requirePermission([PERMISSIONS.PROJECT_MANAGE_MEMBERS, PERMISSIONS.ADMIN_USERS]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+    const projectId = String(req.params.projectId);
+    const userId = String(req.params.userId);
+
+    const [existing] = await db
+      .select()
+      .from(roleAssignments)
+      .where(
+        and(
+          eq(roleAssignments.userId, userId as any),
+          eq(roleAssignments.projectId, projectId as any),
+          eq(roleAssignments.scopeType, 'project'),
+          eq(roleAssignments.isActive, true)
+        )
+      );
+
+    if (!existing) {
+      res.status(404).json({ error: 'Project member assignment not found.' });
+      return;
+    }
+
+    await db
+      .update(roleAssignments)
+      .set({ isActive: false })
+      .where(eq(roleAssignments.id, existing.id));
+
+    await logAudit(
+      req.authUser.id,
+      req.authUser.name,
+      'PROJECT_MEMBER_REMOVED',
+      'project',
+      projectId,
+      { userId, assignmentId: existing.id }
+    );
+
+    res.status(204).end();
   }
 );
 
@@ -2632,6 +2847,431 @@ apiRouter.get(
         createdAt: l.createdAt.toISOString(),
       })),
     });
+  }
+);
+
+// Blueprint Tahap 2b: Role & Permission Editor API
+apiRouter.get(
+  '/admin/permissions',
+  requirePermission(PERMISSIONS.ADMIN_ROLES),
+  async (_req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+    const allPerms = await db.select().from(permissions);
+    res.json({ permissions: allPerms });
+  }
+);
+
+apiRouter.get(
+  '/admin/roles',
+  requirePermission(PERMISSIONS.ADMIN_ROLES),
+  async (_req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const allRoles = await db.select().from(roles);
+    const allRolePerms = await db.select().from(rolePermissions);
+
+    const permsMap = new Map<string, string[]>();
+    for (const rp of allRolePerms) {
+      if (!permsMap.has(rp.roleId)) permsMap.set(rp.roleId, []);
+      permsMap.get(rp.roleId)!.push(rp.permissionId);
+    }
+
+    const result = allRoles.map((r) => ({
+      ...r,
+      permissions: permsMap.get(r.id) ?? [],
+    }));
+
+    res.json({ roles: result });
+  }
+);
+
+apiRouter.post(
+  '/admin/roles',
+  requirePermission(PERMISSIONS.ADMIN_ROLES),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const { name, id, permissions: perms } = req.body ?? {};
+    if (!name || typeof name !== 'string' || name.trim().length < 2) {
+      res.status(400).json({ error: 'Role name must be at least 2 characters.' });
+      return;
+    }
+
+    const roleId =
+      typeof id === 'string' && id.trim()
+        ? id.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_')
+        : name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 50);
+
+    if (!roleId) {
+      res.status(400).json({ error: 'Invalid role id.' });
+      return;
+    }
+
+    const [existing] = await db.select().from(roles).where(eq(roles.id, roleId));
+    if (existing) {
+      res.status(409).json({ error: `Role with ID '${roleId}' already exists.` });
+      return;
+    }
+
+    const targetPermissions = Array.isArray(perms) ? perms.filter((p: unknown) => typeof p === 'string') : [];
+
+    const [createdRole] = await db.transaction(async (tx) => {
+      const [inserted] = await tx
+        .insert(roles)
+        .values({
+          id: roleId,
+          name: name.trim(),
+          isSystem: false,
+        })
+        .returning();
+
+      if (targetPermissions.length > 0) {
+        await tx.insert(rolePermissions).values(
+          targetPermissions.map((permissionId: string) => ({
+            roleId,
+            permissionId,
+          }))
+        );
+      }
+      return [inserted];
+    });
+
+    await logAudit(req.authUser.id, req.authUser.name, 'ROLE_CREATED', 'role', roleId, {
+      name: createdRole.name,
+      permissions: targetPermissions,
+    });
+
+    res.status(201).json({
+      role: {
+        ...createdRole,
+        permissions: targetPermissions,
+      },
+    });
+  }
+);
+
+apiRouter.put(
+  '/admin/roles/:id',
+  requirePermission(PERMISSIONS.ADMIN_ROLES),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const roleId = String(req.params.id);
+    const [existingRole] = await db.select().from(roles).where(eq(roles.id, roleId));
+    if (!existingRole) {
+      res.status(404).json({ error: 'Role not found.' });
+      return;
+    }
+
+    const { name, permissions: perms } = req.body ?? {};
+
+    // Super Admin protection: head_office_pmo cannot lose admin.roles or system.break_glass
+    if (roleId === 'head_office_pmo' && Array.isArray(perms)) {
+      if (!perms.includes(PERMISSIONS.ADMIN_ROLES) || !perms.includes(PERMISSIONS.SYSTEM_BREAK_GLASS)) {
+        res.status(400).json({
+          error: 'Role Administrator Utama (head_office_pmo) wajib memiliki izin admin.roles dan system.break_glass.',
+        });
+        return;
+      }
+    }
+
+    const updates: Partial<typeof roles.$inferInsert> = {
+      updatedAt: new Date(),
+    };
+    if (typeof name === 'string' && name.trim()) {
+      updates.name = name.trim();
+    }
+
+    await db.transaction(async (tx) => {
+      if (Object.keys(updates).length > 0) {
+        await tx.update(roles).set(updates).where(eq(roles.id, roleId));
+      }
+
+      if (Array.isArray(perms)) {
+        await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+        if (perms.length > 0) {
+          await tx.insert(rolePermissions).values(
+            perms.map((permissionId: string) => ({
+              roleId,
+              permissionId,
+            }))
+          );
+        }
+      }
+    });
+
+    const [updatedRole] = await db.select().from(roles).where(eq(roles.id, roleId));
+    const currentPerms = await db
+      .select({ permissionId: rolePermissions.permissionId })
+      .from(rolePermissions)
+      .where(eq(rolePermissions.roleId, roleId));
+
+    await logAudit(req.authUser.id, req.authUser.name, 'ROLE_UPDATED', 'role', roleId, {
+      name: updatedRole.name,
+      permissions: currentPerms.map((p) => p.permissionId),
+    });
+
+    res.json({
+      role: {
+        ...updatedRole,
+        permissions: currentPerms.map((p) => p.permissionId),
+      },
+    });
+  }
+);
+
+apiRouter.delete(
+  '/admin/roles/:id',
+  requirePermission(PERMISSIONS.ADMIN_ROLES),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const roleId = String(req.params.id);
+    const [existingRole] = await db.select().from(roles).where(eq(roles.id, roleId));
+    if (!existingRole) {
+      res.status(404).json({ error: 'Role not found.' });
+      return;
+    }
+
+    if (existingRole.isSystem) {
+      res.status(400).json({ error: 'Role bawaan sistem dilarang dihapus.' });
+      return;
+    }
+
+    // Check active assignments
+    const activeAssignments = await db
+      .select({ id: roleAssignments.id })
+      .from(roleAssignments)
+      .where(and(eq(roleAssignments.roleId, roleId), eq(roleAssignments.isActive, true)));
+
+    if (activeAssignments.length > 0) {
+      res.status(400).json({
+        error: 'Role masih digunakan oleh penugasan personil aktif.',
+      });
+      return;
+    }
+
+    await db.delete(roles).where(eq(roles.id, roleId));
+
+    await logAudit(req.authUser.id, req.authUser.name, 'ROLE_DELETED', 'role', roleId, {
+      name: existingRole.name,
+    });
+
+    res.status(204).end();
+  }
+);
+
+// Blueprint Tahap 2b: Role Assignment Management
+apiRouter.post(
+  '/admin/assignments',
+  requirePermission(PERMISSIONS.ADMIN_USERS),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const { userId, roleId, scopeType, projectId } = req.body ?? {};
+    if (!userId || !roleId || !scopeType) {
+      res.status(400).json({ error: 'userId, roleId, and scopeType are required.' });
+      return;
+    }
+
+    if (!['organization', 'project'].includes(scopeType)) {
+      res.status(400).json({ error: 'scopeType must be organization or project.' });
+      return;
+    }
+
+    if (scopeType === 'project' && !projectId) {
+      res.status(400).json({ error: 'projectId is required for project scope.' });
+      return;
+    }
+
+    const [targetUser] = await db.select().from(users).where(eq(users.id, userId as any));
+    if (!targetUser) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    const [targetRole] = await db.select().from(roles).where(eq(roles.id, String(roleId)));
+    if (!targetRole) {
+      res.status(404).json({ error: 'Role not found.' });
+      return;
+    }
+
+    let assignment;
+    if (scopeType === 'organization') {
+      const [existing] = await db
+        .select()
+        .from(roleAssignments)
+        .where(
+          and(
+            eq(roleAssignments.userId, userId as any),
+            eq(roleAssignments.scopeType, 'organization')
+          )
+        );
+
+      if (existing) {
+        // Last admin protection if demoting existing org admin
+        const targetPerms = await resolveUserPermissions(userId);
+        const isTargetAdmin = targetPerms.orgPermissions.has('admin.roles') || targetPerms.orgPermissions.has('admin.users');
+        if (isTargetAdmin && roleId !== 'head_office_pmo') {
+          const activeAdmins = await db
+            .select({ userId: roleAssignments.userId })
+            .from(roleAssignments)
+            .where(
+              and(
+                eq(roleAssignments.scopeType, 'organization'),
+                eq(roleAssignments.isActive, true),
+                eq(roleAssignments.roleId, 'head_office_pmo')
+              )
+            );
+          if (activeAdmins.filter((a) => a.userId !== userId).length === 0) {
+            res.status(409).json({ error: 'Cannot remove the last active tenant administrator.' });
+            return;
+          }
+        }
+
+        [assignment] = await db
+          .update(roleAssignments)
+          .set({ roleId: String(roleId), isActive: true, source: 'manual' })
+          .where(eq(roleAssignments.id, existing.id))
+          .returning();
+      } else {
+        [assignment] = await db
+          .insert(roleAssignments)
+          .values({
+            userId: userId as any,
+            roleId: String(roleId),
+            scopeType: 'organization',
+            projectId: null,
+            isActive: true,
+            source: 'manual',
+          })
+          .returning();
+      }
+    } else {
+      // project scope
+      const [existing] = await db
+        .select()
+        .from(roleAssignments)
+        .where(
+          and(
+            eq(roleAssignments.userId, userId as any),
+            eq(roleAssignments.projectId, projectId as any),
+            eq(roleAssignments.scopeType, 'project')
+          )
+        );
+
+      if (existing) {
+        [assignment] = await db
+          .update(roleAssignments)
+          .set({ roleId: String(roleId), isActive: true, source: 'manual' })
+          .where(eq(roleAssignments.id, existing.id))
+          .returning();
+      } else {
+        [assignment] = await db
+          .insert(roleAssignments)
+          .values({
+            userId: userId as any,
+            roleId: String(roleId),
+            scopeType: 'project',
+            projectId: projectId as any,
+            isActive: true,
+            source: 'manual',
+          })
+          .returning();
+      }
+    }
+
+    await logAudit(
+      req.authUser.id,
+      req.authUser.name,
+      'ROLE_ASSIGNMENT_CREATED',
+      'role_assignment',
+      assignment.id,
+      { userId, roleId, scopeType, projectId }
+    );
+
+    res.status(201).json({ assignment });
+  }
+);
+
+apiRouter.delete(
+  '/admin/assignments/:assignmentId',
+  requirePermission(PERMISSIONS.ADMIN_USERS),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const assignmentId = String(req.params.assignmentId);
+    const [existing] = await db
+      .select()
+      .from(roleAssignments)
+      .where(eq(roleAssignments.id, assignmentId as any));
+
+    if (!existing) {
+      res.status(404).json({ error: 'Role assignment not found.' });
+      return;
+    }
+
+    // Last admin protection
+    if (existing.scopeType === 'organization' && existing.roleId === 'head_office_pmo' && existing.isActive) {
+      const activeAdmins = await db
+        .select({ userId: roleAssignments.userId })
+        .from(roleAssignments)
+        .where(
+          and(
+            eq(roleAssignments.scopeType, 'organization'),
+            eq(roleAssignments.isActive, true),
+            eq(roleAssignments.roleId, 'head_office_pmo')
+          )
+        );
+      if (activeAdmins.filter((a) => a.userId !== existing.userId).length === 0) {
+        res.status(409).json({ error: 'Cannot remove the last active tenant administrator.' });
+        return;
+      }
+    }
+
+    await db
+      .update(roleAssignments)
+      .set({ isActive: false })
+      .where(eq(roleAssignments.id, existing.id));
+
+    await logAudit(
+      req.authUser.id,
+      req.authUser.name,
+      'ROLE_ASSIGNMENT_DELETED',
+      'role_assignment',
+      assignmentId,
+      { userId: existing.userId, roleId: existing.roleId, scopeType: existing.scopeType }
+    );
+
+    res.status(204).end();
   }
 );
 

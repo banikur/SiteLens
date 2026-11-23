@@ -311,28 +311,26 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                 return (
                   <div
                     key={stage.id}
-                    className={`rounded-xl border p-4 transition-all ${
-                      stage.status === 'approved'
+                    className={`rounded-xl border p-4 transition-all ${stage.status === 'approved'
                         ? 'border-emerald-200 bg-emerald-50/20 text-slate-900'
                         : stage.status === 'rejected'
-                        ? 'border-rose-200 bg-rose-50/30 text-slate-900'
-                        : isBlocked
-                        ? 'border-slate-200 bg-slate-50/60 opacity-80 text-slate-700'
-                        : 'border-slate-300 bg-white shadow-2xs text-slate-900'
-                    }`}
+                          ? 'border-rose-200 bg-rose-50/30 text-slate-900'
+                          : isBlocked
+                            ? 'border-slate-200 bg-slate-50/60 opacity-80 text-slate-700'
+                            : 'border-slate-300 bg-white shadow-2xs text-slate-900'
+                      }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                       <div className="flex items-start space-x-3">
                         <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold font-mono text-xs shrink-0 mt-0.5 ${
-                            stage.status === 'approved'
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold font-mono text-xs shrink-0 mt-0.5 ${stage.status === 'approved'
                               ? 'bg-[#d4f038] text-[#0b0e14]'
                               : stage.status === 'rejected'
-                              ? 'bg-rose-600 text-white'
-                              : isBlocked
-                              ? 'bg-slate-200 text-slate-500'
-                              : 'bg-[#0b0e14] text-white'
-                          }`}
+                                ? 'bg-rose-600 text-white'
+                                : isBlocked
+                                  ? 'bg-slate-200 text-slate-500'
+                                  : 'bg-[#0b0e14] text-white'
+                            }`}
                         >
                           {stage.stageOrder}
                         </div>
@@ -360,15 +358,14 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
 
                             {/* Status Pill */}
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
-                                stage.status === 'approved'
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${stage.status === 'approved'
                                   ? 'bg-slate-900 text-[#d4f038] border border-slate-800'
                                   : stage.status === 'rejected'
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
-                                  : stage.status === 'submitted'
-                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                  : 'bg-slate-100 text-slate-600 border border-slate-200'
-                              }`}
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                    : stage.status === 'submitted'
+                                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                }`}
                             >
                               {stage.status.toUpperCase()}
                             </span>
@@ -559,11 +556,10 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                       setTargetSigStage(submittingStage);
                       setSigCanvasOpen(true);
                     }}
-                    className={`p-3 rounded-lg border text-left flex flex-col justify-between transition-colors ${
-                      capturedDigitalSig
+                    className={`p-3 rounded-lg border text-left flex flex-col justify-between transition-colors ${capturedDigitalSig
                         ? 'border-slate-900 bg-slate-900 text-white'
                         : 'border-slate-300 hover:border-slate-400 bg-white'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center space-x-1.5 font-semibold text-xs">
                       <PenTool className={`w-3.5 h-3.5 ${capturedDigitalSig ? 'text-[#d4f038]' : 'text-slate-700'}`} />
@@ -580,11 +576,10 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                       setTargetSigStage(submittingStage);
                       setPhysicalModalOpen(true);
                     }}
-                    className={`p-3 rounded-lg border text-left flex flex-col justify-between transition-colors ${
-                      capturedWetScanUrl
+                    className={`p-3 rounded-lg border text-left flex flex-col justify-between transition-colors ${capturedWetScanUrl
                         ? 'border-slate-900 bg-slate-900 text-white'
                         : 'border-slate-300 hover:border-slate-400 bg-white'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center space-x-1.5 font-semibold text-xs">
                       <Printer className={`w-3.5 h-3.5 ${capturedWetScanUrl ? 'text-[#d4f038]' : 'text-slate-700'}`} />
@@ -700,11 +695,10 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                 <button
                   type="submit"
                   disabled={actionLoading}
-                  className={`px-4 py-2 rounded-lg font-bold flex items-center space-x-1 shadow-xs transition-colors ${
-                    reviewDecision === 'approved'
+                  className={`px-4 py-2 rounded-lg font-bold flex items-center space-x-1 shadow-xs transition-colors ${reviewDecision === 'approved'
                       ? 'bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14]'
                       : 'bg-rose-600 hover:bg-rose-500 text-white'
-                  }`}
+                    }`}
                 >
                   <FileCheck2 className="w-3.5 h-3.5" />
                   <span>Kirimkan keputusan</span>

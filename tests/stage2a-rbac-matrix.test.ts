@@ -401,11 +401,20 @@ test('Tahap 2a: RBAC Matrix, Route Registry Reflection & Isolation Verification'
     // 2. POST /api/projects/:projectId/scurve/override (F.5 row 9 manual curve override)
     // 3. POST /api/templates/import (template batch import)
     // 4. POST /api/templates/generate (AI-assisted checklist generation)
+    // Tahap 2b: Role & Permission Editor and Project Members routes
     const expectedAdditionalRoutes = new Set([
       'POST /api/notifications/test',
       'POST /api/projects/:projectId/scurve/override',
       'POST /api/templates/import',
       'POST /api/templates/generate',
+      'PUT /api/projects/:projectId',
+      'POST /api/projects/:projectId/members',
+      'DELETE /api/projects/:projectId/members/:userId',
+      'POST /api/admin/roles',
+      'PUT /api/admin/roles/:id',
+      'DELETE /api/admin/roles/:id',
+      'POST /api/admin/assignments',
+      'DELETE /api/admin/assignments/:assignmentId',
     ]);
 
     // Golden check 1: All 23 catalogue routes MUST exist in discovered Express registry

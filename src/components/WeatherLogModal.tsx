@@ -319,13 +319,12 @@ export const WeatherLogModal: React.FC<WeatherLogModalProps> = ({
                       </td>
                       <td className="py-2 px-3">
                         <span
-                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            log.workImpact === 'stop_total'
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${log.workImpact === 'stop_total'
                               ? 'bg-rose-100 text-rose-800'
                               : log.workImpact === 'parsial'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-slate-100 text-slate-600'
-                          }`}
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-slate-100 text-slate-600'
+                            }`}
                         >
                           {log.workImpact.replace('_', ' ')}
                         </span>

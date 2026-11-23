@@ -546,6 +546,145 @@ export async function apiCreateWeatherLog(
   });
 }
 
+// ---------------- TAHAP 2B: ROLES, PERMISSIONS & PROJECT MEMBERS ----------------
+
+export interface RoleWithPermissions {
+  id: string;
+  name: string;
+  isSystem: boolean;
+  permissions: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PermissionItem {
+  id: string;
+  module: string;
+  description: string;
+  scopeLevel: string;
+  createdAt?: string;
+}
+
+export interface ProjectMemberItem {
+  id: string;
+  userId: string;
+  username: string;
+  name: string;
+  email: string;
+  title: string;
+  avatar: string;
+  roleId: string;
+  roleName: string;
+  isSystem: boolean;
+  source: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export async function apiGetRoles(): Promise<{ roles: RoleWithPermissions[] }> {
+  return apiJson('/api/admin/roles');
+}
+
+export async function apiCreateRole(data: {
+  name: string;
+  id?: string;
+  permissions?: string[];
+}): Promise<{ role: RoleWithPermissions }> {
+  return apiJson('/api/admin/roles', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiUpdateRole(
+  id: string,
+  data: {
+    name?: string;
+    permissions?: string[];
+  }
+): Promise<{ role: RoleWithPermissions }> {
+  return apiJson(`/api/admin/roles/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteRole(id: string): Promise<void> {
+  const res = await fetch(`/api/admin/roles/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to delete role');
+  }
+}
+
+export async function apiGetPermissionsCatalog(): Promise<{ permissions: PermissionItem[] }> {
+  return apiJson('/api/admin/permissions');
+}
+
+export async function apiGetProjectMembers(projectId: string): Promise<{ members: ProjectMemberItem[] }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/members`);
+}
+
+export async function apiAddProjectMember(
+  projectId: string,
+  data: { userId: string; roleId: string }
+): Promise<{ assignment: any }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/members`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiRemoveProjectMember(projectId: string, userId: string): Promise<void> {
+  const res = await fetch(
+    `/api/projects/${encodeURIComponent(projectId)}/members/${encodeURIComponent(userId)}`,
+    {
+      method: 'DELETE',
+      credentials: 'include',
+    }
+  );
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to remove project member');
+  }
+}
+
+export async function apiAssignRole(data: {
+  userId: string;
+  roleId: string;
+  scopeType: 'organization' | 'project';
+  projectId?: string;
+}): Promise<{ assignment: any }> {
+  return apiJson('/api/admin/assignments', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteAssignment(assignmentId: string): Promise<void> {
+  const res = await fetch(`/api/admin/assignments/${encodeURIComponent(assignmentId)}`, {
+    method: 'DELETE',
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Failed to delete role assignment');
+  }
+}
+
+export async function apiUpdateProject(
+  projectId: string,
+  data: Partial<Project>
+): Promise<{ project: Project }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
 
 
 

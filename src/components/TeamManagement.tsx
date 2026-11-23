@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Award,
   UserCheck,
@@ -9,16 +9,27 @@ import {
   XCircle,
   X,
   Save,
+  Building2,
+  Shield,
 } from 'lucide-react';
-import { User, UserRole } from '../types';
+import { User, UserRole, Project } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { usePermission, PERMISSIONS } from '../hooks/usePermission';
+import {
+  apiGetRoles,
+  apiGetProjectMembers,
+  apiAddProjectMember,
+  apiRemoveProjectMember,
+  type RoleWithPermissions,
+  type ProjectMemberItem,
+} from '../services/api';
 
 interface TeamManagementProps {
   users: User[];
   activeUser: User;
   onSwitchUser: (userId: string) => void;
   onRefreshData?: () => void;
+  projects?: Project[];
 }
 
 const ROLE_DESCRIPTIONS_EN: Record<
@@ -148,6 +159,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
   activeUser,
   onSwitchUser,
   onRefreshData,
+  projects,
 }) => {
   const { lang, t, translateRole } = useLanguage();
   const isId = lang === 'id';
@@ -157,12 +169,88 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
     (can(PERMISSIONS.ADMIN_USERS) || can(PERMISSIONS.PROJECT_MANAGE_MEMBERS));
   const descriptions = isId ? ROLE_DESCRIPTIONS_ID : ROLE_DESCRIPTIONS_EN;
 
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(projects?.[0]?.id || '');
+  const [projectMembers, setProjectMembers] = useState<ProjectMemberItem[]>([]);
+  const [rolesList, setRolesList] = useState<RoleWithPermissions[]>([]);
+  const [assignModalUser, setAssignModalUser] = useState<User | null>(null);
+  const [assignRoleId, setAssignRoleId] = useState<string>('field_inspector');
+
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [resetPwdUser, setResetPwdUser] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    apiGetRoles()
+      .then((r) => setRolesList(r.roles))
+      .catch(() => {});
+  }, []);
+
+  const refreshProjectMembers = async () => {
+    if (!selectedProjectId) {
+      setProjectMembers([]);
+      return;
+    }
+    try {
+      const res = await apiGetProjectMembers(selectedProjectId);
+      setProjectMembers(res.members);
+    } catch {
+      setProjectMembers([]);
+    }
+  };
+
+  useEffect(() => {
+    void refreshProjectMembers();
+  }, [selectedProjectId]);
+
+  const handleAssignToProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!assignModalUser || !selectedProjectId) return;
+    setBusy(true);
+    setStatusMsg(null);
+    setErrorMsg(null);
+    try {
+      await apiAddProjectMember(selectedProjectId, {
+        userId: assignModalUser.id,
+        roleId: assignRoleId,
+      });
+      setStatusMsg(
+        isId
+          ? `${assignModalUser.name} berhasil ditugaskan ke proyek.`
+          : `${assignModalUser.name} successfully assigned to project.`
+      );
+      setAssignModalUser(null);
+      await refreshProjectMembers();
+      onRefreshData?.();
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Failed to assign project member');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemoveFromProject = async (targetUser: User) => {
+    if (!selectedProjectId) return;
+    setBusy(true);
+    setStatusMsg(null);
+    setErrorMsg(null);
+    try {
+      await apiRemoveProjectMember(selectedProjectId, targetUser.id);
+      setStatusMsg(
+        isId
+          ? `Penugasan ${targetUser.name} pada proyek telah dicabut.`
+          : `Assignment for ${targetUser.name} removed from project.`
+      );
+      await refreshProjectMembers();
+      onRefreshData?.();
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Failed to remove project member');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const [newUser, setNewUser] = useState({
     username: '',
@@ -293,6 +381,40 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
         </div>
       )}
 
+      {/* Project Membership Context Selector */}
+      {projects && projects.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center space-x-2.5">
+            <Building2 className="w-4 h-4 text-amber-500 shrink-0" />
+            <div>
+              <span className="font-bold text-slate-800">
+                {isId ? 'Penugasan Anggota per Proyek' : 'Project-Level Member Assignments'}
+              </span>
+              <p className="text-[11px] text-slate-500">
+                {isId
+                  ? 'Pilih proyek untuk melihat dan mengatur peran anggota di level proyek.'
+                  : 'Select a project to inspect and manage members and roles on that project.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <label className="font-semibold text-slate-600">{isId ? 'Proyek:' : 'Project:'}</label>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="px-3 py-1.5 border border-slate-300 rounded-lg bg-white font-semibold text-slate-800"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} ({p.code})
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      )}
+
       {/* Role Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {users.map((user) => {
@@ -305,11 +427,10 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
           return (
             <div
               key={user.id}
-              className={`bg-white rounded-xl border p-5 flex flex-col justify-between transition-all shadow-xs ${
-                isActive
+              className={`bg-white rounded-xl border p-5 flex flex-col justify-between transition-all shadow-xs ${isActive
                   ? 'border-amber-500 ring-2 ring-amber-500/20'
                   : 'border-slate-200 hover:border-slate-300'
-              }`}
+                }`}
             >
               <div>
                 {/* User Headshot and Role */}
@@ -383,6 +504,49 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                     </div>
                   </div>
                 )}
+
+                {/* Project-Specific Role & Assignment */}
+                {selectedProjectId && (
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                    <div className="flex items-center space-x-1.5 truncate">
+                      <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      {projectMembers.find((m) => m.userId === user.id) ? (
+                        <span className="font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 truncate">
+                          {projectMembers.find((m) => m.userId === user.id)?.roleName}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic">
+                          {isId ? 'Luar Proyek' : 'Not in Project'}
+                        </span>
+                      )}
+                    </div>
+
+                    {isTenantAdmin && (
+                      <div className="shrink-0 ml-2">
+                        {projectMembers.find((m) => m.userId === user.id) ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleRemoveFromProject(user)}
+                            className="text-red-600 hover:text-red-800 text-[10px] font-semibold"
+                          >
+                            {isId ? 'Cabut' : 'Remove'}
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAssignModalUser(user);
+                              setAssignRoleId(rolesList[0]?.id || 'field_inspector');
+                            }}
+                            className="text-amber-600 hover:text-amber-800 text-[10px] font-semibold"
+                          >
+                            + {isId ? 'Tugaskan' : 'Assign'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Action */}
@@ -390,11 +554,10 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                 <button
                   onClick={() => onSwitchUser(user.id)}
                   disabled={isActive}
-                  className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center ${
-                    isActive
+                  className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center ${isActive
                       ? 'bg-slate-100 text-slate-400 cursor-default'
                       : 'bg-slate-900 hover:bg-slate-800 text-white shadow-xs'
-                  }`}
+                    }`}
                 >
                   <UserCheck className="w-3.5 h-3.5 mr-1.5" />
                   {isActive
@@ -415,11 +578,10 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                     <button
                       type="button"
                       onClick={() => handleToggleActive(user)}
-                      className={`px-2.5 py-1 rounded border text-[11px] font-medium ${
-                        user.isActive === false
+                      className={`px-2.5 py-1 rounded border text-[11px] font-medium ${user.isActive === false
                           ? 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
                           : 'border-red-200 text-red-600 hover:bg-red-50'
-                      }`}
+                        }`}
                     >
                       {user.isActive === false ? (isId ? 'Aktifkan' : 'Activate') : isId ? 'Nonaktifkan' : 'Deactivate'}
                     </button>
@@ -598,6 +760,68 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({
                   className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
                 >
                   {busy ? '...' : isId ? 'Simpan Sandi' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ASSIGN TO PROJECT MODAL */}
+      {assignModalUser && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden text-slate-900">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+              <h2 className="text-sm font-bold flex items-center">
+                <Shield className="w-4 h-4 mr-2 text-amber-500" />
+                {isId ? 'Tugaskan ke Proyek' : 'Assign to Project'}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setAssignModalUser(null)}
+                className="p-1 rounded text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAssignToProject} className="p-5 space-y-4 text-xs">
+              <div>
+                <span className="block text-slate-500 mb-1">{isId ? 'Nama Personil:' : 'Member Name:'}</span>
+                <span className="font-bold text-slate-900 text-sm">{assignModalUser.name}</span>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {isId ? 'Pilih Peran Proyek' : 'Select Project Role'} *
+                </label>
+                <select
+                  value={assignRoleId}
+                  onChange={(e) => setAssignRoleId(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 bg-white"
+                >
+                  {rolesList.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name} {r.isSystem ? '(System)' : '(Custom)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-2 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setAssignModalUser(null)}
+                  className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-semibold"
+                >
+                  {isId ? 'Batal' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="px-4 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold"
+                >
+                  {busy ? '...' : isId ? 'Tugaskan' : 'Assign'}
                 </button>
               </div>
             </form>

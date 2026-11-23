@@ -135,15 +135,15 @@ export const Navigation: React.FC<NavigationProps> = ({
       icon: Shield,
     },
     ...(authEnabled &&
-    !isLoadingPerms &&
-    (can(PERMISSIONS.ADMIN_ROLES) || can(PERMISSIONS.ADMIN_SETTINGS) || can(PERMISSIONS.ADMIN_USERS))
+      !isLoadingPerms &&
+      (can(PERMISSIONS.ADMIN_ROLES) || can(PERMISSIONS.ADMIN_SETTINGS) || can(PERMISSIONS.ADMIN_USERS))
       ? [
-          {
-            id: 'settings' as ActiveTab,
-            label: lang === 'id' ? 'Notifikasi & Audit' : 'Alerts & Audit',
-            icon: Settings,
-          },
-        ]
+        {
+          id: 'settings' as ActiveTab,
+          label: lang === 'id' ? 'Notifikasi & Audit' : 'Alerts & Audit',
+          icon: Settings,
+        },
+      ]
       : []),
   ];
 
@@ -162,17 +162,15 @@ export const Navigation: React.FC<NavigationProps> = ({
           <div className="flex items-center bg-[#161c28] rounded p-0.5 border border-slate-700/80">
             <button
               onClick={() => setLang('en')}
-              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
-                lang === 'en' ? 'bg-[#d4f038] text-[#0b0e14]' : 'text-slate-400'
-              }`}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${lang === 'en' ? 'bg-[#d4f038] text-[#0b0e14]' : 'text-slate-400'
+                }`}
             >
               EN
             </button>
             <button
               onClick={() => setLang('id')}
-              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${
-                lang === 'id' ? 'bg-[#d4f038] text-[#0b0e14]' : 'text-slate-400'
-              }`}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition-colors ${lang === 'id' ? 'bg-[#d4f038] text-[#0b0e14]' : 'text-slate-400'
+                }`}
             >
               ID
             </button>
@@ -216,11 +214,10 @@ export const Navigation: React.FC<NavigationProps> = ({
                     onSelectTab(item.id);
                     setMobileMenuOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-medium transition-colors ${
-                    isActive
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-medium transition-colors ${isActive
                       ? 'bg-[#161c28] text-white font-semibold'
                       : 'text-slate-400 hover:text-slate-100'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center space-x-3">
                     <Icon className="w-4 h-4" />
@@ -263,21 +260,19 @@ export const Navigation: React.FC<NavigationProps> = ({
           >
             <button
               onClick={() => setLang('en')}
-              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
-                lang === 'en'
+              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${lang === 'en'
                   ? 'bg-[#d4f038] text-[#0b0e14] shadow-xs'
                   : 'text-slate-400 hover:text-white'
-              }`}
+                }`}
             >
               EN
             </button>
             <button
               onClick={() => setLang('id')}
-              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${
-                lang === 'id'
+              className={`px-2 py-1 rounded text-[10px] font-bold transition-colors ${lang === 'id'
                   ? 'bg-[#d4f038] text-[#0b0e14] shadow-xs'
                   : 'text-slate-400 hover:text-white'
-              }`}
+                }`}
             >
               ID
             </button>
@@ -296,19 +291,17 @@ export const Navigation: React.FC<NavigationProps> = ({
               <button
                 key={item.id}
                 onClick={() => onSelectTab(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors group ${
-                  isActive
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-colors group ${isActive
                     ? 'bg-[#161c28] text-white font-semibold'
                     : 'text-slate-300 hover:text-white hover:bg-slate-850'
-                }`}
+                  }`}
               >
                 <div className="flex items-center space-x-3">
                   <Icon
-                    className={`w-4 h-4 transition-colors ${
-                      isActive
+                    className={`w-4 h-4 transition-colors ${isActive
                         ? 'text-[#d4f038]'
                         : 'text-slate-400 group-hover:text-slate-200'
-                    }`}
+                      }`}
                   />
                   <span>{item.label}</span>
                 </div>
@@ -319,9 +312,8 @@ export const Navigation: React.FC<NavigationProps> = ({
                 )}
                 {item.badge && (
                   <span
-                    className={`text-[10px] font-mono tabular-nums font-medium ${
-                      item.badgeAlert ? 'text-rose-400' : 'text-[#d4f038]'
-                    }`}
+                    className={`text-[10px] font-mono tabular-nums font-medium ${item.badgeAlert ? 'text-rose-400' : 'text-[#d4f038]'
+                      }`}
                   >
                     {item.badge}
                   </span>
@@ -477,11 +469,10 @@ export const Navigation: React.FC<NavigationProps> = ({
                       onSwitchUser(u.id);
                       setUserDropdownOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-2 flex items-center space-x-2.5 transition-colors ${
-                      u.id === activeUser.id
+                    className={`w-full text-left px-3 py-2 flex items-center space-x-2.5 transition-colors ${u.id === activeUser.id
                         ? 'bg-slate-800 text-white font-semibold'
                         : 'text-slate-300 hover:bg-slate-850 hover:text-white'
-                    }`}
+                      }`}
                   >
                     <img
                       src={u.avatar}

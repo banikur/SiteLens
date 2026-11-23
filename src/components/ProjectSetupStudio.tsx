@@ -367,11 +367,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
         <button
           type="button"
           onClick={() => setActiveStudioTab('wbs')}
-          className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${
-            activeStudioTab === 'wbs'
+          className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${activeStudioTab === 'wbs'
               ? 'border-[#0b0e14] text-slate-900 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
+            }`}
         >
           <FolderTree className="w-4 h-4 text-slate-700" />
           <span>1. Struktur WBS & Bobot</span>
@@ -384,11 +383,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
             setActiveStudioTab('scurve');
             loadSCurveData();
           }}
-          className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${
-            activeStudioTab === 'scurve'
+          className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${activeStudioTab === 'scurve'
               ? 'border-[#0b0e14] text-slate-900 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
+            }`}
         >
           <TrendingUp className="w-4 h-4 text-slate-700" />
           <span>2. Kurva S Mingguan & Deviasi</span>
@@ -398,11 +396,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
         <button
           type="button"
           onClick={() => setActiveStudioTab('radar')}
-          className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${
-            activeStudioTab === 'radar'
+          className={`pb-3 flex items-center space-x-2 transition-colors border-b-2 ${activeStudioTab === 'radar'
               ? 'border-[#0b0e14] text-slate-900 font-bold'
               : 'border-transparent text-slate-500 hover:text-slate-900'
-          }`}
+            }`}
         >
           <Clock className="w-4 h-4 text-slate-700" />
           <span>3. Bottleneck Radar SLA</span>
@@ -426,11 +423,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex items-center space-x-3">
                 <div
-                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                    weightValidation.rootTotal === 100
+                  className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${weightValidation.rootTotal === 100
                       ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
                       : 'bg-amber-50 border border-amber-200 text-amber-700'
-                  }`}
+                    }`}
                 >
                   {weightValidation.rootTotal === 100 ? (
                     <CheckCircle className="w-5 h-5" />
@@ -444,11 +440,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                       Total bobot root proyek:
                     </span>
                     <span
-                      className={`font-mono text-xs tabular-nums font-bold px-2 py-0.5 rounded ${
-                        weightValidation.rootTotal === 100
+                      className={`font-mono text-xs tabular-nums font-bold px-2 py-0.5 rounded ${weightValidation.rootTotal === 100
                           ? 'bg-emerald-100 text-emerald-800'
                           : 'bg-amber-100 text-amber-800'
-                      }`}
+                        }`}
                     >
                       {weightValidation.rootTotal.toFixed(2)}%
                     </span>
@@ -509,11 +504,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               <button
                 type="button"
                 onClick={() => setWbsSubView('canvas')}
-                className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
-                  wbsSubView === 'canvas'
+                className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${wbsSubView === 'canvas'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
               >
                 <Layers className="w-3.5 h-3.5" />
                 <span>Working Tree Canvas (Draw.io)</span>
@@ -521,11 +515,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               <button
                 type="button"
                 onClick={() => setWbsSubView('table')}
-                className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
-                  wbsSubView === 'table'
+                className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${wbsSubView === 'table'
                     ? 'bg-white text-slate-900 shadow-xs'
                     : 'text-slate-600 hover:text-slate-900'
-                }`}
+                  }`}
               >
                 <FolderTree className="w-3.5 h-3.5" />
                 <span>Tabel Hirarkis</span>
@@ -630,9 +623,8 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                           return (
                             <tr
                               key={node.id}
-                              className={`hover:bg-slate-50/80 transition-colors ${
-                                node.level === 0 ? 'bg-slate-50/40 font-semibold' : ''
-                              }`}
+                              className={`hover:bg-slate-50/80 transition-colors ${node.level === 0 ? 'bg-slate-50/40 font-semibold' : ''
+                                }`}
                             >
                               {/* WBS Code & Name with dynamic indentation */}
                               <td className="py-2.5 px-4">
@@ -662,11 +654,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                                   </span>
                                   <div className="truncate">
                                     <span
-                                      className={`${
-                                        node.level === 0
+                                      className={`${node.level === 0
                                           ? 'text-slate-900 font-bold'
                                           : 'text-slate-700'
-                                      }`}
+                                        }`}
                                     >
                                       {node.name}
                                     </span>
@@ -832,7 +823,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               </div>
             </>
           )}
-      </>
+        </>
       )}
 
       {/* Tab 2: Kurva S Mingguan & Deviasi */}

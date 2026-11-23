@@ -43,7 +43,7 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
 
   const { can, isLoading: isLoadingPerms } = usePermission();
   const canOverride =
-    !isLoadingPerms &&
+  !isLoadingPerms &&
     (can(PERMISSIONS.SCURVE_OVERRIDE, (scurve as any).projectId) || can(PERMISSIONS.SCURVE_OVERRIDE));
 
   const points = scurve.points || [];
@@ -288,11 +288,10 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
           <button
             type="button"
             onClick={() => setViewMode('both')}
-            className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
-              viewMode === 'both'
+            className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${viewMode === 'both'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Grafik & Tabel Matriks</span>
@@ -300,11 +299,10 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
           <button
             type="button"
             onClick={() => setViewMode('table')}
-            className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
-              viewMode === 'table'
+            className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${viewMode === 'table'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
           >
             <Table className="w-3.5 h-3.5" />
             <span>Hanya Tabel Matriks</span>
@@ -312,11 +310,10 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
           <button
             type="button"
             onClick={() => setViewMode('chart')}
-            className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
-              viewMode === 'chart'
+            className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${viewMode === 'chart'
                 ? 'bg-white text-slate-900 shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
-            }`}
+              }`}
           >
             <TrendingUp className="w-3.5 h-3.5" />
             <span>Hanya Grafik Garis</span>
@@ -375,22 +372,20 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
           </span>
           <div className="flex items-baseline space-x-2 mt-1">
             <span
-              className={`text-xl font-mono tabular-nums font-bold ${
-                scurve.currentVariance >= 0 ? 'text-emerald-700' : 'text-rose-600'
-              }`}
+              className={`text-xl font-mono tabular-nums font-bold ${scurve.currentVariance >= 0 ? 'text-emerald-700' : 'text-rose-600'
+                }`}
             >
               {scurve.currentVariance >= 0
                 ? `+${scurve.currentVariance.toFixed(2)}%`
                 : `${scurve.currentVariance.toFixed(2)}%`}
             </span>
             <span
-              className={`px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums font-semibold ${
-                scurve.status === 'ahead'
+              className={`px-1.5 py-0.5 rounded text-[10px] font-mono tabular-nums font-semibold ${scurve.status === 'ahead'
                   ? 'bg-emerald-100 text-emerald-800'
                   : scurve.status === 'delayed'
-                  ? 'bg-rose-100 text-rose-800'
-                  : 'bg-slate-100 text-slate-700'
-              }`}
+                    ? 'bg-rose-100 text-rose-800'
+                    : 'bg-slate-100 text-slate-700'
+                }`}
             >
               {scurve.status === 'ahead' ? 'Ahead' : scurve.status === 'delayed' ? 'Delayed' : 'On-Track'}
             </span>
@@ -691,11 +686,10 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                     return (
                       <th
                         key={p.weekIndex}
-                        className={`py-1.5 px-2 text-center border-r border-slate-200 min-w-[85px] ${
-                          isCurrent
+                        className={`py-1.5 px-2 text-center border-r border-slate-200 min-w-[85px] ${isCurrent
                             ? 'bg-[#d4f038]/20 border-b-2 border-b-[#0b0e14] text-slate-950 font-bold'
                             : 'bg-slate-100 text-slate-700'
-                        }`}
+                          }`}
                       >
                         <div className="font-mono font-bold leading-tight">
                           W#{p.weekIndex}
@@ -720,9 +714,8 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                   return (
                     <tr
                       key={node.id}
-                      className={`hover:bg-slate-50 transition-colors ${
-                        isParent ? 'bg-slate-50/50 font-semibold' : ''
-                      }`}
+                      className={`hover:bg-slate-50 transition-colors ${isParent ? 'bg-slate-50/50 font-semibold' : ''
+                        }`}
                     >
                       {/* NO (WBS Code) */}
                       <td className="py-2 px-2 text-center font-mono text-[11px] font-bold text-slate-700 border-r border-slate-200 sticky left-0 bg-white z-0">
@@ -741,9 +734,8 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                             <span className="text-slate-400 font-mono text-[10px]">└</span>
                           )}
                           <span
-                            className={`truncate ${
-                              isParent ? 'text-slate-900 font-bold' : 'text-slate-700'
-                            }`}
+                            className={`truncate ${isParent ? 'text-slate-900 font-bold' : 'text-slate-700'
+                              }`}
                           >
                             {node.name}
                           </span>
@@ -780,9 +772,8 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                         return (
                           <td
                             key={p.weekIndex}
-                            className={`py-1.5 px-2 text-center font-mono tabular-nums text-[11px] border-r border-slate-200 ${
-                              isCurrent ? 'bg-[#d4f038]/5' : ''
-                            }`}
+                            className={`py-1.5 px-2 text-center font-mono tabular-nums text-[11px] border-r border-slate-200 ${isCurrent ? 'bg-[#d4f038]/5' : ''
+                              }`}
                           >
                             {planVal > 0 || (verVal !== null && verVal > 0) ? (
                               <div className="space-y-0.5">
@@ -790,11 +781,10 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                                   R: {planVal.toFixed(2)}%
                                 </div>
                                 <div
-                                  className={`text-[10px] font-bold ${
-                                    verVal !== null && verVal > 0
+                                  className={`text-[10px] font-bold ${verVal !== null && verVal > 0
                                       ? 'text-emerald-700'
                                       : 'text-slate-400'
-                                  }`}
+                                    }`}
                                 >
                                   {verVal !== null ? `V: ${verVal.toFixed(2)}%` : '-'}
                                 </div>
@@ -838,13 +828,12 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                     return (
                       <td
                         key={p.weekIndex}
-                        className={`py-1.5 px-2 text-center tabular-nums font-bold border-r border-slate-200 ${
-                          isFuture
+                        className={`py-1.5 px-2 text-center tabular-nums font-bold border-r border-slate-200 ${isFuture
                             ? 'text-slate-300'
                             : isCurrent
-                            ? 'bg-[#d4f038]/20 text-slate-950 font-bold'
-                            : 'text-slate-800'
-                        }`}
+                              ? 'bg-[#d4f038]/20 text-slate-950 font-bold'
+                              : 'text-slate-800'
+                          }`}
                       >
                         {!isFuture ? `${p.verifiedIncremental.toFixed(2)}%` : '-'}
                       </td>
@@ -869,13 +858,12 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                     return (
                       <td
                         key={p.weekIndex}
-                        className={`py-2 px-2 text-center tabular-nums font-bold border-r border-slate-800 ${
-                          isFuture
+                        className={`py-2 px-2 text-center tabular-nums font-bold border-r border-slate-800 ${isFuture
                             ? 'text-slate-600'
                             : isCurrent
-                            ? 'bg-[#d4f038] text-[#0b0e14] font-black'
-                            : 'text-[#d4f038]'
-                        }`}
+                              ? 'bg-[#d4f038] text-[#0b0e14] font-black'
+                              : 'text-[#d4f038]'
+                          }`}
                       >
                         {!isFuture ? `${p.verifiedCumulative.toFixed(2)}%` : '-'}
                       </td>
@@ -899,9 +887,8 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                     return (
                       <td
                         key={p.weekIndex}
-                        className={`py-1.5 px-2 text-center tabular-nums font-semibold border-r border-slate-200 ${
-                          isCurrent ? 'bg-[#d4f038]/20 font-bold text-slate-950' : 'text-slate-700'
-                        }`}
+                        className={`py-1.5 px-2 text-center tabular-nums font-semibold border-r border-slate-200 ${isCurrent ? 'bg-[#d4f038]/20 font-bold text-slate-950' : 'text-slate-700'
+                          }`}
                       >
                         {p.targetIncremental.toFixed(2)}%
                       </td>
@@ -925,9 +912,8 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                     return (
                       <td
                         key={p.weekIndex}
-                        className={`py-1.5 px-2 text-center tabular-nums border-r border-slate-200 ${
-                          isCurrent ? 'bg-[#d4f038]/20 font-bold text-slate-950' : 'text-slate-700'
-                        }`}
+                        className={`py-1.5 px-2 text-center tabular-nums border-r border-slate-200 ${isCurrent ? 'bg-[#d4f038]/20 font-bold text-slate-950' : 'text-slate-700'
+                          }`}
                       >
                         {p.targetCumulative.toFixed(2)}%
                       </td>
@@ -955,13 +941,12 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                     return (
                       <td
                         key={p.weekIndex}
-                        className={`py-1.5 px-2 text-center tabular-nums font-bold border-r border-slate-200 ${
-                          isFuture
+                        className={`py-1.5 px-2 text-center tabular-nums font-bold border-r border-slate-200 ${isFuture
                             ? 'text-slate-300'
                             : isPositive
-                            ? 'text-emerald-700'
-                            : 'text-rose-600'
-                        }`}
+                              ? 'text-emerald-700'
+                              : 'text-rose-600'
+                          }`}
                       >
                         {!isFuture
                           ? isPositive
@@ -972,9 +957,8 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                     );
                   })}
                   <td
-                    className={`py-2 px-3 text-right font-bold tabular-nums ${
-                      scurve.currentVariance >= 0 ? 'text-emerald-700' : 'text-rose-600'
-                    }`}
+                    className={`py-2 px-3 text-right font-bold tabular-nums ${scurve.currentVariance >= 0 ? 'text-emerald-700' : 'text-rose-600'
+                      }`}
                   >
                     {scurve.currentVariance >= 0
                       ? `+${scurve.currentVariance.toFixed(2)}%`

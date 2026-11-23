@@ -111,14 +111,14 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
       location: selectedZone,
       ...(integrity
         ? {
-            sha256: integrity.sha256,
-            sizeBytes: integrity.size,
-            integrityVersion: 1,
-            gps: integrity.gps,
-            gpsSource: integrity.gpsSource,
-            capturedAt: integrity.capturedAt,
-            capturedAtSource: integrity.capturedAtSource,
-          }
+          sha256: integrity.sha256,
+          sizeBytes: integrity.size,
+          integrityVersion: 1,
+          gps: integrity.gps,
+          gpsSource: integrity.gpsSource,
+          capturedAt: integrity.capturedAt,
+          capturedAtSource: integrity.capturedAtSource,
+        }
         : {}),
     };
 
@@ -214,10 +214,10 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
       evidencePhotos,
       signatureData: signatureStamped
         ? {
-            signedBy: currentUser.name,
-            signedAt: new Date().toLocaleTimeString(),
-            signatureType: 'digital_stamp',
-          }
+          signedBy: currentUser.name,
+          signedAt: new Date().toLocaleTimeString(),
+          signatureType: 'digital_stamp',
+        }
         : undefined,
       scorePercent,
       passedCount: passed,
@@ -286,13 +286,12 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                 {t.execution.liveCompliance}
               </span>
               <div
-                className={`text-2xl font-extrabold font-mono tabular-nums leading-tight ${
-                  scorePercent >= 90
+                className={`text-2xl font-extrabold font-mono tabular-nums leading-tight ${scorePercent >= 90
                     ? 'text-emerald-600'
                     : scorePercent >= 75
-                    ? 'text-amber-600'
-                    : 'text-rose-600'
-                }`}
+                      ? 'text-amber-600'
+                      : 'text-rose-600'
+                  }`}
               >
                 {scorePercent}%
               </div>
@@ -448,11 +447,10 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                             <button
                               type="button"
                               onClick={() => handleAnswerChange(field.id, 'pass')}
-                              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center transition-all ${
-                                answers[field.id] === 'pass'
+                              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center transition-all ${answers[field.id] === 'pass'
                                   ? 'bg-emerald-600 text-white shadow-xs'
                                   : 'text-slate-600 hover:text-emerald-700'
-                              }`}
+                                }`}
                             >
                               <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                               {t.common.pass}
@@ -460,11 +458,10 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                             <button
                               type="button"
                               onClick={() => handleAnswerChange(field.id, 'fail')}
-                              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center transition-all ${
-                                answers[field.id] === 'fail'
+                              className={`px-3 py-1.5 rounded-md text-xs font-bold flex items-center transition-all ${answers[field.id] === 'fail'
                                   ? 'bg-rose-600 text-white shadow-xs'
                                   : 'text-slate-600 hover:text-rose-700'
-                              }`}
+                                }`}
                             >
                               <XCircle className="w-3.5 h-3.5 mr-1" />
                               {t.common.fail}
@@ -472,11 +469,10 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                             <button
                               type="button"
                               onClick={() => handleAnswerChange(field.id, 'na')}
-                              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                                answers[field.id] === 'na'
+                              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${answers[field.id] === 'na'
                                   ? 'bg-slate-800 text-white'
                                   : 'text-slate-500 hover:text-slate-900'
-                              }`}
+                                }`}
                             >
                               {t.common.na}
                             </button>
@@ -488,22 +484,20 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                             <button
                               type="button"
                               onClick={() => handleAnswerChange(field.id, 'yes')}
-                              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
-                                answers[field.id] === 'yes'
+                              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${answers[field.id] === 'yes'
                                   ? 'bg-slate-900 text-white'
                                   : 'text-slate-600 hover:bg-slate-200'
-                              }`}
+                                }`}
                             >
                               {t.common.yes}
                             </button>
                             <button
                               type="button"
                               onClick={() => handleAnswerChange(field.id, 'no')}
-                              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${
-                                answers[field.id] === 'no'
+                              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${answers[field.id] === 'no'
                                   ? 'bg-slate-900 text-white'
                                   : 'text-slate-600 hover:bg-slate-200'
-                              }`}
+                                }`}
                             >
                               {t.common.no}
                             </button>
@@ -519,11 +513,10 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                                 key={opt}
                                 type="button"
                                 onClick={() => handleAnswerChange(field.id, opt)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                                  answers[field.id] === opt
+                                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${answers[field.id] === opt
                                     ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
                                     : 'border-slate-300 text-slate-700 hover:bg-slate-50'
-                                }`}
+                                  }`}
                               >
                                 {opt}
                               </button>
@@ -557,15 +550,14 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                                 </span>
                                 {typeof answers[field.id] === 'number' && !Number.isNaN(answers[field.id]) && (
                                   <span
-                                    className={`ml-2 font-bold ${
-                                      (field.minThreshold !== undefined && answers[field.id] < field.minThreshold) ||
-                                      (field.maxThreshold !== undefined && answers[field.id] > field.maxThreshold)
+                                    className={`ml-2 font-bold ${(field.minThreshold !== undefined && answers[field.id] < field.minThreshold) ||
+                                        (field.maxThreshold !== undefined && answers[field.id] > field.maxThreshold)
                                         ? 'text-red-600'
                                         : 'text-emerald-600'
-                                    }`}
+                                      }`}
                                   >
                                     {(field.minThreshold !== undefined && answers[field.id] < field.minThreshold) ||
-                                    (field.maxThreshold !== undefined && answers[field.id] > field.maxThreshold)
+                                      (field.maxThreshold !== undefined && answers[field.id] > field.maxThreshold)
                                       ? 'OUT OF SPEC'
                                       : 'IN SPEC'}
                                   </span>
@@ -679,17 +671,16 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
                                   `signed_by_${currentUser.name}`
                                 );
                               }}
-                              className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-all ${
-                                signatureStamped
+                              className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-all ${signatureStamped
                                   ? 'border-emerald-500 bg-emerald-50 text-emerald-800'
                                   : 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50'
-                              }`}
+                                }`}
                             >
                               {signatureStamped
                                 ? t.execution.stampedBy.replace(
-                                    '{name}',
-                                    currentUser.name
-                                  )
+                                  '{name}',
+                                  currentUser.name
+                                )
                                 : t.execution.authenticateSignoff}
                             </button>
                           </div>
@@ -762,9 +753,9 @@ export const InspectionExecution: React.FC<InspectionExecutionProps> = ({
           <p className="text-xs text-slate-500 mt-0.5">
             {template.requiresApproval
               ? t.execution.submitRequiresApproval.replace(
-                  '{role}',
-                  translateRole(template.approvalRole || 'Authorized Inspector (API 510/570) & Verifikator K3')
-                )
+                '{role}',
+                translateRole(template.approvalRole || 'Authorized Inspector (API 510/570) & Verifikator K3')
+              )
               : t.execution.submitDirectSignoff}
           </p>
         </div>

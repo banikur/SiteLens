@@ -19,8 +19,8 @@ import {
 // -----------------------------------------------------------------------------
 // F.3: Complete Permissions Catalog
 // -----------------------------------------------------------------------------
-import { PERMISSIONS, type PermissionKey } from '../../types/permissions.ts';
-export { PERMISSIONS, type PermissionKey };
+  import { PERMISSIONS, type PermissionKey } from '../../types/permissions.ts';
+  export { PERMISSIONS, type PermissionKey };
 
 export interface PermissionDefinition {
   id: PermissionKey;

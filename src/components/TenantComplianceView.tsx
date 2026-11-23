@@ -153,8 +153,8 @@ export const TenantComplianceView: React.FC<TenantComplianceViewProps> = ({
               {profile.targetSmk3Level === 'AWAL_64'
                 ? 'Tingkat Awal (64 Kriteria)'
                 : profile.targetSmk3Level === 'TRANSISI_122'
-                ? 'Tingkat Transisi (122 Kriteria)'
-                : 'Tingkat Lanjutan (166 Kriteria)'}
+                  ? 'Tingkat Transisi (122 Kriteria)'
+                  : 'Tingkat Lanjutan (166 Kriteria)'}
             </span>
           </div>
           {isTenantAdmin && (
@@ -174,11 +174,10 @@ export const TenantComplianceView: React.FC<TenantComplianceViewProps> = ({
 
       {message && (
         <div
-          className={`p-3.5 rounded-xl text-xs font-semibold flex items-center justify-between ${
-            message.type === 'success'
+          className={`p-3.5 rounded-xl text-xs font-semibold flex items-center justify-between ${message.type === 'success'
               ? 'bg-emerald-50 text-emerald-900 border border-emerald-200'
               : 'bg-rose-50 text-rose-900 border border-rose-200'
-          }`}
+            }`}
         >
           <span>{message.text}</span>
           <button onClick={() => setMessage(null)} className="text-slate-400 hover:text-slate-600">✕</button>
@@ -188,24 +187,22 @@ export const TenantComplianceView: React.FC<TenantComplianceViewProps> = ({
       {/* KPI & Status Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {/* Card 1: SMK3 Award Status */}
-        <div className={`p-5 rounded-2xl border shadow-xs relative overflow-hidden bg-white ${
-          isDisqualified
+        <div className={`p-5 rounded-2xl border shadow-xs relative overflow-hidden bg-white ${isDisqualified
             ? 'border-rose-300 ring-2 ring-rose-500/20'
             : profile.smk3AwardStatus === 'MEMUASKAN_EMAS'
-            ? 'border-amber-300'
-            : 'border-slate-200'
-        }`}>
+              ? 'border-amber-300'
+              : 'border-slate-200'
+          }`}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Predikat Audit SMK3 PP 50/2012
             </span>
-            <Award className={`w-5 h-5 ${
-              isDisqualified
+            <Award className={`w-5 h-5 ${isDisqualified
                 ? 'text-rose-600'
                 : profile.smk3AwardStatus === 'MEMUASKAN_EMAS'
-                ? 'text-amber-500'
-                : 'text-slate-400'
-            }`} />
+                  ? 'text-amber-500'
+                  : 'text-slate-400'
+              }`} />
           </div>
 
           <div className="my-2">
@@ -264,9 +261,8 @@ export const TenantComplianceView: React.FC<TenantComplianceViewProps> = ({
         </div>
 
         {/* Card 2: Chemical Hazard Installation (Kepmenaker 187/1999) */}
-        <div className={`p-5 rounded-2xl border shadow-xs relative overflow-hidden bg-white ${
-          isMajorHazard ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
-        }`}>
+        <div className={`p-5 rounded-2xl border shadow-xs relative overflow-hidden bg-white ${isMajorHazard ? 'border-rose-300 bg-rose-50/20' : 'border-slate-200'
+          }`}>
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Klasifikasi BKB (Kepmenaker 187/1999)
@@ -276,11 +272,10 @@ export const TenantComplianceView: React.FC<TenantComplianceViewProps> = ({
 
           <div className="my-2">
             <div className="flex items-center gap-2">
-              <span className={`text-xs font-extrabold px-3 py-1.5 rounded-lg border ${
-                isMajorHazard
+              <span className={`text-xs font-extrabold px-3 py-1.5 rounded-lg border ${isMajorHazard
                   ? 'bg-rose-600 text-white border-rose-700'
                   : 'bg-emerald-50 text-emerald-800 border-emerald-300'
-              }`}>
+                }`}>
                 {isMajorHazard ? 'POTENSI BAHAYA BESAR' : 'POTENSI BAHAYA MENENGAH'}
               </span>
               <span className="font-mono text-xs font-bold text-slate-600">
@@ -444,11 +439,10 @@ export const TenantComplianceView: React.FC<TenantComplianceViewProps> = ({
                     </span>
                   </td>
                   <td colSpan={isTenantAdmin ? 2 : 1} className="py-3 px-4 text-center">
-                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
-                      profile.chemicalCumulativeRatio > 1.0
+                    <span className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${profile.chemicalCumulativeRatio > 1.0
                         ? 'bg-rose-600 text-white'
                         : 'bg-emerald-600 text-white'
-                    }`}>
+                      }`}>
                       {profile.chemicalHazardStatus.replace(/_/g, ' ')}
                     </span>
                   </td>
@@ -512,13 +506,12 @@ export const TenantComplianceView: React.FC<TenantComplianceViewProps> = ({
                     <div className="flex items-center justify-center gap-2">
                       <div className="w-16 bg-slate-200 rounded-full h-2 overflow-hidden">
                         <div
-                          className={`h-2 rounded-full ${
-                            elem.complianceRate >= 85
+                          className={`h-2 rounded-full ${elem.complianceRate >= 85
                               ? 'bg-emerald-500'
                               : elem.complianceRate >= 60
-                              ? 'bg-amber-500'
-                              : 'bg-rose-500'
-                          }`}
+                                ? 'bg-amber-500'
+                                : 'bg-rose-500'
+                            }`}
                           style={{ width: `${elem.complianceRate}%` }}
                         />
                       </div>

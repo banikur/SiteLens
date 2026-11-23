@@ -522,7 +522,7 @@ function SiteLensWorkspace() {
         onLogout={async () => {
           try {
             await logoutSession();
-          } catch {}
+          } catch { }
           setAuthUser(null);
         }}
         isOnline={isOnline}
@@ -702,6 +702,7 @@ function SiteLensWorkspace() {
               activeUser={currentUser}
               onSwitchUser={handleSwitchUser}
               onRefreshData={() => void refreshAllData()}
+              projects={projects}
             />
           )}
         </main>

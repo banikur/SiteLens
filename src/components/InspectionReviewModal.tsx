@@ -117,13 +117,12 @@ export const InspectionReviewModal: React.FC<InspectionReviewModalProps> = ({
                 {t.reviewModal.complianceScore}
               </span>
               <span
-                className={`font-mono font-extrabold text-sm block mt-0.5 ${
-                  inspection.scorePercent >= 90
+                className={`font-mono font-extrabold text-sm block mt-0.5 ${inspection.scorePercent >= 90
                     ? 'text-emerald-600'
                     : inspection.scorePercent >= 75
-                    ? 'text-amber-600'
-                    : 'text-rose-600'
-                }`}
+                      ? 'text-amber-600'
+                      : 'text-rose-600'
+                  }`}
               >
                 {inspection.scorePercent}%
               </span>
@@ -187,19 +186,18 @@ export const InspectionReviewModal: React.FC<InspectionReviewModalProps> = ({
                     {t.reviewModal.fieldKey}: {key}
                   </span>
                   <span
-                    className={`font-semibold text-xs ${
-                      val === 'pass'
+                    className={`font-semibold text-xs ${val === 'pass'
                         ? 'text-emerald-700'
                         : val === 'fail'
-                        ? 'text-rose-700'
-                        : 'text-slate-800'
-                    }`}
+                          ? 'text-rose-700'
+                          : 'text-slate-800'
+                      }`}
                   >
                     {val === 'pass'
                       ? t.common.pass
                       : val === 'fail'
-                      ? t.common.fail
-                      : String(val)}
+                        ? t.common.fail
+                        : String(val)}
                   </span>
                 </div>
               ))}
