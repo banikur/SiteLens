@@ -361,6 +361,41 @@ export async function apiApplyWbsPreset(
   }
 }
 
+export async function apiBatchAddWbsDetails(
+  projectId: string,
+  parentId: string,
+  children: Array<Partial<WorkNode>>
+): Promise<{
+  success: boolean;
+  count: number;
+  detailingStatus: string;
+  nodes: WorkNode[];
+}> {
+  return await apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(parentId)}/details-batch`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ children }),
+    }
+  );
+}
+
+export async function apiApproveWbsDetails(
+  projectId: string,
+  parentId: string
+): Promise<{
+  success: boolean;
+  approvedCount: number;
+  nodes: WorkNode[];
+}> {
+  return await apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(parentId)}/approve-details`,
+    {
+      method: 'POST',
+    }
+  );
+}
+
 // ---------------- STAGE WORKFLOW & DUAL-TRACK SIGNATURES (FASE 3) ----------------
 
 export async function apiGetNodeWorkflow(

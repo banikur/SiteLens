@@ -111,6 +111,7 @@ export const projects = pgTable('projects', {
   sites: jsonb('sites').$type<ProjectSite[]>().notNull().default([]),
   leadManager: text('lead_manager').notNull(),
   flowPresetId: uuid('flow_preset_id').references(() => flowPresets.id, { onDelete: 'set null' }),
+  requirePmApprovalForDetailing: boolean('require_pm_approval_for_detailing').notNull().default(false),
   capaLockoutSeverities: text('capa_lockout_severities')
     .array()
     .notNull()
@@ -284,6 +285,10 @@ export const workNodes = pgTable('work_nodes', {
   activeRevision: text('active_revision'),
   claimedProgressPercent: integer('claimed_progress_percent').notNull().default(0),
   verifiedProgressPercent: integer('verified_progress_percent').notNull().default(0),
+  allowDetailing: boolean('allow_detailing').notNull().default(false),
+  detailingStatus: text('detailing_status').$type<'active' | 'pending_pm_approval' | 'rejected'>().notNull().default('active'),
+  volume: numeric('volume', { precision: 12, scale: 2 }),
+  unit: text('unit'),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

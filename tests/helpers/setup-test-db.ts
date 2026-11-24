@@ -75,6 +75,31 @@ export async function ensureTestDatabaseSchema() {
       ALTER TABLE "inspection_attempts" ADD COLUMN IF NOT EXISTS "requested_at" timestamp with time zone;
     EXCEPTION WHEN duplicate_column THEN null;
     END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "require_pm_approval_for_detailing" boolean DEFAULT false NOT NULL;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "allow_detailing" boolean DEFAULT false NOT NULL;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "detailing_status" text DEFAULT 'active' NOT NULL;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "volume" numeric(12, 2);
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "unit" text;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
   `);
 
   if (needsInit) {
@@ -115,6 +140,7 @@ export async function ensureTestDatabaseSchema() {
         "sites" jsonb DEFAULT '[]'::jsonb NOT NULL,
         "lead_manager" text NOT NULL,
         "flow_preset_id" uuid REFERENCES "flow_presets"("id") ON DELETE SET NULL,
+        "require_pm_approval_for_detailing" boolean DEFAULT false NOT NULL,
         "capa_lockout_severities" text[] DEFAULT ARRAY['critical', 'high']::text[] NOT NULL,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
@@ -331,6 +357,10 @@ export async function ensureTestDatabaseSchema() {
         "active_revision" text,
         "claimed_progress_percent" integer DEFAULT 0 NOT NULL,
         "verified_progress_percent" integer DEFAULT 0 NOT NULL,
+        "allow_detailing" boolean DEFAULT false NOT NULL,
+        "detailing_status" text DEFAULT 'active' NOT NULL,
+        "volume" numeric(12, 2),
+        "unit" text,
         "sort_order" integer DEFAULT 0 NOT NULL,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL,
         "updated_at" timestamp with time zone DEFAULT now() NOT NULL

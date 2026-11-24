@@ -433,6 +433,16 @@ export const WbsCanvasStudio: React.FC<WbsCanvasStudioProps> = ({
 
                   {/* Drag Handle & Level badge */}
                   <div className="flex items-center space-x-1 text-slate-500">
+                    {node.allowDetailing && (
+                      <span className="text-[8px] font-mono px-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800" title="Detailing diizinkan">
+                        Detailing OK
+                      </span>
+                    )}
+                    {node.detailingStatus === 'pending_pm_approval' && (
+                      <span className="text-[8px] font-mono px-1 rounded bg-amber-950 text-amber-400 border border-amber-800" title="Menunggu approval PM">
+                        Pending PM
+                      </span>
+                    )}
                     <span className="text-[9px] uppercase tracking-wider font-semibold px-1 rounded bg-slate-800 text-slate-400">
                       {isRoot ? 'Phase' : 'Task'}
                     </span>

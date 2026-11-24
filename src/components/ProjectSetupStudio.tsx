@@ -90,6 +90,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
   const [formAssignedEngineerName, setFormAssignedEngineerName] = useState('Dave Kowalski (Site Engineer)');
   const [formAssignedQcId, setFormAssignedQcId] = useState('usr-hse-1');
   const [formAssignedQcName, setFormAssignedQcName] = useState('Elena Rostova (QA/QC Lead)');
+  const [formAllowDetailing, setFormAllowDetailing] = useState(false);
 
   // Search & filter
   const [searchQuery, setSearchQuery] = useState('');
@@ -183,6 +184,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
     setFormAssignedEngineerName('Dave Kowalski (Site Engineer)');
     setFormAssignedQcId('usr-hse-1');
     setFormAssignedQcName('Elena Rostova (QA/QC Lead)');
+    setFormAllowDetailing(false);
     setNodeModalOpen(true);
   };
 
@@ -202,6 +204,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
     setFormAssignedEngineerName(node.assignedEngineerName || 'Dave Kowalski (Site Engineer)');
     setFormAssignedQcId(node.assignedQcId || 'usr-hse-1');
     setFormAssignedQcName(node.assignedQcName || 'Elena Rostova (QA/QC Lead)');
+    setFormAllowDetailing(Boolean(node.allowDetailing));
     setNodeModalOpen(true);
   };
 
@@ -229,6 +232,10 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
         assignedQcId: formAssignedQcId || null,
         assignedQcName: formAssignedQcName || null,
       };
+
+      if (can(PERMISSIONS.WBS_EDIT_STRUCTURE, project.id)) {
+        payload.allowDetailing = formAllowDetailing;
+      }
 
       if (editingNode) {
         await apiUpdateWbsNode(project.id, editingNode.id, payload);
@@ -1137,6 +1144,25 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                   </div>
                 </div>
               </div>
+
+              {can(PERMISSIONS.WBS_EDIT_STRUCTURE, project.id) && (
+                <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50">
+                  <div>
+                    <span className="font-bold text-slate-800 text-xs block">
+                      Izinkan Rincian Lapangan (allow_detailing)
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      Site Officer dapat menambahkan sub-aktivitas detail di bawah paket kerja ini.
+                    </span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={formAllowDetailing}
+                    onChange={(e) => setFormAllowDetailing(e.target.checked)}
+                    className="w-4 h-4 rounded text-slate-900 focus:ring-slate-800 border-slate-300 cursor-pointer"
+                  />
+                </div>
+              )}
 
               <div className="pt-4 border-t border-slate-100 flex items-center justify-end space-x-2.5">
                 <button

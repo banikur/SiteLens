@@ -31,6 +31,7 @@ export interface SSOTNodeData {
   plannedEndDate?: Date | string | null;
   claimedProgressPercent?: number;
   verifiedProgressPercent?: number;
+  detailingStatus?: 'active' | 'pending_pm_approval' | 'rejected' | string;
   updatedAt?: Date | string | null;
 }
 
@@ -79,7 +80,8 @@ export function computeLeafAttributions(nodes: SSOTNodeData[]): LeafAbsoluteAttr
   const attributions: LeafAbsoluteAttribution[] = [];
 
   function traverse(node: SSOTNodeData, parentAbsoluteShare: number) {
-    const children = childrenMap.get(node.id) || [];
+    const rawChildren = childrenMap.get(node.id) || [];
+    const children = rawChildren.filter((c) => !c.detailingStatus || c.detailingStatus === 'active');
     if (children.length === 0) {
       // Leaf node
       attributions.push({

@@ -259,6 +259,7 @@ export interface Project {
   leadManager: string;
   capaLockoutSeverities?: string[];
   flowPresetId?: string | null;
+  requirePmApprovalForDetailing?: boolean;
   activeInspectionsCount: number;
   openIssuesCount: number;
   complianceRate: number;
@@ -354,6 +355,8 @@ export interface WorkNode {
   activeRevision?: string | null;
   claimedProgressPercent: number;
   verifiedProgressPercent: number;
+  allowDetailing?: boolean;
+  detailingStatus?: 'active' | 'pending_pm_approval' | 'rejected';
   sortOrder: number;
   volume?: number | string | null;
   unit?: string | null;

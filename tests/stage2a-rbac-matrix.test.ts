@@ -420,6 +420,9 @@ test('Tahap 2a: RBAC Matrix, Route Registry Reflection & Isolation Verification'
       'POST /api/flow-presets',
       'PUT /api/flow-presets/:id',
       'DELETE /api/flow-presets/:id',
+      // Tahap 3b: WBS allow_detailing & Batch Detailing
+      'POST /api/projects/:projectId/wbs/nodes/:parentId/details-batch',
+      'POST /api/projects/:projectId/wbs/nodes/:parentId/approve-details',
     ]);
 
     // Golden check 1: All 23 catalogue routes MUST exist in discovered Express registry

@@ -9,6 +9,7 @@ export interface RollupNode {
   weightPercent: string | number;
   verifiedProgressPercent?: number;
   claimedProgressPercent?: number;
+  detailingStatus?: 'active' | 'pending_pm_approval' | 'rejected' | string;
 }
 
 export interface RollupProgressResult {
@@ -49,8 +50,13 @@ export function computeHierarchicalRollups(nodes: RollupNode[]): Map<string, Rol
     }
 
     const children = childrenMap.get(nodeId);
-    // If leaf node (no children), return its current progress directly
-    if (!children || children.length === 0) {
+    // Only active children contribute to parent progress rollup
+    const activeChildren = (children || []).filter(
+      (c) => !c.detailingStatus || c.detailingStatus === 'active'
+    );
+
+    // If leaf node (no active children), return its current progress directly
+    if (activeChildren.length === 0) {
       const leafRes: RollupProgressResult = {
         verifiedProgressPercent: Number(node.verifiedProgressPercent) || 0,
         claimedProgressPercent: Number(node.claimedProgressPercent) || 0,
@@ -59,12 +65,12 @@ export function computeHierarchicalRollups(nodes: RollupNode[]): Map<string, Rol
       return leafRes;
     }
 
-    // Non-leaf (parent) node: compute weighted average of children
+    // Non-leaf (parent) node: compute weighted average of active children
     let totalChildWeight = 0;
     let weightedVerified = 0;
     let weightedClaimed = 0;
 
-    for (const child of children) {
+    for (const child of activeChildren) {
       const childRes = calculateNode(child.id);
       const weight = Number(child.weightPercent) || 0;
       totalChildWeight += weight;
@@ -121,6 +127,7 @@ export async function recalculateAndSaveNodeRollups(
       weightPercent: workNodes.weightPercent,
       verifiedProgressPercent: workNodes.verifiedProgressPercent,
       claimedProgressPercent: workNodes.claimedProgressPercent,
+      detailingStatus: workNodes.detailingStatus,
     })
     .from(workNodes)
     .where(eq(workNodes.projectId, projectId as any));

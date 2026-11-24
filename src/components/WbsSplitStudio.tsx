@@ -37,6 +37,7 @@ import {
   apiSubmitStageAttempt,
   apiReviewStageAttempt,
   apiUpdateWbsNode,
+  apiApproveWbsDetails,
 } from '../services/api';
 import {
   buildWbsTree,
@@ -73,6 +74,11 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   onDeleteNode,
   onOpenPresetModal,
 }) => {
+  // Granular Permissions
+  const { can, isLoading: isLoadingPerms } = usePermission();
+  const canEditStructure = !isLoadingPerms && can(PERMISSIONS.WBS_EDIT_STRUCTURE, project.id);
+  const canEditDetail = !isLoadingPerms && can(PERMISSIONS.WBS_EDIT_DETAIL, project.id);
+
   // Tree & selection state
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,8 +123,10 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   const [inlineEndDate, setInlineEndDate] = useState('');
   const [inlineEngineerName, setInlineEngineerName] = useState('');
   const [inlineQcName, setInlineQcName] = useState('');
+  const [inlineAllowDetailing, setInlineAllowDetailing] = useState(false);
   const [inlineSaving, setInlineSaving] = useState(false);
   const [inlineSaveSuccess, setInlineSaveSuccess] = useState(false);
+  const [approvingDetailsLoading, setApprovingDetailsLoading] = useState(false);
 
   // Drag and drop reparenting states
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
@@ -203,7 +211,6 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
     }
   };
 
-  const { can, isLoading: isLoadingPerms } = usePermission();
   const canExecute = !isLoadingPerms && can(PERMISSIONS.STAGE_EXECUTE, project.id);
   const canApprove = !isLoadingPerms && can(PERMISSIONS.STAGE_APPROVE, project.id);
   const canRequest = !isLoadingPerms && can(PERMISSIONS.STAGE_REQUEST, project.id);
@@ -238,6 +245,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       setInlineEndDate(selectedNode.plannedEndDate ? String(selectedNode.plannedEndDate).slice(0, 10) : '');
       setInlineEngineerName(selectedNode.assignedEngineerName || 'Dave Kowalski (Site Engineer)');
       setInlineQcName(selectedNode.assignedQcName || 'Elena Rostova (QA/QC Lead)');
+      setInlineAllowDetailing(Boolean(selectedNode.allowDetailing));
       setInlineSaveSuccess(false);
 
       // Reset action states
@@ -435,6 +443,10 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
         assignedQcName: inlineQcName || null,
       };
 
+      if (canEditStructure) {
+        payload.allowDetailing = inlineAllowDetailing;
+      }
+
       await apiUpdateWbsNode(project.id, selectedNode.id, payload);
       setInlineSaveSuccess(true);
       await onRefreshWbs();
@@ -443,6 +455,20 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       alert(err?.message || 'Gagal menyimpan pembaruan node.');
     } finally {
       setInlineSaving(false);
+    }
+  };
+
+  const handleApprovePendingDetails = async () => {
+    if (!selectedNode) return;
+    try {
+      setApprovingDetailsLoading(true);
+      await apiApproveWbsDetails(project.id, selectedNode.parentId || selectedNode.id);
+      await onRefreshWbs();
+      alert('Rincian detail berhasil disetujui PM dan kini aktif di Kurva-S!');
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menyetujui rincian detail.');
+    } finally {
+      setApprovingDetailsLoading(false);
     }
   };
 
@@ -673,6 +699,24 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       </span>
                     </div>
 
+                    {/* Detailing Status & Allow Detailing Badges */}
+                    {node.allowDetailing && (
+                      <span
+                        className="px-1 py-0.2 rounded text-[9px] font-mono font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0"
+                        title="Simpul ini mengizinkan penambahan rincian detail oleh Site Officer (allow_detailing = true)"
+                      >
+                        Detailing OK
+                      </span>
+                    )}
+                    {node.detailingStatus === 'pending_pm_approval' && (
+                      <span
+                        className="px-1 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-300 shrink-0"
+                        title="Menunggu persetujuan PM sebelum aktif di Kurva-S"
+                      >
+                        Pending PM
+                      </span>
+                    )}
+
                     {/* Drop indication badge */}
                     {isDragOver && (
                       <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 text-[9px] font-mono font-bold shrink-0 shadow-2xs">
@@ -772,6 +816,20 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                         ? 'Phase'
                         : 'Task Item'}
                     </span>
+                    {selectedNode.allowDetailing ? (
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        Detailing Diizinkan
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                        Struktur Baku
+                      </span>
+                    )}
+                    {selectedNode.detailingStatus === 'pending_pm_approval' && (
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                        Menunggu Persetujuan PM
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -836,6 +894,26 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* Pending PM Approval Action Banner */}
+              {selectedNode.detailingStatus === 'pending_pm_approval' && (
+                <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs flex items-center justify-between gap-2 shadow-2xs">
+                  <div className="flex items-center space-x-2 text-amber-900">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Aktivitas ini diajukan oleh Site Officer dan menunggu persetujuan PM untuk aktif di Kurva-S.</span>
+                  </div>
+                  {canEditStructure && (
+                    <button
+                      type="button"
+                      disabled={approvingDetailsLoading}
+                      onClick={handleApprovePendingDetails}
+                      className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shrink-0 shadow-2xs transition-colors"
+                    >
+                      {approvingDetailsLoading ? 'Memproses...' : 'Setujui Rincian PM'}
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Tab Switcher inside Right Panel */}
               <div className="flex items-center space-x-1 mt-2 border-b border-slate-200 pt-0.5">
@@ -1361,6 +1439,30 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                         className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900"
                       />
                     </div>
+                  </div>
+
+                  {/* Allow Detailing Switch */}
+                  <div className="flex items-center justify-between p-2.5 rounded-lg border border-slate-200 bg-white">
+                    <div>
+                      <span className="font-bold text-slate-800 text-xs block">
+                        Izinkan Rincian Lapangan (allow_detailing)
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        {canEditStructure
+                          ? 'Jika aktif, Site Officer dapat menambahkan sub-aktivitas detail di bawah paket kerja ini.'
+                          : 'Hanya Project Manager / Head Office yang dapat mengubah izin rincian lapangan.'}
+                      </span>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        disabled={!canEditStructure}
+                        checked={inlineAllowDetailing}
+                        onChange={(e) => setInlineAllowDetailing(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600 peer-disabled:opacity-50"></div>
+                    </label>
                   </div>
 
                   <div className="pt-3 border-t border-slate-200 flex items-center justify-between">

@@ -499,7 +499,7 @@ apiRouter.put(
       return;
     }
 
-    const { name, code, client, location, status, zones, sites, leadManager, capaLockoutSeverities, teamMembers } = req.body ?? {};
+    const { name, code, client, location, status, zones, sites, leadManager, capaLockoutSeverities, requirePmApprovalForDetailing, teamMembers } = req.body ?? {};
     const updates: Partial<typeof projects.$inferInsert> = {};
     if (typeof name === 'string' && name.trim()) updates.name = name.trim();
     if (typeof code === 'string' && code.trim()) updates.code = code.trim();
@@ -516,6 +516,7 @@ apiRouter.put(
     }
     if (typeof leadManager === 'string' && leadManager.trim()) updates.leadManager = leadManager.trim();
     if (Array.isArray(capaLockoutSeverities)) updates.capaLockoutSeverities = capaLockoutSeverities;
+    if (typeof requirePmApprovalForDetailing === 'boolean') updates.requirePmApprovalForDetailing = requirePmApprovalForDetailing;
 
     const [updated] = await db.transaction(async (tx) => {
       const [proj] = await tx
@@ -799,7 +800,10 @@ apiRouter.post(
 
     const projectScopeId = String(req.params.projectId || '');
     const [targetProject] = await db
-      .select({ id: projects.id })
+      .select({
+        id: projects.id,
+        requirePmApprovalForDetailing: projects.requirePmApprovalForDetailing,
+      })
       .from(projects)
       .where(eq(projects.id, projectScopeId as any))
       .limit(1);
@@ -816,9 +820,10 @@ apiRouter.post(
     }
 
     const verifiedParentId = body.parentId || null;
+    let parentNode: any = null;
     if (verifiedParentId) {
       const [parent] = await db
-        .select({ id: workNodes.id })
+        .select()
         .from(workNodes)
         .where(and(eq(workNodes.id, verifiedParentId), eq(workNodes.projectId, targetProject.id)))
         .limit(1);
@@ -826,7 +831,54 @@ apiRouter.post(
         res.status(400).json({ error: 'Parent WBS node not found in this project.' });
         return;
       }
+      parentNode = parent;
     }
+
+    // Check granular permissions (wbs.edit_structure vs wbs.edit_detail)
+    const userPerms = await resolveUserPermissions(req.authUser.id, targetProject.id);
+    const hasStructurePerm =
+      userPerms.orgPermissions.has(PERMISSIONS.WBS_EDIT_STRUCTURE) ||
+      userPerms.projectPermissions.has(PERMISSIONS.WBS_EDIT_STRUCTURE);
+    const hasDetailPerm =
+      userPerms.orgPermissions.has(PERMISSIONS.WBS_EDIT_DETAIL) ||
+      userPerms.projectPermissions.has(PERMISSIONS.WBS_EDIT_DETAIL);
+
+    if (!hasStructurePerm && hasDetailPerm) {
+      // Detail-only user (Site Officer / Planner)
+      if (!verifiedParentId || !parentNode) {
+        res.status(400).json({ error: 'Simpul induk (parentId) wajib disertakan untuk penambahan rincian aktivitas.' });
+        return;
+      }
+
+      if (!parentNode.allowDetailing) {
+        res.status(403).json({
+          error: 'Penambahan detail dilarang pada paket kerja ini (allow_detailing = false).',
+        });
+        return;
+      }
+
+      // Check if parent node has approved stages or verified progress
+      const approvedStages = await db
+        .select({ id: workStages.id })
+        .from(workStages)
+        .innerJoin(workWorkflows, eq(workStages.workflowId, workWorkflows.id))
+        .where(and(eq(workWorkflows.nodeId, parentNode.id), eq(workStages.status, 'approved')))
+        .limit(1);
+
+      if (approvedStages.length > 0 || Number(parentNode.verifiedProgressPercent) > 0) {
+        res.status(400).json({
+          error: 'Simpul WBS telah memiliki tahapan yang disetujui; pemecahan wajib melalui Change Request.',
+        });
+        return;
+      }
+    }
+
+    const detailingStatus =
+      !hasStructurePerm && targetProject.requirePmApprovalForDetailing
+        ? 'pending_pm_approval'
+        : (body.detailingStatus || 'active');
+
+    const allowDetailing = hasStructurePerm && body.allowDetailing !== undefined ? Boolean(body.allowDetailing) : false;
 
     const [newNode] = await db
       .insert(workNodes)
@@ -843,9 +895,17 @@ apiRouter.post(
         activeRevision: body.activeRevision || null,
         claimedProgressPercent: Number(body.claimedProgressPercent) || 0,
         verifiedProgressPercent: Number(body.verifiedProgressPercent) || 0,
+        allowDetailing,
+        detailingStatus,
+        volume: body.volume != null && String(body.volume).trim() !== '' ? String(body.volume) : null,
+        unit: body.unit ? String(body.unit).trim() : null,
         sortOrder: Number(body.sortOrder) || 0,
       })
       .returning();
+
+    if (detailingStatus === 'active') {
+      await recalculateAndSaveNodeRollups(db, targetProject.id);
+    }
 
     await logAudit(req.authUser.id, req.authUser.name, 'CREATE_WBS_NODE', 'work_node', newNode.id, {
       projectId: targetProject.id,
@@ -933,6 +993,32 @@ apiRouter.put(
       }
     }
 
+    const userPerms = await resolveUserPermissions(req.authUser.id, projectScopeId);
+    const hasStructurePerm =
+      userPerms.orgPermissions.has(PERMISSIONS.WBS_EDIT_STRUCTURE) ||
+      userPerms.projectPermissions.has(PERMISSIONS.WBS_EDIT_STRUCTURE);
+
+    if (
+      !hasStructurePerm &&
+      body.allowDetailing !== undefined &&
+      Boolean(body.allowDetailing) !== existingNode.allowDetailing
+    ) {
+      res.status(403).json({
+        error: 'Hanya pemegang wbs.edit_structure yang dapat mengubah allow_detailing.',
+      });
+      return;
+    }
+
+    const updatedAllowDetailing =
+      hasStructurePerm && body.allowDetailing !== undefined
+        ? Boolean(body.allowDetailing)
+        : existingNode.allowDetailing;
+
+    const updatedDetailingStatus =
+      hasStructurePerm && body.detailingStatus !== undefined
+        ? body.detailingStatus
+        : existingNode.detailingStatus;
+
     const [updatedNode] = await db
       .update(workNodes)
       .set({
@@ -946,11 +1032,17 @@ apiRouter.put(
         activeRevision: body.activeRevision !== undefined ? body.activeRevision : existingNode.activeRevision,
         claimedProgressPercent: body.claimedProgressPercent !== undefined ? Number(body.claimedProgressPercent) : existingNode.claimedProgressPercent,
         verifiedProgressPercent: body.verifiedProgressPercent !== undefined ? Number(body.verifiedProgressPercent) : existingNode.verifiedProgressPercent,
+        allowDetailing: updatedAllowDetailing,
+        detailingStatus: updatedDetailingStatus,
+        volume: body.volume !== undefined ? (body.volume != null && String(body.volume).trim() !== '' ? String(body.volume) : null) : existingNode.volume,
+        unit: body.unit !== undefined ? (body.unit ? String(body.unit).trim() : null) : existingNode.unit,
         sortOrder: body.sortOrder !== undefined ? Number(body.sortOrder) : existingNode.sortOrder,
         updatedAt: new Date(),
       })
       .where(eq(workNodes.id, existingNode.id))
       .returning();
+
+    await recalculateAndSaveNodeRollups(db, projectScopeId);
 
     await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_WBS_NODE', 'work_node', updatedNode.id, {
       wbsCode: updatedNode.wbsCode,
@@ -996,6 +1088,222 @@ apiRouter.delete(
     });
 
     res.json({ success: true, deletedId: existingNode.id });
+  }
+);
+
+// Blueprint Tahap 3b (Section 9.2 & Section H.3b): Atomic Batch Detailing
+apiRouter.post(
+  '/projects/:projectId/wbs/nodes/:parentId/details-batch',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requirePermission([PERMISSIONS.WBS_EDIT_STRUCTURE, PERMISSIONS.WBS_EDIT_DETAIL]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectId = String(req.params.projectId);
+    const parentId = String(req.params.parentId);
+
+    const [project] = await db
+      .select()
+      .from(projects)
+      .where(eq(projects.id, projectId as any))
+      .limit(1);
+
+    if (!project) {
+      res.status(404).json({ error: 'Project not found.' });
+      return;
+    }
+
+    const [parent] = await db
+      .select()
+      .from(workNodes)
+      .where(and(eq(workNodes.id, parentId as any), eq(workNodes.projectId, project.id)))
+      .limit(1);
+
+    if (!parent) {
+      res.status(404).json({ error: 'Parent WBS node not found in this project.' });
+      return;
+    }
+
+    const userPerms = await resolveUserPermissions(req.authUser.id, project.id);
+    const hasStructurePerm =
+      userPerms.orgPermissions.has(PERMISSIONS.WBS_EDIT_STRUCTURE) ||
+      userPerms.projectPermissions.has(PERMISSIONS.WBS_EDIT_STRUCTURE);
+
+    if (!hasStructurePerm) {
+      // Detail-only user (Site Officer): Must check allowDetailing
+      if (!parent.allowDetailing) {
+        res.status(403).json({
+          error: 'Penambahan detail dilarang pada paket kerja ini (allow_detailing = false).',
+        });
+        return;
+      }
+
+      // Must check if parent has approved stages or verified progress
+      const approvedStages = await db
+        .select({ id: workStages.id })
+        .from(workStages)
+        .innerJoin(workWorkflows, eq(workStages.workflowId, workWorkflows.id))
+        .where(and(eq(workWorkflows.nodeId, parent.id), eq(workStages.status, 'approved')))
+        .limit(1);
+
+      if (approvedStages.length > 0 || Number(parent.verifiedProgressPercent) > 0) {
+        res.status(400).json({
+          error: 'Simpul WBS telah memiliki tahapan yang disetujui; pemecahan wajib melalui Change Request.',
+        });
+        return;
+      }
+    }
+
+    const { children } = req.body ?? {};
+    if (!Array.isArray(children) || children.length === 0) {
+      res.status(400).json({ error: 'Array children wajib diisi.' });
+      return;
+    }
+
+    // Sum sibling weights - MUST equal 100.00% within 0.01 tolerance
+    let sumWeight = 0;
+    for (const child of children) {
+      if (!child.name || !child.wbsCode) {
+        res.status(400).json({ error: 'Setiap child wajib memiliki wbsCode dan name.' });
+        return;
+      }
+      const w = Number(child.weightPercent);
+      if (isNaN(w) || w <= 0) {
+        res.status(400).json({ error: 'Bobot setiap child wajib lebih besar dari 0%.' });
+        return;
+      }
+      sumWeight += w;
+    }
+
+    if (Math.abs(sumWeight - 100.0) > 0.01) {
+      res.status(400).json({
+        error: `Total bobot sibling wajib tepat 100.00% (saat ini ${sumWeight.toFixed(2)}%).`,
+      });
+      return;
+    }
+
+    const detailingStatus =
+      !hasStructurePerm && project.requirePmApprovalForDetailing
+        ? 'pending_pm_approval'
+        : 'active';
+
+    const insertedNodes = await db.transaction(async (tx) => {
+      const createdList: any[] = [];
+      let sortOrder = 0;
+
+      for (const child of children) {
+        const [newNode] = await tx
+          .insert(workNodes)
+          .values({
+            projectId: project.id,
+            parentId: parent.id,
+            wbsCode: String(child.wbsCode).trim(),
+            name: String(child.name).trim(),
+            weightPercent: Number(child.weightPercent).toFixed(2),
+            volume: child.volume != null && String(child.volume).trim() !== '' ? String(child.volume) : null,
+            unit: child.unit ? String(child.unit).trim() : null,
+            plannedStartDate: child.plannedStartDate
+              ? new Date(child.plannedStartDate)
+              : parent.plannedStartDate,
+            plannedEndDate: child.plannedEndDate
+              ? new Date(child.plannedEndDate)
+              : parent.plannedEndDate,
+            documentReferenceNo: child.documentReferenceNo || parent.documentReferenceNo || null,
+            activeRevision: child.activeRevision || parent.activeRevision || null,
+            claimedProgressPercent: 0,
+            verifiedProgressPercent: 0,
+            allowDetailing: false,
+            detailingStatus,
+            sortOrder: child.sortOrder !== undefined ? Number(child.sortOrder) : sortOrder++,
+          })
+          .returning();
+
+        createdList.push(newNode);
+      }
+
+      if (detailingStatus === 'active') {
+        await recalculateAndSaveNodeRollups(tx, project.id);
+      }
+
+      return createdList;
+    });
+
+    await logAudit(
+      req.authUser.id,
+      req.authUser.name,
+      'CREATE_WBS_DETAIL',
+      'work_node',
+      parent.id,
+      {
+        projectId: project.id,
+        parentId: parent.id,
+        count: insertedNodes.length,
+        detailingStatus,
+      }
+    );
+
+    res.status(201).json({
+      success: true,
+      count: insertedNodes.length,
+      detailingStatus,
+      nodes: insertedNodes,
+    });
+  }
+);
+
+// Blueprint Tahap 3b: PM Approval for pending batch details
+apiRouter.post(
+  '/projects/:projectId/wbs/nodes/:parentId/approve-details',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requirePermission(PERMISSIONS.WBS_EDIT_STRUCTURE),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectId = String(req.params.projectId);
+    const parentId = String(req.params.parentId);
+
+    const approvedList = await db
+      .update(workNodes)
+      .set({ detailingStatus: 'active', updatedAt: new Date() })
+      .where(
+        and(
+          eq(workNodes.projectId, projectId as any),
+          eq(workNodes.parentId, parentId as any),
+          eq(workNodes.detailingStatus, 'pending_pm_approval')
+        )
+      )
+      .returning();
+
+    await recalculateAndSaveNodeRollups(db, projectId);
+
+    await logAudit(
+      req.authUser.id,
+      req.authUser.name,
+      'APPROVE_WBS_DETAILS',
+      'work_node',
+      parentId,
+      {
+        projectId,
+        parentId,
+        approvedCount: approvedList.length,
+      }
+    );
+
+    res.json({
+      success: true,
+      approvedCount: approvedList.length,
+      nodes: approvedList,
+    });
   }
 );
 
