@@ -59,6 +59,8 @@ import {
   calculateBottleneckAging,
   calculateWeatherEotImpact,
 } from '../../utils/scurve.ts';
+import { recalculateAndSaveNodeRollups } from '../wbs.ts';
+import { calculateSSOTSCurveData } from '../services/scurveEngine.ts';
 import type {
   ApprovalDecision,
   ChecklistTemplate,
@@ -1707,6 +1709,9 @@ apiRouter.post(
               updatedAt: new Date(),
             })
             .where(eq(workNodes.id, node.id));
+
+          // Trigger server-side hierarchical roll-up to all ancestor parent nodes
+          await recalculateAndSaveNodeRollups(db, projectId);
         }
       }
     }
@@ -1791,11 +1796,38 @@ apiRouter.get(
 
     const weeks = generateProjectCalendarWeeks(earliestStart, latestEnd);
 
-    const scurve = calculateSCurveData({
+    // Query workflows and stages belonging to the project's nodes for SSOT milestone calculations
+    const nodeIds = nodes.map((n) => n.id);
+    let projectWorkflows: Array<{ id: string; nodeId: string }> = [];
+    let projectStages: Array<{ id: string; workflowId: string; status: string; actualCompletedAt: Date | null }> = [];
+
+    if (nodeIds.length > 0) {
+      projectWorkflows = await db
+        .select({ id: workWorkflows.id, nodeId: workWorkflows.nodeId })
+        .from(workWorkflows)
+        .where(inArray(workWorkflows.nodeId, nodeIds as any));
+
+      const workflowIds = projectWorkflows.map((w) => w.id);
+      if (workflowIds.length > 0) {
+        projectStages = await db
+          .select({
+            id: workStages.id,
+            workflowId: workStages.workflowId,
+            status: workStages.status,
+            actualCompletedAt: workStages.actualCompletedAt,
+          })
+          .from(workStages)
+          .where(inArray(workStages.workflowId, workflowIds as any));
+      }
+    }
+
+    const scurve = calculateSSOTSCurveData({
       projectId: targetProject.id,
       projectName: targetProject.name,
       nodes,
       weeks,
+      stages: projectStages,
+      workflows: projectWorkflows,
       overrides,
       hasPunchlistOpenMap: openPunchlistMap,
       asOfDate: new Date(),

@@ -107,10 +107,10 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
       const list: ChecklistTemplate[] = Array.isArray(parsed)
         ? parsed
         : Array.isArray(parsed?.templates)
-        ? parsed.templates
-        : parsed?.title
-        ? [parsed]
-        : [];
+          ? parsed.templates
+          : parsed?.title
+            ? [parsed]
+            : [];
       if (list.length > 0) {
         await onImportTemplates(list);
       }
@@ -250,11 +250,10 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
                   <div
                     key={tpl.id}
                     onClick={() => setSelectedTemplateId(tpl.id)}
-                    className={`p-2.5 rounded-lg cursor-pointer transition-all flex items-start justify-between gap-2 ${
-                      isSelected
-                        ? 'bg-amber-50/80 border border-amber-300 shadow-2xs'
-                        : 'hover:bg-slate-50 border border-transparent'
-                    }`}
+                    className={`p-2.5 rounded-lg cursor-pointer transition-all flex items-start justify-between gap-2 ${isSelected
+                      ? 'bg-amber-50/80 border border-amber-300 shadow-2xs'
+                      : 'hover:bg-slate-50 border border-transparent'
+                      }`}
                   >
                     <div className="space-y-0.5 min-w-0">
                       <div className="flex items-center space-x-1.5 text-[10px] text-slate-500">
@@ -267,9 +266,8 @@ export const TemplateLibrary: React.FC<TemplateLibraryProps> = ({
                         <span>~{tpl.estimatedMinutes}m</span>
                       </div>
                       <h4
-                        className={`text-xs font-bold leading-tight truncate ${
-                          isSelected ? 'text-slate-950 font-extrabold' : 'text-slate-800'
-                        }`}
+                        className={`text-xs font-bold leading-tight truncate ${isSelected ? 'text-slate-950 font-extrabold' : 'text-slate-800'
+                          }`}
                       >
                         {tpl.title}
                       </h4>
