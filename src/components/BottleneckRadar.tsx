@@ -178,6 +178,18 @@ export const BottleneckRadar: React.FC<BottleneckRadarProps> = ({
                         </span>
                       )}
 
+                      {item.stageStatus && (
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
+                            item.stageStatus === 'requested'
+                              ? 'bg-blue-100 text-blue-900 border border-blue-200'
+                              : 'bg-slate-100 text-slate-800 border border-slate-300'
+                          }`}
+                        >
+                          {item.stageStatus.toUpperCase()}
+                        </span>
+                      )}
+
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-mono tabular-nums font-bold ${
                           item.status === 'critical'

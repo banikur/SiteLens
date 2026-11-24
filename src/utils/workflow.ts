@@ -42,10 +42,10 @@ export function canProceedToStage(
     }
 
     // General work or review stage cannot be completely unaddressed
-    if (prev.status === 'pending') {
+    if (prev.status === 'pending' || prev.status === 'requested') {
       return {
         allowed: false,
-        reason: `Tahapan sebelumnya "${prev.name}" (Urutan #${prev.stageOrder}) belum dimulai atau diselesaikan.`,
+        reason: `Tahapan sebelumnya "${prev.name}" (Urutan #${prev.stageOrder}) belum diserahkan atau diselesaikan.`,
         blockingStage: prev,
       };
     }
@@ -54,13 +54,111 @@ export function canProceedToStage(
   return { allowed: true };
 }
 
+export interface FourEyesValidationResult {
+  valid: boolean;
+  reason?: string;
+}
+
+export interface FourEyesOptions {
+  requesterId?: string | null;
+  executorId?: string | null;
+  submitterId?: string | null;
+  approverId?: string | null;
+  isMergedStep?: boolean;
+}
+
+/**
+ * Validates the Four-Eyes Principle (Segregation of Duties) under Blueprint Section 1321 & Section 1515:
+ * Rule 1: Approver cannot be submitter/executor AND approver cannot be requester.
+ * Rule 2: Approve step cannot be merged with request or any other step.
+ * Rule 3: Minimum 2 distinct individuals involved across the entire attempt lifecycle.
+ */
+export function validateFourEyesDetails(
+  arg1?: string | null | FourEyesOptions,
+  arg2?: string | null,
+  arg3?: string | null,
+  arg4 = false
+): FourEyesValidationResult {
+  let requesterId: string | null = null;
+  let executorId: string | null = null;
+  let approverId: string | null = null;
+  let isMergedStep = false;
+
+  if (typeof arg1 === 'object' && arg1 !== null) {
+    requesterId = arg1.requesterId ?? null;
+    executorId = arg1.executorId ?? arg1.submitterId ?? null;
+    approverId = arg1.approverId ?? null;
+    isMergedStep = Boolean(arg1.isMergedStep);
+  } else if (arg3 === undefined) {
+    // 2-argument legacy signature: validateFourEyes(executorId, approverId)
+    executorId = arg1 ?? null;
+    approverId = arg2 ?? null;
+    requesterId = null;
+    isMergedStep = false;
+  } else {
+    // 3 or 4-argument signature: validateFourEyes(requesterId, executorId, approverId, isMergedStep)
+    requesterId = arg1 ?? null;
+    executorId = arg2 ?? null;
+    approverId = arg3 ?? null;
+    isMergedStep = Boolean(arg4);
+  }
+
+  if (!approverId || !approverId.trim()) {
+    return { valid: false, reason: 'Identitas penyetuju (approver) wajib diisi.' };
+  }
+
+  if (isMergedStep) {
+    return {
+      valid: false,
+      reason: 'Batas Keras Four-Eyes: Tahapan persetujuan (approve) dilarang digabung dengan langkah manapun.',
+    };
+  }
+
+  const cleanApprover = approverId.trim().toLowerCase();
+  const cleanExecutor = executorId?.trim().toLowerCase();
+  const cleanRequester = requesterId?.trim().toLowerCase();
+
+  // Rule 1: Approver cannot be executor
+  if (cleanExecutor && cleanApprover === cleanExecutor) {
+    return {
+      valid: false,
+      reason: 'Pelanggaran Prinsip Four-Eyes: Penyetuju tidak boleh sama dengan pelaksana inspeksi (self-approval dilarang).',
+    };
+  }
+
+  // Rule 1: Approver cannot be requester
+  if (cleanRequester && cleanApprover === cleanRequester) {
+    return {
+      valid: false,
+      reason: 'Pelanggaran Prinsip Four-Eyes: Penyetuju tidak boleh sama dengan pemohon RFI.',
+    };
+  }
+
+  // Rule 3: Minimum 2 distinct individuals involved across the attempt lifecycle
+  const participants = [cleanRequester, cleanExecutor, cleanApprover].filter(Boolean) as string[];
+  const distinctParticipants = new Set(participants);
+
+  if (distinctParticipants.size < 2) {
+    return {
+      valid: false,
+      reason: 'Pelanggaran Prinsip Four-Eyes: Minimal 2 personil berbeda wajib terlibat dalam satu siklus pengajuan hingga persetujuan.',
+    };
+  }
+
+  return { valid: true };
+}
+
 /**
  * Validates the Four-Eyes Principle (Segregation of Duties).
- * The user approving/verifying an inspection attempt CANNOT be the same user who submitted it.
+ * Returns boolean for quick assertion checks.
  */
-export function validateFourEyes(submitterId: string, approverId: string): boolean {
-  if (!submitterId || !approverId) return false;
-  return submitterId.trim().toLowerCase() !== approverId.trim().toLowerCase();
+export function validateFourEyes(
+  arg1?: string | null | FourEyesOptions,
+  arg2?: string | null,
+  arg3?: string | null,
+  arg4 = false
+): boolean {
+  return validateFourEyesDetails(arg1, arg2, arg3, arg4).valid;
 }
 
 /**

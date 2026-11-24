@@ -34,12 +34,70 @@ export async function ensureTestDatabaseSchema() {
     }
   }
 
+  // Ensure Tahap 2c columns and tables exist even if DB was already initialized
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS "flow_presets" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "name" text NOT NULL,
+      "description" text,
+      "is_organization_default" boolean DEFAULT false NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "flow_preset_steps" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "preset_id" uuid NOT NULL REFERENCES "flow_presets"("id") ON DELETE CASCADE,
+      "step_order" integer NOT NULL,
+      "step_type" text NOT NULL,
+      "name" text NOT NULL,
+      "required_permission" text,
+      "can_combine_with_next" boolean DEFAULT false NOT NULL,
+      "requires_signature" boolean DEFAULT false NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+
+    DO $$ BEGIN
+      ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "flow_preset_id" uuid REFERENCES "flow_presets"("id") ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE "inspection_attempts" ADD COLUMN IF NOT EXISTS "requester_id" uuid REFERENCES "users"("id") ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE "inspection_attempts" ADD COLUMN IF NOT EXISTS "requested_at" timestamp with time zone;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+  `);
+
   if (needsInit) {
     console.log('Initializing clean public schema in sitelens_test...');
     await client.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;');
 
     const DDL = `
       CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+      CREATE TABLE IF NOT EXISTS "flow_presets" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "name" text NOT NULL,
+        "description" text,
+        "is_organization_default" boolean DEFAULT false NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS "flow_preset_steps" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "preset_id" uuid NOT NULL REFERENCES "flow_presets"("id") ON DELETE CASCADE,
+        "step_order" integer NOT NULL,
+        "step_type" text NOT NULL,
+        "name" text NOT NULL,
+        "required_permission" text,
+        "can_combine_with_next" boolean DEFAULT false NOT NULL,
+        "requires_signature" boolean DEFAULT false NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
+      );
 
       CREATE TABLE "projects" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -50,6 +108,7 @@ export async function ensureTestDatabaseSchema() {
         "status" text DEFAULT 'active' NOT NULL,
         "zones" jsonb DEFAULT '[]'::jsonb NOT NULL,
         "lead_manager" text NOT NULL,
+        "flow_preset_id" uuid REFERENCES "flow_presets"("id") ON DELETE SET NULL,
         "capa_lockout_severities" text[] DEFAULT ARRAY['critical', 'high']::text[] NOT NULL,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
@@ -299,6 +358,8 @@ export async function ensureTestDatabaseSchema() {
         "stage_id" uuid NOT NULL REFERENCES "work_stages"("id") ON DELETE CASCADE,
         "attempt_number" integer DEFAULT 1 NOT NULL,
         "submitter_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+        "requester_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+        "requested_at" timestamp with time zone,
         "submitted_at" timestamp with time zone DEFAULT now() NOT NULL,
         "approver_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
         "decided_at" timestamp with time zone,

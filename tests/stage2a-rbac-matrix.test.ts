@@ -415,6 +415,11 @@ test('Tahap 2a: RBAC Matrix, Route Registry Reflection & Isolation Verification'
       'DELETE /api/admin/roles/:id',
       'POST /api/admin/assignments',
       'DELETE /api/admin/assignments/:assignmentId',
+      // Tahap 2c: RFI Stage Request & Flow Presets Management
+      'POST /api/stages/:stageId/request',
+      'POST /api/flow-presets',
+      'PUT /api/flow-presets/:id',
+      'DELETE /api/flow-presets/:id',
     ]);
 
     // Golden check 1: All 23 catalogue routes MUST exist in discovered Express registry

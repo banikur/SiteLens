@@ -22,6 +22,8 @@ import {
   roles,
   permissions,
   rolePermissions,
+  flowPresets,
+  flowPresetSteps,
 } from '../db/schema.ts';
 import { hashSecret } from '../auth/crypto.ts';
 import {
@@ -46,6 +48,7 @@ import {
 import {
   canProceedToStage,
   validateFourEyes,
+  validateFourEyesDetails,
   validateDualTrackSignature,
   getNextAttemptNumber,
   generateDefaultStages,
@@ -1232,6 +1235,111 @@ apiRouter.get(
   }
 );
 
+// Blueprint Tahap 2c: RFI Stage Request (pending -> requested)
+apiRouter.post(
+  '/stages/:stageId/request',
+  requireAuth,
+  requirePermission(PERMISSIONS.STAGE_REQUEST),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const stageScopeId = String(req.params.stageId || '');
+    const projectId = await getProjectIdByStageId(stageScopeId);
+    if (!projectId) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    if (!assertProjectAccess(req.authUser, projectId, res, true)) {
+      return;
+    }
+
+    const [targetStage] = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.id, stageScopeId as any))
+      .limit(1);
+
+    if (!targetStage) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    if (targetStage.status !== 'pending' && targetStage.status !== 'rejected') {
+      res.status(400).json({
+        error: `Tahapan "${targetStage.name}" saat ini berstatus "${targetStage.status}" dan tidak dapat diajukan (hanya tahapan pending atau rejected yang dapat diajukan).`,
+      });
+      return;
+    }
+
+    // Check Hold Point Lockout across sibling stages in this workflow
+    const siblingStages = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.workflowId, targetStage.workflowId))
+      .orderBy(workStages.stageOrder);
+
+    const progressionCheck = canProceedToStage(siblingStages, targetStage.id);
+    if (!progressionCheck.allowed) {
+      res.status(400).json({
+        error: progressionCheck.reason,
+        blockingStage: progressionCheck.blockingStage,
+      });
+      return;
+    }
+
+    // Determine attempt number
+    const existingAttempts = await db
+      .select()
+      .from(inspectionAttempts)
+      .where(eq(inspectionAttempts.stageId, targetStage.id));
+
+    const nextAttemptNumber = getNextAttemptNumber(existingAttempts);
+    const now = new Date();
+
+    // Insert attempt record in 'requested' status with requester_id and requested_at (Blueprint Keputusan 9 Opsi A)
+    const [newAttempt] = await db
+      .insert(inspectionAttempts)
+      .values({
+        stageId: targetStage.id,
+        attemptNumber: nextAttemptNumber,
+        submitterId: req.authUser.id as any,
+        requesterId: req.authUser.id as any,
+        requestedAt: now,
+        submittedAt: now,
+        status: 'requested',
+        answers: {},
+      })
+      .returning();
+
+    // Transition stage status to 'requested'
+    const [updatedStage] = await db
+      .update(workStages)
+      .set({
+        status: 'requested',
+      })
+      .where(eq(workStages.id, targetStage.id))
+      .returning();
+
+    await logAudit(req.authUser.id, req.authUser.name, 'REQUEST_STAGE_RFI', 'work_stage', targetStage.id, {
+      attemptId: newAttempt.id,
+      attemptNumber: nextAttemptNumber,
+      requesterId: req.authUser.id,
+      requestedAt: now.toISOString(),
+    });
+
+    res.status(201).json({
+      attempt: newAttempt,
+      stage: updatedStage,
+      message: `RFI untuk tahapan "${targetStage.name}" berhasil diajukan (Percobaan #${nextAttemptNumber}).`,
+    });
+  }
+);
+
 apiRouter.post(
   '/stages/:stageId/submit',
   requireAuth,
@@ -1297,27 +1405,51 @@ apiRouter.post(
       return;
     }
 
-    // Determine attempt number
+    // Check if there is an open attempt in 'requested' or 'draft' status
     const existingAttempts = await db
       .select()
       .from(inspectionAttempts)
-      .where(eq(inspectionAttempts.stageId, targetStage.id));
+      .where(eq(inspectionAttempts.stageId, targetStage.id))
+      .orderBy(desc(inspectionAttempts.attemptNumber));
 
-    const nextAttemptNumber = getNextAttemptNumber(existingAttempts);
+    const openAttempt = existingAttempts.find((a) => a.status === 'requested' || a.status === 'draft');
+    let newAttempt: any;
 
-    const [newAttempt] = await db
-      .insert(inspectionAttempts)
-      .values({
-        stageId: targetStage.id,
-        attemptNumber: nextAttemptNumber,
-        submitterId: req.authUser.id as any,
-        status: 'submitted',
-        answers: body.answers || {},
-        signatureCanvasUrl: body.signatureCanvasUrl || null,
-        wetSignatureDocumentUrl: body.wetSignatureDocumentUrl || null,
-        offlineSyncId: body.offlineSyncId || null,
-      })
-      .returning();
+    if (openAttempt) {
+      // Update existing open attempt initiated during request step
+      const [updated] = await db
+        .update(inspectionAttempts)
+        .set({
+          submitterId: req.authUser.id as any,
+          status: 'submitted',
+          submittedAt: new Date(),
+          answers: body.answers || {},
+          signatureCanvasUrl: body.signatureCanvasUrl || null,
+          wetSignatureDocumentUrl: body.wetSignatureDocumentUrl || null,
+          offlineSyncId: body.offlineSyncId || null,
+        })
+        .where(eq(inspectionAttempts.id, openAttempt.id))
+        .returning();
+      newAttempt = updated;
+    } else {
+      const nextAttemptNumber = getNextAttemptNumber(existingAttempts);
+      const [inserted] = await db
+        .insert(inspectionAttempts)
+        .values({
+          stageId: targetStage.id,
+          attemptNumber: nextAttemptNumber,
+          submitterId: req.authUser.id as any,
+          requesterId: req.authUser.id as any,
+          requestedAt: new Date(),
+          status: 'submitted',
+          answers: body.answers || {},
+          signatureCanvasUrl: body.signatureCanvasUrl || null,
+          wetSignatureDocumentUrl: body.wetSignatureDocumentUrl || null,
+          offlineSyncId: body.offlineSyncId || null,
+        })
+        .returning();
+      newAttempt = inserted;
+    }
 
     // If wet signature document provided, record in evidence attachments as well
     if (body.wetSignatureDocumentUrl) {
@@ -1346,14 +1478,14 @@ apiRouter.post(
 
     await logAudit(req.authUser.id, req.authUser.name, 'SUBMIT_STAGE_INSPECTION', 'work_stage', targetStage.id, {
       attemptId: newAttempt.id,
-      attemptNumber: nextAttemptNumber,
+      attemptNumber: newAttempt.attemptNumber,
       signatureType: sigCheck.signatureType,
     });
 
     res.status(201).json({
       attempt: newAttempt,
       stage: updatedStage,
-      message: `Inspeksi tahapan "${targetStage.name}" berhasil diajukan (Percobaan #${nextAttemptNumber}).`,
+      message: `Inspeksi tahapan "${targetStage.name}" berhasil diajukan (Percobaan #${newAttempt.attemptNumber}).`,
     });
   }
 );
@@ -1411,10 +1543,16 @@ apiRouter.post(
       return;
     }
 
-    // Strict Four-Eyes Principle check: Submitter cannot approve their own inspection attempt
-    if (!validateFourEyes(latestAttempt.submitterId, req.authUser.id)) {
+    // Strict Four-Eyes Principle check: Submitter/requester cannot approve and minimum 2 distinct individuals
+    const fourEyesCheck = validateFourEyesDetails(
+      latestAttempt.requesterId,
+      latestAttempt.submitterId,
+      req.authUser.id
+    );
+
+    if (!fourEyesCheck.valid) {
       res.status(403).json({
-        error: 'Pelanggaran Prinsip Four-Eyes: Pelaksana/Submitter inspeksi tidak diizinkan menyetujui pemeriksaannya sendiri.',
+        error: fourEyesCheck.reason || 'Pelanggaran Prinsip Four-Eyes: Pelaksana atau pemohon inspeksi tidak diizinkan menyetujui pemeriksaannya sendiri.',
       });
       return;
     }
@@ -1700,10 +1838,10 @@ apiRouter.get(
     const wfNodeMap = new Map<string, string>();
     for (const wf of workflows) wfNodeMap.set(wf.id, wf.nodeId);
 
-    // Get pending/submitted stages
+    // Get pending/submitted/requested stages
     const allStages = await db.select().from(workStages);
     const pendingStages = allStages.filter(
-      (s) => workflowIds.includes(s.workflowId) && s.status === 'submitted'
+      (s) => workflowIds.includes(s.workflowId) && (s.status === 'submitted' || s.status === 'requested')
     );
 
     const stageIds = pendingStages.map((s) => s.id);
@@ -1714,11 +1852,11 @@ apiRouter.get(
 
     const itemsForAging: any[] = [];
     for (const stg of pendingStages) {
-      const attempt = allAttempts.find((a) => a.stageId === stg.id && a.status === 'submitted');
+      const attempt = allAttempts.find((a) => a.stageId === stg.id && (a.status === 'submitted' || a.status === 'requested'));
       if (attempt) {
         const nodeId = wfNodeMap.get(stg.workflowId) || '';
         const nodeInfo = nodeMap.get(nodeId) || { wbsCode: '?', name: 'Node' };
-        const submitterName = userMap.get(attempt.submitterId) || 'Inspector';
+        const submitterName = userMap.get(attempt.submitterId) || (attempt.requesterId ? userMap.get(attempt.requesterId) : null) || 'Field Personnel';
 
         itemsForAging.push({
           stage: stg,
@@ -3272,6 +3410,345 @@ apiRouter.delete(
     );
 
     res.status(204).end();
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Blueprint Tahap 2c (Section 1320-1335): Flow Presets Management Endpoints
+// ---------------------------------------------------------------------------
+
+apiRouter.get(
+  '/flow-presets',
+  requireAuth,
+  async (_req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const presets = await db.select().from(flowPresets);
+    const steps = await db.select().from(flowPresetSteps).orderBy(flowPresetSteps.stepOrder);
+
+    const stepsByPreset = new Map<string, typeof steps>();
+    for (const step of steps) {
+      const list = stepsByPreset.get(step.presetId) || [];
+      list.push(step);
+      stepsByPreset.set(step.presetId, list);
+    }
+
+    const result = presets.map((p) => ({
+      ...p,
+      steps: stepsByPreset.get(p.id) || [],
+    }));
+
+    res.json({ presets: result });
+  }
+);
+
+apiRouter.get(
+  '/flow-presets/:id',
+  requireAuth,
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const presetId = String(req.params.id);
+    const [preset] = await db
+      .select()
+      .from(flowPresets)
+      .where(eq(flowPresets.id, presetId as any))
+      .limit(1);
+
+    if (!preset) {
+      res.status(404).json({ error: 'Flow preset not found.' });
+      return;
+    }
+
+    const steps = await db
+      .select()
+      .from(flowPresetSteps)
+      .where(eq(flowPresetSteps.presetId, preset.id))
+      .orderBy(flowPresetSteps.stepOrder);
+
+    res.json({ preset: { ...preset, steps } });
+  }
+);
+
+apiRouter.post(
+  '/flow-presets',
+  requireAuth,
+  requirePermission(PERMISSIONS.FLOW_PRESET_MANAGE),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const { name, description, isOrganizationDefault, steps } = req.body || {};
+
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      res.status(400).json({ error: 'Nama preset alur RFI wajib diisi.' });
+      return;
+    }
+
+    if (!Array.isArray(steps) || steps.length < 2) {
+      res.status(400).json({
+        error: 'Preset alur RFI wajib memiliki minimal 2 langkah (misal: pengajuan/eksekusi dan persetujuan).',
+      });
+      return;
+    }
+
+    const validTypes = new Set(['request', 'execute', 'approve']);
+    let hasApprove = false;
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
+      if (!step.name || typeof step.name !== 'string' || !step.name.trim()) {
+        res.status(400).json({ error: `Langkah urutan #${i + 1} wajib memiliki nama.` });
+        return;
+      }
+      if (!validTypes.has(step.stepType)) {
+        res.status(400).json({
+          error: `Langkah "${step.name}" memiliki tipe tidak valid: "${step.stepType}". Tipe yang diizinkan: request, execute, approve.`,
+        });
+        return;
+      }
+      if (step.stepType === 'approve') {
+        hasApprove = true;
+        if (step.canCombineWithNext) {
+          res.status(400).json({
+            error: 'Batas Keras Four-Eyes: Langkah "approve" tidak dapat digabung dengan langkah berikutnya (canCombineWithNext dilarang true).',
+          });
+          return;
+        }
+      }
+    }
+
+    if (!hasApprove) {
+      res.status(400).json({
+        error: 'Preset alur RFI wajib memiliki minimal satu tahapan persetujuan (approve).',
+      });
+      return;
+    }
+
+    if (isOrganizationDefault) {
+      await db.update(flowPresets).set({ isOrganizationDefault: false });
+    }
+
+    const [preset] = await db
+      .insert(flowPresets)
+      .values({
+        name: name.trim(),
+        description: description?.trim() || null,
+        isOrganizationDefault: Boolean(isOrganizationDefault),
+      })
+      .returning();
+
+    const insertedSteps: any[] = [];
+    for (let i = 0; i < steps.length; i++) {
+      const s = steps[i];
+      const [insertedStep] = await db
+        .insert(flowPresetSteps)
+        .values({
+          presetId: preset.id,
+          stepOrder: i + 1,
+          stepType: s.stepType,
+          name: s.name.trim(),
+          requiredPermission: s.requiredPermission || null,
+          canCombineWithNext: Boolean(s.canCombineWithNext),
+          requiresSignature: Boolean(s.requiresSignature),
+        })
+        .returning();
+      insertedSteps.push(insertedStep);
+    }
+
+    await logAudit(req.authUser.id, req.authUser.name, 'CREATE_FLOW_PRESET', 'flow_preset', preset.id, {
+      name: preset.name,
+      stepsCount: insertedSteps.length,
+    });
+
+    res.status(201).json({
+      preset: {
+        ...preset,
+        steps: insertedSteps,
+      },
+    });
+  }
+);
+
+apiRouter.put(
+  '/flow-presets/:id',
+  requireAuth,
+  requirePermission(PERMISSIONS.FLOW_PRESET_MANAGE),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const presetId = String(req.params.id);
+    const [existing] = await db
+      .select()
+      .from(flowPresets)
+      .where(eq(flowPresets.id, presetId as any))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ error: 'Flow preset not found.' });
+      return;
+    }
+
+    const { name, description, isOrganizationDefault, steps } = req.body || {};
+
+    if (name !== undefined && (!name || typeof name !== 'string' || !name.trim())) {
+      res.status(400).json({ error: 'Nama preset alur RFI tidak boleh kosong.' });
+      return;
+    }
+
+    const updates: Partial<typeof flowPresets.$inferInsert> = {};
+    if (typeof name === 'string') updates.name = name.trim();
+    if (typeof description === 'string') updates.description = description.trim();
+    if (typeof isOrganizationDefault === 'boolean') {
+      updates.isOrganizationDefault = isOrganizationDefault;
+      if (isOrganizationDefault) {
+        await db.update(flowPresets).set({ isOrganizationDefault: false });
+      }
+    }
+
+    const [updatedPreset] = await db
+      .update(flowPresets)
+      .set(updates)
+      .where(eq(flowPresets.id, existing.id))
+      .returning();
+
+    let updatedSteps = await db
+      .select()
+      .from(flowPresetSteps)
+      .where(eq(flowPresetSteps.presetId, existing.id))
+      .orderBy(flowPresetSteps.stepOrder);
+
+    if (Array.isArray(steps)) {
+      if (steps.length < 2) {
+        res.status(400).json({ error: 'Preset alur RFI wajib memiliki minimal 2 langkah.' });
+        return;
+      }
+
+      const validTypes = new Set(['request', 'execute', 'approve']);
+      let hasApprove = false;
+
+      for (let i = 0; i < steps.length; i++) {
+        const step = steps[i];
+        if (!step.name || typeof step.name !== 'string' || !step.name.trim()) {
+          res.status(400).json({ error: `Langkah urutan #${i + 1} wajib memiliki nama.` });
+          return;
+        }
+        if (!validTypes.has(step.stepType)) {
+          res.status(400).json({
+            error: `Langkah "${step.name}" memiliki tipe tidak valid: "${step.stepType}".`,
+          });
+          return;
+        }
+        if (step.stepType === 'approve') {
+          hasApprove = true;
+          if (step.canCombineWithNext) {
+            res.status(400).json({
+              error: 'Batas Keras Four-Eyes: Langkah "approve" tidak dapat digabung dengan langkah berikutnya.',
+            });
+            return;
+          }
+        }
+      }
+
+      if (!hasApprove) {
+        res.status(400).json({
+          error: 'Preset alur RFI wajib memiliki minimal satu tahapan persetujuan (approve).',
+        });
+        return;
+      }
+
+      await db.delete(flowPresetSteps).where(eq(flowPresetSteps.presetId, existing.id));
+
+      updatedSteps = [];
+      for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        const [insertedStep] = await db
+          .insert(flowPresetSteps)
+          .values({
+            presetId: existing.id,
+            stepOrder: i + 1,
+            stepType: s.stepType,
+            name: s.name.trim(),
+            requiredPermission: s.requiredPermission || null,
+            canCombineWithNext: Boolean(s.canCombineWithNext),
+            requiresSignature: Boolean(s.requiresSignature),
+          })
+          .returning();
+        updatedSteps.push(insertedStep);
+      }
+    }
+
+    await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_FLOW_PRESET', 'flow_preset', existing.id, {
+      updates,
+      stepsCount: updatedSteps.length,
+    });
+
+    res.json({
+      preset: {
+        ...updatedPreset,
+        steps: updatedSteps,
+      },
+    });
+  }
+);
+
+apiRouter.delete(
+  '/flow-presets/:id',
+  requireAuth,
+  requirePermission(PERMISSIONS.FLOW_PRESET_MANAGE),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const presetId = String(req.params.id);
+    const [existing] = await db
+      .select()
+      .from(flowPresets)
+      .where(eq(flowPresets.id, presetId as any))
+      .limit(1);
+
+    if (!existing) {
+      res.status(404).json({ error: 'Flow preset not found.' });
+      return;
+    }
+
+    const referencingProjects = await db
+      .select({ id: projects.id, name: projects.name })
+      .from(projects)
+      .where(eq(projects.flowPresetId, existing.id));
+
+    if (referencingProjects.length > 0) {
+      res.status(409).json({
+        error: `Preset "${existing.name}" sedang digunakan oleh proyek "${referencingProjects[0].name}" dan tidak dapat dihapus.`,
+      });
+      return;
+    }
+
+    await db.delete(flowPresets).where(eq(flowPresets.id, existing.id));
+
+    await logAudit(req.authUser.id, req.authUser.name, 'DELETE_FLOW_PRESET', 'flow_preset', existing.id, {
+      name: existing.name,
+    });
+
+    res.json({ success: true, message: `Preset "${existing.name}" berhasil dihapus.` });
   }
 );
 

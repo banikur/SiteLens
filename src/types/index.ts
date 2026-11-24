@@ -353,7 +353,28 @@ export interface WorkNode {
 }
 
 export type StageType = 'work' | 'hold' | 'review';
-export type StageStatus = 'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected';
+export type StageStatus = 'pending' | 'requested' | 'in_progress' | 'submitted' | 'approved' | 'rejected';
+
+export interface FlowPreset {
+  id: string;
+  name: string;
+  description?: string | null;
+  isOrganizationDefault: boolean;
+  createdAt: string | Date;
+  steps?: FlowPresetStep[];
+}
+
+export interface FlowPresetStep {
+  id: string;
+  presetId: string;
+  stepOrder: number;
+  stepType: 'request' | 'execute' | 'approve';
+  name: string;
+  requiredPermission?: string | null;
+  canCombineWithNext: boolean;
+  requiresSignature?: boolean;
+  createdAt?: string | Date;
+}
 
 export interface WorkWorkflow {
   id: string;
@@ -383,10 +404,12 @@ export interface InspectionAttempt {
   stageId: string;
   attemptNumber: number;
   submitterId: string;
+  requesterId?: string | null;
+  requestedAt?: string | Date | null;
   submittedAt: string | Date;
   approverId?: string | null;
   decidedAt?: string | Date | null;
-  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  status: 'draft' | 'requested' | 'submitted' | 'approved' | 'rejected';
   answers: Record<string, any>;
   rejectionReason?: string | null;
   signatureCanvasUrl?: string | null;
@@ -487,7 +510,9 @@ export interface BottleneckItem {
   nodeName: string;
   attemptNumber: number;
   submitterName: string;
+  requestedAt?: string | Date | null;
   submittedAt: string | Date;
+  stageStatus?: StageStatus;
   approvalRole: UserRole;
   waitingHours: number;
   status: 'normal' | 'warning' | 'critical';

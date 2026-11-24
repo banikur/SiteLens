@@ -13,15 +13,17 @@ import {
   Printer,
   FileCheck2,
   RefreshCw,
+  CheckSquare,
 } from 'lucide-react';
 import type { WorkNode, WorkWorkflow, WorkStage, InspectionAttempt, Project, User } from '../types';
 import {
   apiGetNodeWorkflow,
   apiInitDefaultWorkflow,
+  apiRequestStageRfi,
   apiSubmitStageAttempt,
   apiReviewStageAttempt,
 } from '../services/api';
-import { canProceedToStage, validateFourEyes } from '../utils/workflow';
+import { canProceedToStage, validateFourEyes, validateFourEyesDetails } from '../utils/workflow';
 import { SignatureCanvasModal } from './SignatureCanvasModal';
 import { PhysicalSheetModal } from './PhysicalSheetModal';
 import { usePermission, PERMISSIONS } from '../hooks/usePermission';
@@ -124,6 +126,26 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
     setSubmissionNotes('');
   };
 
+  const handleRequestRfi = async (stage: WorkStage) => {
+    const check = canProceedToStage(stages, stage.id);
+    if (!check.allowed) {
+      alert(`Peringatan Hold Point:\n${check.reason}`);
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      const res = await apiRequestStageRfi(stage.id);
+      setSuccessMsg(res.message);
+      await loadWorkflowData();
+      onWorkflowUpdated();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal mengajukan RFI.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleSubmitAttempt = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!submittingStage) return;
@@ -168,8 +190,14 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
     }
 
     // Four-Eyes Principle check on client
-    if (!validateFourEyes(latest.submitterId, currentUser.id)) {
-      alert('Pelanggaran Prinsip Four-Eyes: Anda adalah pihak yang mengajukan inspeksi ini. Persetujuan (approval) wajib dilakukan oleh QA/QC Lead atau peninjau independen yang berbeda.');
+    const fourEyesCheck = validateFourEyesDetails(
+      latest.requesterId,
+      latest.submitterId,
+      currentUser.id
+    );
+
+    if (!fourEyesCheck.valid) {
+      alert(fourEyesCheck.reason || 'Pelanggaran Prinsip Four-Eyes: Anda tidak diizinkan menyetujui tahapan ini.');
       return;
     }
 
@@ -315,9 +343,11 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                         ? 'border-emerald-200 bg-emerald-50/20 text-slate-900'
                         : stage.status === 'rejected'
                           ? 'border-rose-200 bg-rose-50/30 text-slate-900'
-                          : isBlocked
-                            ? 'border-slate-200 bg-slate-50/60 opacity-80 text-slate-700'
-                            : 'border-slate-300 bg-white shadow-2xs text-slate-900'
+                          : stage.status === 'requested'
+                            ? 'border-blue-200 bg-blue-50/20 text-slate-900'
+                            : isBlocked
+                              ? 'border-slate-200 bg-slate-50/60 opacity-80 text-slate-700'
+                              : 'border-slate-300 bg-white shadow-2xs text-slate-900'
                       }`}
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
@@ -327,9 +357,11 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                               ? 'bg-[#d4f038] text-[#0b0e14]'
                               : stage.status === 'rejected'
                                 ? 'bg-rose-600 text-white'
-                                : isBlocked
-                                  ? 'bg-slate-200 text-slate-500'
-                                  : 'bg-[#0b0e14] text-white'
+                                : stage.status === 'requested'
+                                  ? 'bg-blue-600 text-white'
+                                  : isBlocked
+                                    ? 'bg-slate-200 text-slate-500'
+                                    : 'bg-[#0b0e14] text-white'
                             }`}
                         >
                           {stage.stageOrder}
@@ -364,7 +396,9 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                                     ? 'bg-rose-100 text-rose-800 border border-rose-200'
                                     : stage.status === 'submitted'
                                       ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                      : 'bg-slate-100 text-slate-600 border border-slate-200'
+                                      : stage.status === 'requested'
+                                        ? 'bg-blue-100 text-blue-900 border border-blue-300'
+                                        : 'bg-slate-100 text-slate-600 border border-slate-200'
                                 }`}
                             >
                               {stage.status.toUpperCase()}
@@ -382,20 +416,74 @@ export const NodeWorkflowModal: React.FC<NodeWorkflowModalProps> = ({
                       {/* Action Buttons for this Stage */}
                       {!isViewer && (
                         <div className="flex items-center space-x-2 shrink-0">
-                          {/* If stage is ready to submit / re-submit */}
-                          {stage.status !== 'approved' && stage.status !== 'submitted' && (
+                          {/* If stage is pending */}
+                          {stage.status === 'pending' && (
+                            <>
+                              {can(PERMISSIONS.STAGE_REQUEST, project.id) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRequestRfi(stage)}
+                                  disabled={actionLoading}
+                                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center space-x-1 shadow-xs transition-colors"
+                                >
+                                  <Send className="w-3 h-3" />
+                                  <span>Ajukan RFI</span>
+                                </button>
+                              )}
+                              {can(PERMISSIONS.STAGE_EXECUTE, project.id) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenSubmit(stage)}
+                                  className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs flex items-center space-x-1 shadow-xs transition-colors"
+                                >
+                                  <CheckSquare className="w-3 h-3" />
+                                  <span>Isi Checklist</span>
+                                </button>
+                              )}
+                            </>
+                          )}
+
+                          {/* If stage is requested (RFI Submitted, ready for field inspection) */}
+                          {stage.status === 'requested' && can(PERMISSIONS.STAGE_EXECUTE, project.id) && (
                             <button
                               type="button"
                               onClick={() => handleOpenSubmit(stage)}
                               className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs flex items-center space-x-1 shadow-xs transition-colors"
                             >
                               <Send className="w-3 h-3" />
-                              <span>{stageAttempts.length > 0 ? 'Ajukan ulang' : 'Ajukan inspeksi'}</span>
+                              <span>Eksekusi & Submit</span>
                             </button>
                           )}
 
+                          {/* If stage was rejected */}
+                          {stage.status === 'rejected' && (
+                            <>
+                              {can(PERMISSIONS.STAGE_REQUEST, project.id) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRequestRfi(stage)}
+                                  disabled={actionLoading}
+                                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center space-x-1 shadow-xs transition-colors"
+                                >
+                                  <Send className="w-3 h-3" />
+                                  <span>Ajukan Ulang RFI</span>
+                                </button>
+                              )}
+                              {can(PERMISSIONS.STAGE_EXECUTE, project.id) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenSubmit(stage)}
+                                  className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs flex items-center space-x-1 shadow-xs transition-colors"
+                                >
+                                  <Send className="w-3 h-3" />
+                                  <span>Submit Ulang</span>
+                                </button>
+                              )}
+                            </>
+                          )}
+
                           {/* If stage is submitted, show Review button */}
-                          {stage.status === 'submitted' && (
+                          {stage.status === 'submitted' && can(PERMISSIONS.STAGE_APPROVE, project.id) && (
                             <button
                               type="button"
                               onClick={() => handleOpenReview(stage)}

@@ -77,6 +77,28 @@ export const sessions = pgTable('sessions', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const flowPresets = pgTable('flow_presets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  isOrganizationDefault: boolean('is_organization_default').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const flowPresetSteps = pgTable('flow_preset_steps', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  presetId: uuid('preset_id')
+    .notNull()
+    .references(() => flowPresets.id, { onDelete: 'cascade' }),
+  stepOrder: integer('step_order').notNull(),
+  stepType: text('step_type').$type<'request' | 'execute' | 'approve'>().notNull(),
+  name: text('name').notNull(),
+  requiredPermission: text('required_permission'),
+  canCombineWithNext: boolean('can_combine_with_next').notNull().default(false),
+  requiresSignature: boolean('requires_signature').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
@@ -86,6 +108,7 @@ export const projects = pgTable('projects', {
   status: text('status').$type<'active' | 'completed' | 'on_hold'>().notNull().default('active'),
   zones: jsonb('zones').$type<ProjectZone[]>().notNull().default([]),
   leadManager: text('lead_manager').notNull(),
+  flowPresetId: uuid('flow_preset_id').references(() => flowPresets.id, { onDelete: 'set null' }),
   capaLockoutSeverities: text('capa_lockout_severities')
     .array()
     .notNull()
@@ -285,7 +308,7 @@ export const workStages = pgTable('work_stages', {
   approvalRole: text('approval_role').$type<UserRole>(),
   checklistSchema: jsonb('checklist_schema').$type<ChecklistSection[]>().notNull().default([]),
   requiresWetSignature: boolean('requires_wet_signature').notNull().default(false),
-  status: text('status').$type<'pending' | 'in_progress' | 'submitted' | 'approved' | 'rejected'>().notNull().default('pending'),
+  status: text('status').$type<'pending' | 'requested' | 'in_progress' | 'submitted' | 'approved' | 'rejected'>().notNull().default('pending'),
   actualCompletedAt: timestamp('actual_completed_at', { withTimezone: true }),
   forecastCompletionDate: timestamp('forecast_completion_date', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -300,11 +323,14 @@ export const inspectionAttempts = pgTable('inspection_attempts', {
   submitterId: uuid('submitter_id')
     .notNull()
     .references(() => users.id, { onDelete: 'restrict' }),
+  requesterId: uuid('requester_id')
+    .references(() => users.id, { onDelete: 'set null' }),
+  requestedAt: timestamp('requested_at', { withTimezone: true }),
   submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull().defaultNow(),
   approverId: uuid('approver_id')
     .references(() => users.id, { onDelete: 'set null' }),
   decidedAt: timestamp('decided_at', { withTimezone: true }),
-  status: text('status').$type<'draft' | 'submitted' | 'approved' | 'rejected'>().notNull().default('submitted'),
+  status: text('status').$type<'draft' | 'requested' | 'submitted' | 'approved' | 'rejected'>().notNull().default('submitted'),
   answers: jsonb('answers').$type<Record<string, any>>().notNull().default({}),
   rejectionReason: text('rejection_reason'),
   signatureCanvasUrl: text('signature_canvas_url'),

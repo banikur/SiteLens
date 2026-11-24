@@ -14,6 +14,8 @@ import type {
   BottleneckItem,
   DailyWeatherLog,
   PlannedCurveOverride,
+  FlowPreset,
+  FlowPresetStep,
 } from '../types';
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -422,6 +424,16 @@ export async function apiGetStageAttempts(stageId: string): Promise<{
   }
 }
 
+export async function apiRequestStageRfi(stageId: string): Promise<{
+  attempt: InspectionAttempt;
+  stage: WorkStage;
+  message: string;
+}> {
+  return await apiJson(`/api/stages/${encodeURIComponent(stageId)}/request`, {
+    method: 'POST',
+  });
+}
+
 export async function apiSubmitStageAttempt(
   stageId: string,
   data: {
@@ -682,6 +694,43 @@ export async function apiUpdateProject(
   return apiJson(`/api/projects/${encodeURIComponent(projectId)}`, {
     method: 'PUT',
     body: JSON.stringify(data),
+  });
+}
+
+// ---------------- FLOW PRESETS (TAHAP 2c) ----------------
+
+export async function apiGetFlowPresets(): Promise<{ presets: FlowPreset[] }> {
+  return apiJson('/api/flow-presets');
+}
+
+export async function apiGetFlowPreset(id: string): Promise<{ preset: FlowPreset }> {
+  return apiJson(`/api/flow-presets/${encodeURIComponent(id)}`);
+}
+
+export async function apiCreateFlowPreset(
+  data: Partial<FlowPreset> & { steps?: any[] }
+): Promise<{ preset: FlowPreset }> {
+  return apiJson('/api/flow-presets', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiUpdateFlowPreset(
+  id: string,
+  data: Partial<FlowPreset> & { steps?: any[] }
+): Promise<{ preset: FlowPreset }> {
+  return apiJson(`/api/flow-presets/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteFlowPreset(
+  id: string
+): Promise<{ success: boolean; message: string }> {
+  return apiJson(`/api/flow-presets/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
   });
 }
 

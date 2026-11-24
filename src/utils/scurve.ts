@@ -267,7 +267,9 @@ export function calculateBottleneckAging(
   const result: BottleneckItem[] = [];
 
   for (const item of pendingStages) {
-    const submittedTime = new Date(item.attempt.submittedAt).getTime();
+    // Blueprint Tahap 2c: SLA aging is measured from requestedAt if available, otherwise submittedAt
+    const baselineDate = item.attempt.requestedAt || item.attempt.submittedAt;
+    const submittedTime = new Date(baselineDate).getTime();
     const nowTime = now.getTime();
     const diffMs = Math.max(0, nowTime - submittedTime);
     const waitingHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
@@ -289,7 +291,9 @@ export function calculateBottleneckAging(
       nodeName: item.nodeName,
       attemptNumber: item.attempt.attemptNumber,
       submitterName: item.submitterName,
+      requestedAt: item.attempt.requestedAt,
       submittedAt: item.attempt.submittedAt,
+      stageStatus: item.stage.status,
       approvalRole: item.stage.approvalRole || 'QA/QC Lead / Owner Inspector',
       waitingHours,
       status,
