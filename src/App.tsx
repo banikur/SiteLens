@@ -481,13 +481,10 @@ function SiteLensWorkspace() {
         onAuthenticated={(user) => {
           setAuthUser(user);
           setCurrentUser(user);
-          if (!sessionStorage.getItem('sitelens_tour_seen')) {
-            sessionStorage.setItem('sitelens_tour_seen', '1');
-            setTourModalOpen(true);
-          }
+          // Demo tour modal disabled temporarily for palette redesign
         }}
         onStartGuidedTour={() => {
-          setTourModalOpen(true);
+          // Demo tour modal disabled temporarily for palette redesign
         }}
       />
     );
@@ -754,21 +751,23 @@ function SiteLensWorkspace() {
         }}
       />
 
-      {/* DEMO GUIDED TOUR MODAL */}
-      <DemoTourModal
-        isOpen={tourModalOpen}
-        onClose={() => setTourModalOpen(false)}
-        onSelectTab={(tab) => {
-          setEditingTemplate(null);
-          setExecutingTemplate(null);
-          setCurrentTab(tab);
-        }}
-        onSwitchUser={handleSwitchUser}
-        allUsers={users}
-        onOpenProjectStudio={() => {
-          setCurrentTab('projects');
-        }}
-      />
+      {/* DEMO GUIDED TOUR MODAL (DISABLED TEMPORARILY FOR REDESIGN) */}
+      {false && (
+        <DemoTourModal
+          isOpen={tourModalOpen}
+          onClose={() => setTourModalOpen(false)}
+          onSelectTab={(tab) => {
+            setEditingTemplate(null);
+            setExecutingTemplate(null);
+            setCurrentTab(tab);
+          }}
+          onSwitchUser={handleSwitchUser}
+          allUsers={users}
+          onOpenProjectStudio={() => {
+            setCurrentTab('projects');
+          }}
+        />
+      )}
     </div>
   );
 }

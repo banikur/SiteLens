@@ -381,17 +381,19 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
         )}
 
-        {/* Guided Demo Tour Trigger */}
-        <div className="p-3 pb-0 bg-[#06090e]">
-          <button
-            type="button"
-            onClick={onOpenTour}
-            className="w-full py-2 px-3 rounded-lg bg-[#d4f038]/15 hover:bg-[#d4f038]/25 text-[#d4f038] border border-[#d4f038]/40 text-xs font-bold transition-all flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
-          >
-            <Compass className="w-4 h-4 text-[#d4f038]" />
-            <span>{lang === 'id' ? 'Panduan Alur Demo' : 'Guided Demo Tour'}</span>
-          </button>
-        </div>
+        {/* Guided Demo Tour Trigger (Disabled temporarily for palette redesign) */}
+        {false && (
+          <div className="p-3 pb-0 bg-[#06090e]">
+            <button
+              type="button"
+              onClick={onOpenTour}
+              className="w-full py-2 px-3 rounded-lg bg-[#d4f038]/15 hover:bg-[#d4f038]/25 text-[#d4f038] border border-[#d4f038]/40 text-xs font-bold transition-all flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
+            >
+              <Compass className="w-4 h-4 text-[#d4f038]" />
+              <span>{lang === 'id' ? 'Panduan Alur Demo' : 'Guided Demo Tour'}</span>
+            </button>
+          </div>
+        )}
 
         {/* Active Persona & User Switcher Card */}
         <div className="p-3 border-t border-slate-800 relative bg-[#06090e]">
