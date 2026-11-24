@@ -395,123 +395,170 @@ export const Navigation: React.FC<NavigationProps> = ({
           </div>
         )}
 
-        {/* Active Persona & User Switcher Card */}
+        {/* Active Persona & Role Switcher Card (Role-First for Demo) */}
         <div className="p-3 border-t border-slate-800 relative bg-[#06090e]">
-          <button
-            onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-            className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-800/70 transition-colors text-left"
-          >
-            <div className="flex items-center space-x-2.5 overflow-hidden">
-              {activeUser.avatar ? (
-                <img
-                  src={activeUser.avatar}
-                  alt={activeUser.name}
-                  referrerPolicy="no-referrer"
-                  className="w-8 h-8 rounded-full border border-slate-700 object-cover flex-shrink-0"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full border border-slate-700 bg-[#d4f038]/15 text-[#d4f038] flex items-center justify-center text-xs font-mono font-bold flex-shrink-0">
-                  {activeUser.name.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-              <div className="overflow-hidden">
-                <div className="text-xs font-semibold text-white truncate leading-tight">
-                  {activeUser.name}
-                </div>
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                  {translateRole(activeUser.role)}
-                </div>
-              </div>
-            </div>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 flex-shrink-0 ml-1" />
-          </button>
+          {(() => {
+            const roleMeta = (() => {
+              const r = (activeUser.role || '').toLowerCase();
+              if (r.includes('director') || r.includes('tenant admin') || r.includes('admin') || r.includes('head_office')) {
+                return {
+                  title: 'Project Director & Tenant Admin',
+                  badge: 'Otoritas Tertinggi Tenant (Org Scope)',
+                  abbr: 'DIR',
+                  color: 'bg-amber-500 text-slate-950 font-black',
+                  border: 'border-amber-400',
+                };
+              }
+              if (r.includes('manager') || r.includes('wbs') || r.includes('pm')) {
+                return {
+                  title: 'Project Manager (PM)',
+                  badge: 'Setup WBS & Kontrol Baseline',
+                  abbr: 'PM',
+                  color: 'bg-blue-600 text-white font-black',
+                  border: 'border-blue-400',
+                };
+              }
+              if (r.includes('site engineer') || r.includes('pelaksana') || r.includes('engineer')) {
+                return {
+                  title: 'Project / Site Engineer',
+                  badge: 'Submitter RFI & Progres Tahap',
+                  abbr: 'SE',
+                  color: 'bg-cyan-600 text-white font-black',
+                  border: 'border-cyan-400',
+                };
+              }
+              if (r.includes('lead') || r.includes('qa') || r.includes('approver') || r.includes('verifier')) {
+                return {
+                  title: 'QA/QC Lead / Owner Inspector',
+                  badge: 'Verifikator Mutu & Four-Eyes',
+                  abbr: 'QC',
+                  color: 'bg-indigo-600 text-white font-black',
+                  border: 'border-indigo-400',
+                };
+              }
+              if (r.includes('subcon') || r.includes('subcontractor') || r.includes('action owner')) {
+                return {
+                  title: 'Action Owner / Subcontractor',
+                  badge: 'Pelaksana Perbaikan & CAPA',
+                  abbr: 'SUBC',
+                  color: 'bg-orange-600 text-white font-black',
+                  border: 'border-orange-400',
+                };
+              }
+              if (r.includes('viewer') || r.includes('client')) {
+                return {
+                  title: 'Client / Vendor Viewer',
+                  badge: 'Mode Pantau Read-Only',
+                  abbr: 'VIEW',
+                  color: 'bg-slate-600 text-white font-black',
+                  border: 'border-slate-400',
+                };
+              }
+              return {
+                title: 'Field / QC Inspector',
+                badge: 'Pelaksana Ceklis Lapangan',
+                abbr: 'INSP',
+                color: 'bg-emerald-600 text-white font-black',
+                border: 'border-emerald-400',
+              };
+            })();
 
-          {/* Persona Switcher or Authenticated Account Menu */}
-          {userDropdownOpen && authEnabled && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-[#0b0e14] border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-xs">
-              <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold text-slate-400">
-                {lang === 'id' ? 'Akun & Keamanan' : 'Account & Security'}
-              </div>
-              <div className="p-1.5 space-y-1">
-                <button
-                  onClick={() => {
-                    onOpenSecurity?.();
-                    setUserDropdownOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg flex items-center space-x-2 text-slate-200 hover:bg-slate-800 transition-colors"
-                >
-                  <Shield className="w-3.5 h-3.5 text-[#d4f038]" />
-                  <span>{lang === 'id' ? 'PIN & Sidik Jari' : 'PIN & Biometrics'}</span>
-                </button>
-                <button
-                  onClick={() => {
-                    onLogout?.();
-                    setUserDropdownOpen(false);
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg flex items-center space-x-2 text-red-400 hover:bg-red-500/10 transition-colors"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>{lang === 'id' ? 'Keluar' : 'Sign Out'}</span>
-                </button>
-              </div>
-            </div>
-          )}
+            return (
+              <button
+                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                className="w-full flex items-center justify-between p-1.5 rounded-lg hover:bg-slate-800/70 transition-colors text-left cursor-pointer group"
+              >
+                <div className="flex items-center space-x-2.5 overflow-hidden">
+                  <div
+                    className={`w-8 h-8 rounded-lg ${roleMeta.color} flex items-center justify-center text-[10px] font-mono tracking-tight shrink-0 shadow-xs border ${roleMeta.border}`}
+                  >
+                    {roleMeta.abbr}
+                  </div>
+                  <div className="overflow-hidden">
+                    <div className="text-xs font-bold text-white truncate leading-tight group-hover:text-amber-400 transition-colors">
+                      {roleMeta.title}
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate mt-0.5 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      <span className="truncate">{roleMeta.badge}</span>
+                    </div>
+                  </div>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 group-hover:text-white" />
+              </button>
+            );
+          })()}
 
-          {userDropdownOpen && !authEnabled && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-[#0b0e14] border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-xs">
-              <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-semibold text-slate-400 flex items-center justify-between">
-                <span>{t.nav.switchPersona}</span>
-                <UserCheck className="w-3 h-3 text-amber-400" />
+          {/* Unified Role Switcher & Account Menu Popup */}
+          {userDropdownOpen && (
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-[#0b0e14] border border-slate-700 rounded-xl shadow-2xl py-2 z-50 text-xs animate-in fade-in-50 zoom-in-95 duration-100">
+              <div className="px-3 py-1.5 border-b border-slate-800 text-[10px] font-bold text-amber-400 flex items-center justify-between uppercase tracking-wider">
+                <span>{lang === 'id' ? 'Ganti Peran Demo (Roles)' : 'Switch Demo Role'}</span>
+                <UserCheck className="w-3.5 h-3.5 text-amber-400" />
               </div>
-              <div className="max-h-56 overflow-y-auto py-1 divide-y divide-slate-800/50">
-                {allUsers.map((u) => (
+
+              <div className="max-h-64 overflow-y-auto py-1 divide-y divide-slate-800/40">
+                {[
+                  { id: 'usr-admin-1', roleName: 'Project Director & Tenant Admin', title: 'Project Director & Tenant Admin', badge: 'Otoritas Tertinggi Tenant (Org Scope)', abbr: 'DIR', color: 'bg-amber-500 text-slate-950 font-bold', border: 'border-amber-400' },
+                  { id: 'usr-pm-1', roleName: 'Project / Site Engineer', title: 'Project Manager (PM)', badge: 'Setup WBS & Bobot Relatif', abbr: 'PM', color: 'bg-blue-600 text-white font-bold', border: 'border-blue-400' },
+                  { id: 'usr-sup-1', roleName: 'Project / Site Engineer', title: 'Site Engineer (SE)', badge: 'Submitter RFI & Pengajuan Tahap', abbr: 'SE', color: 'bg-cyan-600 text-white font-bold', border: 'border-cyan-400' },
+                  { id: 'usr-hse-1', roleName: 'QA/QC Lead / Owner Inspector', title: 'QA/QC Lead Inspector', badge: 'Witness, Hold Point & Approval', abbr: 'QC', color: 'bg-indigo-600 text-white font-bold', border: 'border-indigo-400' },
+                  { id: 'usr-op-1', roleName: 'Field / QC Inspector', title: 'Field / QC Inspector', badge: 'Inspeksi & Ceklis Lapangan', abbr: 'INSP', color: 'bg-emerald-600 text-white font-bold', border: 'border-emerald-400' },
+                  { id: 'usr-sub-1', roleName: 'Action Owner / Subcontractor', title: 'Subcontractor / Pelaksana', badge: 'Penyelesaian Temuan CAPA', abbr: 'SUBC', color: 'bg-orange-600 text-white font-bold', border: 'border-orange-400' },
+                  { id: 'usr-view-1', roleName: 'Client / Vendor Viewer', title: 'Client / Vendor Viewer', badge: 'Mode Pantau Read-Only', abbr: 'VIEW', color: 'bg-slate-600 text-white font-bold', border: 'border-slate-400' },
+                ].map((r) => {
+                  const isCurrent = activeUser.id === r.id || activeUser.role === r.roleName;
+                  return (
+                    <button
+                      key={r.id}
+                      onClick={() => {
+                        onSwitchUser(r.id);
+                        setUserDropdownOpen(false);
+                      }}
+                      className={`w-full text-left px-3 py-2 flex items-center space-x-2.5 transition-colors cursor-pointer ${
+                        isCurrent
+                          ? 'bg-slate-800/90 text-white font-bold'
+                          : 'text-slate-300 hover:bg-slate-800/50 hover:text-white'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-md ${r.color} flex items-center justify-center text-[9px] font-mono font-bold shrink-0 border ${r.border}`}>
+                        {r.abbr}
+                      </div>
+                      <div className="truncate">
+                        <div className="truncate text-xs font-semibold">{r.title}</div>
+                        <div className="text-[10px] text-slate-400 truncate">{r.badge}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Bottom Actions: Security & Sign Out */}
+              <div className="px-2 pt-2 border-t border-slate-800 mt-1 space-y-1">
+                {authEnabled && onOpenSecurity && (
                   <button
-                    key={u.id}
                     onClick={() => {
-                      onSwitchUser(u.id);
+                      onOpenSecurity();
                       setUserDropdownOpen(false);
                     }}
-                    className={`w-full text-left px-3 py-2 flex items-center space-x-2.5 transition-colors ${u.id === activeUser.id
-                        ? 'bg-slate-800 text-white font-semibold'
-                        : 'text-slate-300 hover:bg-slate-850 hover:text-white'
-                      }`}
+                    className="w-full text-left px-3 py-1.5 rounded-lg flex items-center space-x-2 text-slate-300 hover:bg-slate-800 text-[11px] cursor-pointer"
                   >
-                    <img
-                      src={u.avatar}
-                      alt={u.name}
-                      referrerPolicy="no-referrer"
-                      className="w-6 h-6 rounded-full object-cover border border-slate-700"
-                    />
-                    <div className="truncate">
-                      <div className="truncate">{u.name}</div>
-                      <div className="text-[10px] text-slate-400 truncate">
-                        {translateRole(u.role)}
-                      </div>
-                    </div>
+                    <Shield className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{lang === 'id' ? 'Pengaturan PIN & Biometrik' : 'PIN & Biometrics'}</span>
                   </button>
-                ))}
-              </div>
-              <div className="px-3 pt-2 border-t border-slate-800 mt-1 space-y-1">
-                <button
-                  onClick={() => {
-                    onLogout?.();
-                    setUserDropdownOpen(false);
-                  }}
-                  className="w-full flex items-center justify-center space-x-1.5 py-1.5 text-[11px] text-[#d4f038] hover:underline transition-colors"
-                >
-                  <LogOut className="w-3 h-3" />
-                  <span>{lang === 'id' ? 'Ganti Role / Halaman Login' : 'Switch Role / Sign Out'}</span>
-                </button>
-                <button
-                  onClick={() => {
-                    onResetData();
-                    setUserDropdownOpen(false);
-                  }}
-                  className="w-full flex items-center justify-center space-x-1.5 py-1.5 text-[11px] text-slate-400 hover:text-amber-400 transition-colors"
-                >
-                  <RotateCcw className="w-3 h-3" />
-                  <span>{t.nav.resetDemoData}</span>
-                </button>
+                )}
+                {onLogout && (
+                  <button
+                    onClick={() => {
+                      onLogout();
+                      setUserDropdownOpen(false);
+                    }}
+                    className="w-full text-left px-3 py-1.5 rounded-lg flex items-center space-x-2 text-rose-400 hover:bg-rose-500/10 text-[11px] cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>{lang === 'id' ? 'Ganti Akun / Logout' : 'Sign Out / Switch Account'}</span>
+                  </button>
+                )}
               </div>
             </div>
           )}

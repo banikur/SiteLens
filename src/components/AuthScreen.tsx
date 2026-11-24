@@ -37,6 +37,7 @@ interface RoleCardData {
   id: string;
   name: string;
   roleTitle: string;
+  roleAbbr: string;
   badge: string;
   avatar: string;
   canDo: string[];
@@ -62,61 +63,38 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
   const demoRoles: RoleCardData[] = [
     {
-      id: 'usr-hse-1',
-      name: 'Elena Rostova',
-      roleTitle: isId ? 'QA/QC Lead / Owner Inspector' : 'QA/QC Lead / Inspector',
-      badge: isId ? 'Verifikator Mutu & Four-Eyes' : 'Quality Verifier & Four-Eyes',
-      avatar: '/src/assets/images/avatar_elena_rostova_1794440488629.jpg',
+      id: 'usr-admin-1',
+      name: isId ? 'Project Director & Tenant Admin' : 'Project Director & Tenant Admin',
+      roleTitle: isId ? 'Project Director & Tenant Admin' : 'Project Director & Tenant Admin',
+      roleAbbr: 'DIR',
+      badge: isId ? 'Otoritas Tertinggi Tenant' : 'Tenant Director Authority',
+      avatar: '',
       canDo: isId ? [
-        'Memeriksa & mengesahkan pengajuan inspeksi (Witness/Approval)',
-        'Membuka & melepaskan Hold Point teknis di lapangan',
-        'Menandatangani sertifikat kelulusan mutu digital / lembar fisik',
-        'Menerbitkan & memverifikasi penutupan Punchlist (CAPA)',
+        'Akses penuh lintas seluruh proyek dalam satu tenant',
+        'Konfigurasi profil kepatuhan ganda SMK3 PP 50/2012 & ISO 45001',
+        'Audit trail sistem, log integritas SHA-256, & lisensi pengguna',
+        'Setup webhook integrasi ERP & keamanan PIN/Biometrik',
       ] : [
-        'Inspect and approve stage inspection requests (Witness/Approval)',
-        'Unlock and clear technical Hold Points in field execution',
-        'Sign digital acceptance certificates / physical scanned sheets',
-        'Issue and verify closure of Punchlist (CAPA) findings',
+        'Full oversight access across all projects within tenant',
+        'Dual-compliance profiling for SMK3 PP 50/2012 & ISO 45001',
+        'System audit trail, SHA-256 integrity logs, and user licenses',
+        'ERP webhook integration & biometric/PIN security settings',
       ],
       restrictedFrom: isId ? [
-        'Dilarang meng-approve inspeksi yang diajukan oleh dirinya sendiri (Four-Eyes locked)',
+        'Tidak difokuskan untuk submit inspeksi teknis harian',
       ] : [
-        'Strictly blocked from self-approving own submissions (Four-Eyes locked)',
+        'Not intended for routine daily field inspection submissions',
       ],
-      fourEyesRole: isId ? 'Verifikator Independen Wajib' : 'Mandatory Independent Verifier',
-      defaultActionTab: 'inspections',
-    },
-    {
-      id: 'usr-sup-1',
-      name: 'Dave Kowalski',
-      roleTitle: isId ? 'Site Engineer / Pelaksana Lapangan' : 'Site Engineer / Field Lead',
-      badge: isId ? 'Pelaksana & Submitter RFI' : 'Field Submitter & Lead',
-      avatar: '/src/assets/images/avatar_marcus_vance_1794440487345.jpg',
-      canDo: isId ? [
-        'Mengajukan Request for Inspection (RFI) tahap pekerjaan',
-        'Mengisi lembar ceklis kepatuhan gambar teknis & toleransi',
-        'Mengunggah bukti foto lapangan ber-geotag',
-        'Membubuhkan tanda tangan pemohon sebelum Hold Point',
-      ] : [
-        'Submit Request for Inspection (RFI) for assigned work nodes',
-        'Complete technical drawing compliance checklists & tolerances',
-        'Upload geotagged field evidence photos',
-        'Provide submitter digital sign-off engaging Hold Points',
-      ],
-      restrictedFrom: isId ? [
-        'Dilarang mengesahkan hasil inspeksi sendiri tanpa verifikasi QA/QC',
-      ] : [
-        'Cannot approve own work; Hold Point locks until QA/QC signs',
-      ],
-      fourEyesRole: isId ? 'Pemohon Lapangan (Submitter)' : 'Field Submitter',
-      defaultActionTab: 'projects',
+      fourEyesRole: isId ? 'Auditor Final & Eksekutif' : 'Final Executive Auditor',
+      defaultActionTab: 'compliance',
     },
     {
       id: 'usr-pm-1',
-      name: 'Arthur Sterling',
-      roleTitle: isId ? 'Project Manager / Office Integrity' : 'Project Manager / Integrity Lead',
+      name: isId ? 'Project Manager (PM)' : 'Project Manager (PM)',
+      roleTitle: isId ? 'Project Manager (PM)' : 'Project Manager (PM)',
+      roleAbbr: 'PM',
       badge: isId ? 'Setup Proyek & Alokasi WBS' : 'Project Setup & WBS Owner',
-      avatar: '/src/assets/images/avatar_marcus_vance_1794440487345.jpg',
+      avatar: '',
       canDo: isId ? [
         'Membuat & mengonfigurasi Proyek Baru dari awal',
         'Menyusun struktur WBS Tree & menetapkan bobot pekerjaan (%)',
@@ -139,59 +117,88 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       defaultActionTab: 'projects',
     },
     {
-      id: 'usr-admin-1',
-      name: 'Arthur Sterling (Admin)',
-      roleTitle: isId ? 'Project Director & Tenant Admin' : 'Project Director & Tenant Admin',
-      badge: isId ? 'Otoritas Tertinggi Tenant' : 'Tenant Director Authority',
-      avatar: '/src/assets/images/avatar_elena_rostova_1794440488629.jpg',
+      id: 'usr-sup-1',
+      name: isId ? 'Site Engineer (SE)' : 'Site Engineer (SE)',
+      roleTitle: isId ? 'Site Engineer / Pelaksana Lapangan' : 'Site Engineer / Field Lead',
+      roleAbbr: 'SE',
+      badge: isId ? 'Pelaksana & Submitter RFI' : 'Field Submitter & Lead',
+      avatar: '',
       canDo: isId ? [
-        'Akses penuh lintas seluruh proyek dalam satu tenant',
-        'Konfigurasi profil kepatuhan ganda SMK3 PP 50/2012 & ISO 45001',
-        'Audit trail sistem, log integritas SHA-256, & lisensi pengguna',
-        'Setup webhook integrasi ERP & keamanan PIN/Biometrik',
+        'Mengajukan Request for Inspection (RFI) tahap pekerjaan',
+        'Mengisi lembar ceklis kepatuhan gambar teknis & toleransi',
+        'Mengunggah bukti foto lapangan ber-geotag',
+        'Membubuhkan tanda tangan pemohon sebelum Hold Point',
       ] : [
-        'Full oversight access across all projects within tenant',
-        'Dual-compliance profiling for SMK3 PP 50/2012 & ISO 45001',
-        'System audit trail, SHA-256 integrity logs, and user licenses',
-        'ERP webhook integration & biometric/PIN security settings',
+        'Submit Request for Inspection (RFI) for assigned work nodes',
+        'Complete technical drawing compliance checklists & tolerances',
+        'Upload geotagged field evidence photos',
+        'Provide submitter digital sign-off engaging Hold Points',
       ],
       restrictedFrom: isId ? [
-        'Tidak difokuskan untuk submit inspeksi teknis harian',
+        'Dilarang mengesahkan hasil inspeksi sendiri tanpa verifikasi QA/QC',
       ] : [
-        'Not intended for routine daily field inspection submissions',
+        'Cannot approve own work; Hold Point locks until QA/QC signs',
       ],
-      fourEyesRole: isId ? 'Auditor Final & Eksekutif' : 'Final Executive Auditor',
-      defaultActionTab: 'compliance',
-    },
-    {
-      id: 'usr-eng-1',
-      name: 'Priya Patel',
-      roleTitle: isId ? 'Integrity / Structural Engineer' : 'Integrity / Structural Engineer',
-      badge: isId ? 'Spesialis Teknis & Rencana' : 'Technical Specialist',
-      avatar: '/src/assets/images/avatar_elena_rostova_1794440488629.jpg',
-      canDo: isId ? [
-        'Verifikasi acuan gambar kerja (Shop Drawing) & revisi aktif',
-        'Memantau perhitungan Kurva S & SLA Aging Bottleneck Radar',
-        'Mengajukan rekomendasi teknis perbaikan struktur',
-      ] : [
-        'Verify shop drawing references and active document revisions',
-        'Monitor S-Curve progress and SLA Aging Bottleneck Radar',
-        'Formulate technical remediation proposals for structures',
-      ],
-      restrictedFrom: isId ? [
-        'Dilarang memutasi profil K3 tenant tanpa izin Admin',
-      ] : [
-        'Cannot alter tenant HSE compliance profile without Admin role',
-      ],
-      fourEyesRole: isId ? 'Peninjau Teknis Spesialis' : 'Specialist Technical Reviewer',
+      fourEyesRole: isId ? 'Pemohon Lapangan (Submitter)' : 'Field Submitter',
       defaultActionTab: 'projects',
     },
     {
+      id: 'usr-hse-1',
+      name: isId ? 'QA/QC Lead / Owner Inspector' : 'QA/QC Lead / Owner Inspector',
+      roleTitle: isId ? 'QA/QC Lead / Owner Inspector' : 'QA/QC Lead / Inspector',
+      roleAbbr: 'QC',
+      badge: isId ? 'Verifikator Mutu & Four-Eyes' : 'Quality Verifier & Four-Eyes',
+      avatar: '',
+      canDo: isId ? [
+        'Memeriksa & mengesahkan pengajuan inspeksi (Witness/Approval)',
+        'Membuka & melepaskan Hold Point teknis di lapangan',
+        'Menandatangani sertifikat kelulusan mutu digital / lembar fisik',
+        'Menerbitkan & memverifikasi penutupan Punchlist (CAPA)',
+      ] : [
+        'Inspect and approve stage inspection requests (Witness/Approval)',
+        'Unlock and clear technical Hold Points in field execution',
+        'Sign digital acceptance certificates / physical scanned sheets',
+        'Issue and verify closure of Punchlist (CAPA) findings',
+      ],
+      restrictedFrom: isId ? [
+        'Dilarang meng-approve inspeksi yang diajukan oleh dirinya sendiri (Four-Eyes locked)',
+      ] : [
+        'Strictly blocked from self-approving own submissions (Four-Eyes locked)',
+      ],
+      fourEyesRole: isId ? 'Verifikator Independen Wajib' : 'Mandatory Independent Verifier',
+      defaultActionTab: 'inspections',
+    },
+    {
+      id: 'usr-op-1',
+      name: isId ? 'Field / QC Inspector' : 'Field / QC Inspector',
+      roleTitle: isId ? 'Field / QC Inspector' : 'Field / QC Inspector',
+      roleAbbr: 'INSP',
+      badge: isId ? 'Pelaksana Ceklis Lapangan' : 'Field Checklist Execution',
+      avatar: '',
+      canDo: isId ? [
+        'Mengisi form ceklis inspeksi harian di lapangan',
+        'Mencatat temuan non-conformance (NCR) / punchlist awal',
+        'Mengambil foto evidens bergeotag dan timestamp',
+      ] : [
+        'Complete daily field inspection checklists',
+        'Record preliminary punchlist / non-conformance items',
+        'Capture geotagged & timestamped evidence photos',
+      ],
+      restrictedFrom: isId ? [
+        'Dilarang mengubah konfigurasi WBS atau menutup Hold Point kritis tanpa QA Lead',
+      ] : [
+        'Cannot modify WBS hierarchy or clear critical Hold Points without QA Lead',
+      ],
+      fourEyesRole: isId ? 'Petugas Lapangan' : 'Field Inspector',
+      defaultActionTab: 'inspections',
+    },
+    {
       id: 'usr-viewer-1',
-      name: 'Sarah Jenkins',
+      name: isId ? 'Client / Vendor Viewer' : 'Client / Vendor Viewer',
       roleTitle: isId ? 'Client / Vendor Viewer' : 'Client / Vendor Viewer',
+      roleAbbr: 'VIEW',
       badge: isId ? 'Mode Pengawas (Read-Only)' : 'Auditor Mode (Read-Only)',
-      avatar: '/src/assets/images/avatar_marcus_vance_1794440487345.jpg',
+      avatar: '',
       canDo: isId ? [
         'Memantau Kurva S fisik terverifikasi secara real-time',
         'Melihat radar bottleneck keterlambatan persetujuan SLA',
@@ -214,11 +221,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const handleSelectDemoRole = (roleData: RoleCardData) => {
     const existing = MOCK_USERS.find((u) => u.id === roleData.id) || {
       id: roleData.id,
-      name: roleData.name,
+      name: roleData.roleTitle,
       role: roleData.roleTitle as any,
       title: roleData.roleTitle,
       email: `${roleData.id}@sitelens-demo.internal`,
-      avatar: roleData.avatar,
+      avatar: '',
       assignedProjects: ['prj-101', 'prj-102', 'prj-103'],
       certifications: ['API 510', 'ISO 9001', 'SMK3'],
     };
@@ -227,6 +234,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     const authUser: AuthenticatedUser = {
       ...existing,
+      name: roleData.roleTitle,
       username: existing.id,
       hasPin: true,
       passkeysCount: 1,
@@ -236,7 +244,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   };
 
   const handleStartDemoScenario = () => {
-    const pmRole = demoRoles.find((r) => r.id === 'usr-pm-1') || demoRoles[2];
+    const pmRole = demoRoles.find((r) => r.id === 'usr-pm-1') || demoRoles[1];
     handleSelectDemoRole(pmRole);
     if (onStartGuidedTour) {
       setTimeout(() => {
@@ -426,19 +434,16 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     {/* Header */}
                     <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-2.5">
-                        <div className="w-9 h-9 rounded-full bg-slate-800 border border-slate-700 text-[#d4f038] font-mono font-bold flex items-center justify-center text-xs">
-                          {role.name.slice(0, 2).toUpperCase()}
+                        <div className="w-10 h-10 rounded-lg bg-[#161c28] border border-slate-700 text-[#d4f038] font-mono font-black flex items-center justify-center text-xs shadow-inner shrink-0">
+                          {role.roleAbbr}
                         </div>
                         <div>
-                          <div className="text-xs font-bold text-white">{role.name}</div>
-                          <div className="text-[10px] text-slate-400 leading-tight">
-                            {role.roleTitle}
+                          <div className="text-xs font-bold text-white leading-tight">{role.name}</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {role.badge}
                           </div>
                         </div>
                       </div>
-                      <span className="px-2 py-0.5 rounded text-[9px] font-mono font-semibold bg-[#161c28] text-[#d4f038] border border-slate-700">
-                        {role.badge}
-                      </span>
                     </div>
 
                     {/* Four-Eyes Position Badge */}
@@ -488,12 +493,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     <button
                       type="button"
                       onClick={() => handleSelectDemoRole(role)}
-                      className="w-full py-2 px-3 rounded-lg bg-slate-800 hover:bg-[#d4f038] hover:text-[#0b0e14] text-white font-bold text-xs transition-colors flex items-center justify-center space-x-2 shadow-xs"
+                      className="w-full py-2.5 px-3 rounded-lg bg-slate-800 hover:bg-[#d4f038] hover:text-[#0b0e14] text-white font-bold text-xs transition-all flex items-center justify-center space-x-2 shadow-xs group"
                     >
-                      <span>
-                        {isId ? `Masuk sebagai ${role.name.split(' ')[0]}` : `Sign In as ${role.name.split(' ')[0]}`}
+                      <span className="truncate">
+                        {isId ? `Masuk sebagai ${role.name}` : `Sign In as ${role.name}`}
                       </span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </button>
                   </div>
                 </div>

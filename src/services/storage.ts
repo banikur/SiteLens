@@ -212,7 +212,20 @@ export const getStoredUsers = (): User[] => {
       localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(MOCK_USERS));
       return MOCK_USERS;
     }
-    return JSON.parse(raw);
+    const parsed: User[] = JSON.parse(raw);
+    // Ensure canonical mock users are updated with latest role titles while preserving custom users
+    const mockMap = new Map<string, User>(MOCK_USERS.map((u) => [u.id, u]));
+    const merged = MOCK_USERS.map((mockUser) => {
+      const stored = parsed.find((p) => p.id === mockUser.id);
+      return stored ? { ...stored, name: mockUser.name, role: mockUser.role, title: mockUser.title } : mockUser;
+    });
+    parsed.forEach((p) => {
+      if (!mockMap.has(p.id)) {
+        merged.push(p);
+      }
+    });
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(merged));
+    return merged;
   } catch (e) {
     return MOCK_USERS;
   }

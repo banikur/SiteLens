@@ -191,6 +191,14 @@ function SiteLensWorkspace() {
   const handleSwitchUser = (userId: string) => {
     const updated = setActiveUser(userId);
     setCurrentUser(updated);
+    if (authUser) {
+      setAuthUser({
+        ...updated,
+        username: updated.id,
+        hasPin: true,
+        passkeysCount: 1,
+      });
+    }
   };
 
   // Reset Demo Data
