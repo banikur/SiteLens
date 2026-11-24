@@ -47,6 +47,7 @@ import { DemoTourModal } from './components/DemoTourModal';
 import { SecuritySettingsModal } from './components/SecuritySettingsModal';
 import { SettingsView } from './components/SettingsView';
 import { TenantComplianceView } from './components/TenantComplianceView';
+import { GlobalSearch } from './components/GlobalSearch';
 import { AuthProvider } from './context/AuthContext';
 import {
   AuthenticatedUser,
@@ -561,24 +562,45 @@ function SiteLensWorkspace() {
             )}
           </div>
 
-          {/* Zone 2: Contextual Status */}
-          <nav className="hidden xl:flex items-center gap-6 text-xs text-slate-500 whitespace-nowrap shrink-0">
-            <span>{t.nav.activeProjectHeader}</span>
-            <span aria-hidden="true">·</span>
-            <span>{t.nav.activeShiftsHeader}</span>
-            <span aria-hidden="true">·</span>
-            <span className="font-mono text-xs text-slate-700 font-semibold flex items-center space-x-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#d4f038] inline-block" />
-              <span>{t.nav.siteSyncNominal}</span>
-            </span>
-          </nav>
+          {/* Zone 2: Global Search Bar & Command Palette */}
+          <div className="flex-1 max-w-md mx-auto px-2">
+            <GlobalSearch
+              projects={projects}
+              templates={templates}
+              inspections={inspections}
+              actions={actions}
+              onNavigateTab={(tab) => {
+                setCurrentTab(tab);
+                setExecutingTemplate(null);
+                setEditingTemplate(null);
+              }}
+              onSelectProject={() => {
+                setCurrentTab('projects');
+                setExecutingTemplate(null);
+                setEditingTemplate(null);
+              }}
+              onSelectTemplate={(tmpl) => {
+                setExecutingTemplate(tmpl);
+              }}
+              onSelectInspection={() => {
+                setCurrentTab('inspections');
+                setExecutingTemplate(null);
+                setEditingTemplate(null);
+              }}
+              onSelectAction={() => {
+                setCurrentTab('actions');
+                setExecutingTemplate(null);
+                setEditingTemplate(null);
+              }}
+            />
+          </div>
 
           {/* Zone 3: 1 Primary Action */}
           <div className="flex items-center gap-3 shrink-0">
             {executingTemplate ? (
               <button
                 onClick={() => setExecutingTemplate(null)}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
+                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap cursor-pointer"
               >
                 {t.nav.exitInspection}
               </button>
@@ -588,7 +610,7 @@ function SiteLensWorkspace() {
                   setEditingTemplate(null);
                   setCurrentTab('templates');
                 }}
-                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap"
+                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors whitespace-nowrap cursor-pointer"
               >
                 {t.nav.closeBuilder}
               </button>
@@ -599,7 +621,7 @@ function SiteLensWorkspace() {
                     setExecutingTemplate(templates[0]);
                   }
                 }}
-                className="px-3.5 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] text-xs font-bold transition-colors whitespace-nowrap shadow-xs"
+                className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors whitespace-nowrap shadow-xs cursor-pointer"
               >
                 {t.nav.quickPerform}
               </button>

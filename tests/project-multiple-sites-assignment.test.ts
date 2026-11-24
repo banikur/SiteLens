@@ -99,7 +99,7 @@ test('Multiple Sites with Leaflet & Merged Employee Assignment', async (t) => {
       name: 'Elena Rostova',
       email: 'qc_sites@sitelens.id',
       passwordHash: pwd,
-      role: 'QA/QC Inspector',
+      role: 'QA/QC Lead / Owner Inspector',
       title: 'QA/QC Lead',
     },
   ]);
