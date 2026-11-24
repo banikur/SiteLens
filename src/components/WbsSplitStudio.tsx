@@ -27,6 +27,7 @@ import {
   Printer,
   X,
   ExternalLink,
+  GripVertical,
 } from 'lucide-react';
 import type { WorkNode, WorkWorkflow, WorkStage, InspectionAttempt, Project, User } from '../types';
 import {
@@ -118,6 +119,89 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   const [inlineQcName, setInlineQcName] = useState('');
   const [inlineSaving, setInlineSaving] = useState(false);
   const [inlineSaveSuccess, setInlineSaveSuccess] = useState(false);
+
+  // Drag and drop reparenting states
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null);
+  const [isDragOverRoot, setIsDragOverRoot] = useState(false);
+  const [reparentingLoading, setReparentingLoading] = useState(false);
+
+  const checkIsDescendant = (potentialChildId: string, potentialParentId: string): boolean => {
+    let curr = nodes.find((n) => n.id === potentialParentId);
+    while (curr && curr.parentId) {
+      if (curr.parentId === potentialChildId) return true;
+      const nextPid: string = curr.parentId;
+      curr = nodes.find((n) => n.id === nextPid);
+    }
+    return false;
+  };
+
+  const handleDropOnNode = async (targetParentId: string) => {
+    if (!draggedNodeId || draggedNodeId === targetParentId) {
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+      return;
+    }
+
+    const dragged = nodes.find((n) => n.id === draggedNodeId);
+    const targetParent = nodes.find((n) => n.id === targetParentId);
+    if (!dragged || !targetParent) return;
+
+    if (dragged.parentId === targetParentId) {
+      // Already child of target
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+      return;
+    }
+
+    if (checkIsDescendant(draggedNodeId, targetParentId)) {
+      alert(`Tidak dapat memindahkan '${dragged.name}' ke dalam anaknya sendiri ('${targetParent.name}'). Siklus hierarki dilarang.`);
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+      return;
+    }
+
+    try {
+      setReparentingLoading(true);
+      await apiUpdateWbsNode(project.id, draggedNodeId, { parentId: targetParentId });
+      setWorkflowSuccess(`Hierarki berhasil diubah: '${dragged.name}' kini berada di bawah '${targetParent.name}'.`);
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memindahkan posisi node.');
+    } finally {
+      setReparentingLoading(false);
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+    }
+  };
+
+  const handleDropToRoot = async () => {
+    if (!draggedNodeId) return;
+    const dragged = nodes.find((n) => n.id === draggedNodeId);
+    if (!dragged) return;
+
+    if (!dragged.parentId) {
+      // Already root
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+      setIsDragOverRoot(false);
+      return;
+    }
+
+    try {
+      setReparentingLoading(true);
+      await apiUpdateWbsNode(project.id, draggedNodeId, { parentId: null });
+      setWorkflowSuccess(`Node '${dragged.name}' berhasil dipindahkan menjadi Node Tingkat Induk (Root).`);
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memindahkan node ke root.');
+    } finally {
+      setReparentingLoading(false);
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+      setIsDragOverRoot(false);
+    }
+  };
 
   const { can, isLoading: isLoadingPerms } = usePermission();
   const canExecute = !isLoadingPerms && can(PERMISSIONS.STAGE_EXECUTE, project.id);
@@ -443,6 +527,14 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
             />
           </div>
 
+          {/* Tip for Drag & Drop */}
+          {canEdit && (
+            <div className="text-[10px] text-slate-500 flex items-center space-x-1.5 px-0.5">
+              <GripVertical className="w-3 h-3 text-slate-400 shrink-0" />
+              <span className="truncate">Tarik & lepas (drag-and-drop) item untuk mengatur struktur parent/anak.</span>
+            </div>
+          )}
+
           {/* Sibling Weight Validation Banner */}
           <div className="flex items-center justify-between text-[11px] px-2 py-1 rounded bg-white border border-slate-200">
             <span className="text-slate-500 font-medium">Validasi Bobot Sibling:</span>
@@ -464,6 +556,29 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
 
         {/* Tree List (Scrollable) */}
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-1.5 font-sans">
+          {/* Drop Target for Root Level */}
+          {draggedNodeId && (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setIsDragOverRoot(true);
+              }}
+              onDragLeave={() => setIsDragOverRoot(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleDropToRoot();
+              }}
+              className={`p-2.5 mb-2 rounded-lg border-2 border-dashed text-center text-xs font-bold transition-all cursor-pointer ${
+                isDragOverRoot
+                  ? 'border-blue-500 bg-blue-100 text-blue-900 scale-[1.01] shadow-xs'
+                  : 'border-slate-300 bg-slate-50 text-slate-600 hover:border-slate-400'
+              }`}
+            >
+              <span>📦 Jatuhkan di sini untuk jadikan Node Tingkat Induk (Root)</span>
+            </div>
+          )}
+
           {filteredFlatNodes.length === 0 ? (
             <div className="py-16 text-center text-slate-400 space-y-2">
               <FolderTree className="w-8 h-8 mx-auto text-slate-300" />
@@ -484,20 +599,62 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
               const hasChildren = node.children && node.children.length > 0;
               const isCollapsed = collapsedNodes.has(node.id);
               const isSelected = selectedNode?.id === node.id;
+              const isCurrentlyDragged = draggedNodeId === node.id;
+              const isDragOver = dragOverNodeId === node.id;
               const rollup = calculateRollupProgress(node);
 
               return (
                 <div
                   key={node.id}
+                  draggable={canEdit}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', node.id);
+                    setDraggedNodeId(node.id);
+                  }}
+                  onDragOver={(e) => {
+                    if (draggedNodeId && draggedNodeId !== node.id) {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setDragOverNodeId(node.id);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (dragOverNodeId === node.id) {
+                      setDragOverNodeId(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    handleDropOnNode(node.id);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedNodeId(null);
+                    setDragOverNodeId(null);
+                    setIsDragOverRoot(false);
+                  }}
                   onClick={() => setSelectedNodeId(node.id)}
-                  className={`group px-2 py-2 rounded-lg cursor-pointer transition-all flex items-center justify-between gap-2 ${
-                    isSelected
+                  className={`group px-2 py-2 rounded-lg cursor-pointer transition-all flex items-center justify-between gap-2 relative ${
+                    isDragOver
+                      ? 'border-2 border-amber-500 bg-amber-100/90 shadow-md ring-2 ring-amber-300 scale-[1.01]'
+                      : isCurrentlyDragged
+                      ? 'opacity-35 border-dashed border-slate-400 bg-slate-100'
+                      : isSelected
                       ? 'bg-amber-50/80 border border-amber-300 shadow-2xs text-slate-900'
                       : 'hover:bg-slate-50 border border-transparent text-slate-700'
                   }`}
                   style={{ marginLeft: `${node.level * 14}px` }}
                 >
-                  <div className="flex items-center space-x-2 overflow-hidden min-w-0">
+                  <div className="flex items-center space-x-1.5 overflow-hidden min-w-0">
+                    {/* Drag Handle Icon */}
+                    {canEdit && (
+                      <span
+                        className="cursor-grab active:cursor-grabbing text-slate-400 group-hover:text-slate-700 p-0.5 shrink-0"
+                        title="Geser untuk memindahkan hierarki (Drag & Drop)"
+                      >
+                        <GripVertical className="w-3.5 h-3.5" />
+                      </span>
+                    )}
+
                     {/* Expand/Collapse Chevron */}
                     {hasChildren ? (
                       <button
@@ -506,7 +663,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                           e.stopPropagation();
                           toggleCollapse(node.id);
                         }}
-                        className="p-0.5 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-200/60"
+                        className="p-0.5 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 shrink-0"
                       >
                         {isCollapsed ? (
                           <ChevronRight className="w-3.5 h-3.5" />
@@ -537,6 +694,13 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                         {node.name}
                       </span>
                     </div>
+
+                    {/* Drop indication badge */}
+                    {isDragOver && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 text-[9px] font-mono font-bold shrink-0 shadow-2xs">
+                        ↪ Jadikan Sub-Pekerjaan
+                      </span>
+                    )}
                   </div>
 
                   {/* Right Meta in Row */}

@@ -36,7 +36,6 @@ import { NodeWorkflowModal } from './NodeWorkflowModal';
 import { SCurveChart } from './SCurveChart';
 import { BottleneckRadar } from './BottleneckRadar';
 import { WeatherLogModal } from './WeatherLogModal';
-import { WbsCanvasStudio } from './WbsCanvasStudio';
 import { WbsSplitStudio } from './WbsSplitStudio';
 import {
   buildWbsTree,
@@ -64,7 +63,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
 
   // Studio tabs & subviews
   const [activeStudioTab, setActiveStudioTab] = useState<'wbs' | 'scurve' | 'radar'>('wbs');
-  const [wbsSubView, setWbsSubView] = useState<'split' | 'canvas' | 'table'>('split');
+  const [wbsSubView, setWbsSubView] = useState<'split' | 'table'>('split');
   const [scurveData, setScurveData] = useState<SCurveSummary | null>(null);
   const [weatherModalOpen, setWeatherModalOpen] = useState(false);
 
@@ -492,12 +491,12 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
             )}
           </div>
 
-          {/* View Mode Switcher: Split-View (Compact) vs Tabel Hirarkis vs Draw.io Canvas */}
+          {/* View Mode Switcher: Split-View (Compact) vs Tabel Hirarkis */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
             <div className="flex items-center space-x-2">
               <span className="text-xs font-bold text-slate-900">Format Tampilan WBS:</span>
               <span className="text-[11px] text-slate-500">
-                Pilih Split-View (ringkas & efisien), Tabel Matriks hirarkis, atau Blank Kanvas visual.
+                Pilih Split-View (ringkas, drag-and-drop & efisien) atau Tabel Matriks hirarkis.
               </span>
             </div>
 
@@ -524,16 +523,6 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                 <FolderTree className="w-3.5 h-3.5" />
                 <span>Tabel Hirarkis</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setWbsSubView('canvas')}
-                className={`px-3 py-1.5 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${wbsSubView === 'canvas'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                  }`}
-              >
-                <span>Working Tree Canvas (Draw.io)</span>
-              </button>
             </div>
           </div>
 
@@ -549,21 +538,6 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               onEditNode={handleOpenEditModal}
               onDeleteNode={(n) => setDeleteConfirmNode(n)}
               onOpenPresetModal={() => setPresetModalOpen(true)}
-            />
-          )}
-
-          {/* SubView 2: Draw.io Blank Canvas Working Tree */}
-          {wbsSubView === 'canvas' && (
-            <WbsCanvasStudio
-              nodes={nodes}
-              currentUser={currentUser}
-              canEdit={canEdit}
-              onAddNode={handleOpenAddModal}
-              onEditNode={handleOpenEditModal}
-              onDeleteNode={(n) => setDeleteConfirmNode(n)}
-              onOpenWorkflow={(n) => setSelectedWorkflowNode(n)}
-              onUpdateNodePosition={handleUpdateNodePosition}
-              onReparentNode={handleReparentNode}
             />
           )}
 

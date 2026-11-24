@@ -384,23 +384,34 @@ apiRouter.post(
         .returning();
 
       // Auto-assign project creator (F.1.D)
-      await tx
-        .insert(roleAssignments)
-        .values({
+      const [creatorExisting] = await tx
+        .select({ id: roleAssignments.id })
+        .from(roleAssignments)
+        .where(
+          and(
+            eq(roleAssignments.userId, req.authUser!.id as any),
+            eq(roleAssignments.projectId, savedProject.id as any),
+            eq(roleAssignments.scopeType, 'project')
+          )
+        )
+        .limit(1);
+
+      if (!creatorExisting) {
+        await tx.insert(roleAssignments).values({
           userId: req.authUser!.id as any,
           roleId: 'project_manager',
           scopeType: 'project',
           projectId: savedProject.id as any,
           isActive: true,
-        })
-        .onConflictDoNothing();
+        });
+      }
 
       // Merged employee assignments if provided in the same payload
       if (Array.isArray(p.teamMembers)) {
         for (const member of p.teamMembers) {
           if (member.userId && member.roleId) {
-            const [existingAssignment] = await tx
-              .select()
+            const [memberExisting] = await tx
+              .select({ id: roleAssignments.id })
               .from(roleAssignments)
               .where(
                 and(
@@ -411,14 +422,14 @@ apiRouter.post(
               )
               .limit(1);
 
-            if (existingAssignment) {
+            if (memberExisting) {
               await tx
                 .update(roleAssignments)
                 .set({
                   roleId: member.roleId,
                   isActive: true,
                 })
-                .where(eq(roleAssignments.id, existingAssignment.id));
+                .where(eq(roleAssignments.id, memberExisting.id));
             } else {
               await tx.insert(roleAssignments).values({
                 userId: member.userId as any,
@@ -515,8 +526,8 @@ apiRouter.put(
       if (Array.isArray(teamMembers)) {
         for (const member of teamMembers) {
           if (member.userId && member.roleId) {
-            const [existingAssignment] = await tx
-              .select()
+            const [memberExisting] = await tx
+              .select({ id: roleAssignments.id })
               .from(roleAssignments)
               .where(
                 and(
@@ -527,14 +538,14 @@ apiRouter.put(
               )
               .limit(1);
 
-            if (existingAssignment) {
+            if (memberExisting) {
               await tx
                 .update(roleAssignments)
                 .set({
                   roleId: member.roleId,
                   isActive: true,
                 })
-                .where(eq(roleAssignments.id, existingAssignment.id));
+                .where(eq(roleAssignments.id, memberExisting.id));
             } else {
               await tx.insert(roleAssignments).values({
                 userId: member.userId as any,
