@@ -14,6 +14,7 @@ import {
   Layers,
   ChevronDown,
   ChevronUp,
+  Search,
 } from 'lucide-react';
 import { Project, User, ProjectSite } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -79,6 +80,20 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
 
   // Expanded site details state in project cards
   const [expandedSitesProjectId, setExpandedSitesProjectId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed'>('all');
+
+  const filteredProjects = projects.filter((p) => {
+    const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      !q ||
+      p.name.toLowerCase().includes(q) ||
+      p.code.toLowerCase().includes(q) ||
+      p.client.toLowerCase().includes(q) ||
+      (p.location && p.location.toLowerCase().includes(q));
+    return matchesStatus && matchesSearch;
+  });
 
   if (selectedProjectForStudio && currentUser) {
     return (
@@ -267,223 +282,244 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
-            {t.projects.title}
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Kelola proyek konstruksi, penugasan titik site geografis, dan anggota tim pelaksana.
-          </p>
+    <div className="h-full flex flex-col space-y-2 overflow-hidden">
+      {/* =========================================================================
+          TOP UNIFIED TOOLBAR: Title, Search, Filter, & Add Project Action (~44px)
+          ========================================================================= */}
+      <div className="bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+        <div className="flex items-center space-x-2.5">
+          <div className="w-8 h-8 rounded-lg bg-slate-900 text-[#d4f038] flex items-center justify-center font-bold font-mono text-xs shrink-0">
+            PRJ
+          </div>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h1 className="text-sm font-bold text-slate-900 leading-tight">
+                {t.projects.title}
+              </h1>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 font-semibold text-slate-600">
+                {projects.length} Total Proyek
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 hidden xl:block">
+              Manajemen proyek konstruksi, geofence titik site, dan penugasan tim.
+            </p>
+          </div>
         </div>
-        <button
-          onClick={handleOpenCreateModal}
-          className="px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors flex items-center shadow-xs cursor-pointer"
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          {t.projects.addProjectBtn}
-        </button>
+
+        {/* Search & Filter */}
+        <div className="flex items-center space-x-2 flex-wrap">
+          <div className="relative w-48 sm:w-60">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari kode, nama, klien..."
+              className="w-full pl-8 pr-3 py-1 text-xs border border-slate-200 rounded-md bg-white text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-amber-500"
+            />
+          </div>
+
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+            <button
+              type="button"
+              onClick={() => setStatusFilter('all')}
+              className={`px-2 py-0.5 rounded-md font-semibold transition-colors text-xs ${
+                statusFilter === 'all'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Semua
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('active')}
+              className={`px-2 py-0.5 rounded-md font-semibold transition-colors text-xs ${
+                statusFilter === 'active'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Aktif
+            </button>
+            <button
+              type="button"
+              onClick={() => setStatusFilter('completed')}
+              className={`px-2 py-0.5 rounded-md font-semibold transition-colors text-xs ${
+                statusFilter === 'completed'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Selesai
+            </button>
+          </div>
+
+          <button
+            onClick={handleOpenCreateModal}
+            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors flex items-center shadow-2xs whitespace-nowrap cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            <span>+ Proyek</span>
+          </button>
+        </div>
       </div>
 
-      {/* Projects Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((prj) => {
-          const prjSites = prj.sites && prj.sites.length > 0 ? prj.sites : [];
-          const primarySite = prjSites.find((s) => s.isPrimary) || prjSites[0];
-          const isSitesExpanded = expandedSitesProjectId === prj.id;
+      {/* =========================================================================
+          MAIN WORKSPACE: Compact Projects Matrix Table (100% Locked Height)
+          ========================================================================= */}
+      <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-auto">
+          <table className="w-full text-left text-xs font-sans">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold sticky top-0 z-10">
+              <tr>
+                <th className="py-2.5 px-3.5">Kode & Nama Proyek</th>
+                <th className="py-2.5 px-3">Klien Pemilik</th>
+                <th className="py-2.5 px-3">Titik Site & Lokasi</th>
+                <th className="py-2.5 px-2.5 text-center">Status</th>
+                <th className="py-2.5 px-3 text-right">Kepatuhan</th>
+                <th className="py-2.5 px-3 text-center">Inspeksi / Isu</th>
+                <th className="py-2.5 px-3.5 text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredProjects.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center text-slate-400 text-xs">
+                    {searchQuery ? 'Tidak ada proyek yang sesuai pencarian.' : 'Belum ada proyek yang terdaftar.'}
+                  </td>
+                </tr>
+              ) : (
+                filteredProjects.map((prj) => {
+                  const prjSites = prj.sites && prj.sites.length > 0 ? prj.sites : [];
+                  const primarySite = prjSites.find((s) => s.isPrimary) || prjSites[0];
+                  const isSitesExpanded = expandedSitesProjectId === prj.id;
 
-          return (
-            <div
-              key={prj.id}
-              className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all"
-            >
-              <div>
-                {/* Header Badge */}
-                <div className="flex items-center justify-between mb-2 text-xs">
-                  <span className="font-mono font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                    {prj.code}
-                  </span>
-                  <span
-                    className={`text-[11px] font-bold uppercase px-2 py-0.5 rounded ${
-                      prj.status === 'active'
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : prj.status === 'completed'
-                        ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                        : 'bg-slate-100 text-slate-600 border border-slate-200'
-                    }`}
-                  >
-                    {prj.status}
-                  </span>
-                </div>
-
-                <h2 className="text-base font-bold text-slate-900 leading-snug">
-                  {prj.name}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">{prj.client}</p>
-
-                {/* Multiple Sites Summary */}
-                <div className="mt-3.5 bg-slate-50 rounded-lg p-3 border border-slate-200/80">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center text-xs text-slate-700 font-semibold truncate mr-2">
-                      <MapPin className="w-3.5 h-3.5 mr-1.5 text-blue-600 shrink-0" />
-                      <span className="truncate">
-                        {primarySite ? primarySite.name : prj.location}
-                      </span>
-                    </div>
-                    {prjSites.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setExpandedSitesProjectId(
-                            isSitesExpanded ? null : prj.id
-                          )
-                        }
-                        className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 px-1.5 py-0.5 rounded cursor-pointer transition-colors shrink-0"
-                      >
-                        <span>+{prjSites.length - 1} Lokasi</span>
-                        {isSitesExpanded ? (
-                          <ChevronUp className="w-3 h-3" />
-                        ) : (
-                          <ChevronDown className="w-3 h-3" />
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Coordinates pill */}
-                  {primarySite && (
-                    <div className="text-[10px] text-slate-500 font-mono mt-1 flex items-center gap-2">
-                      <span>Lat: {primarySite.latitude.toFixed(4)}</span>
-                      <span>Lng: {primarySite.longitude.toFixed(4)}</span>
-                      {primarySite.radiusMeters && (
-                        <span>({primarySite.radiusMeters}m geofence)</span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Expanded Sites Accordion */}
-                  {isSitesExpanded && prjSites.length > 1 && (
-                    <div className="mt-2.5 pt-2 border-t border-slate-200/80 space-y-1.5">
-                      {prjSites.map((site) => (
-                        <div
-                          key={site.id}
-                          className="flex items-center justify-between text-[11px] text-slate-600 py-1 px-1.5 rounded bg-white border border-slate-100"
-                        >
-                          <div className="flex items-center gap-1.5 truncate">
-                            <span className="text-xs">
-                              {site.isPrimary ? '🌟' : '📍'}
+                  return (
+                    <React.Fragment key={prj.id}>
+                      <tr className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-2.5 px-3.5">
+                          <div className="flex items-center space-x-2">
+                            <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-900 text-[#d4f038] shrink-0">
+                              {prj.code}
                             </span>
-                            <span className="font-medium truncate">{site.name}</span>
-                            {site.code && (
-                              <span className="font-mono text-[9px] text-slate-400">
-                                ({site.code})
+                            <div className="truncate">
+                              <span className="font-bold text-slate-900 block truncate">
+                                {prj.name}
                               </span>
+                              <span className="text-[10px] text-slate-400 block truncate">
+                                PM: {prj.leadManager || 'Arthur Sterling'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-2.5 px-3 text-slate-600 truncate max-w-[160px]">
+                          {prj.client}
+                        </td>
+
+                        <td className="py-2.5 px-3">
+                          <div className="flex items-center space-x-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            <span className="truncate max-w-[150px] font-medium text-slate-700">
+                              {primarySite ? primarySite.name : prj.location}
+                            </span>
+                            {prjSites.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedSitesProjectId(isSitesExpanded ? null : prj.id)
+                                }
+                                className="inline-flex items-center gap-0.5 text-[9px] font-bold text-blue-700 bg-blue-100 hover:bg-blue-200 px-1 py-0.2 rounded cursor-pointer transition-colors shrink-0"
+                              >
+                                <span>+{prjSites.length - 1}</span>
+                                {isSitesExpanded ? (
+                                  <ChevronUp className="w-2.5 h-2.5" />
+                                ) : (
+                                  <ChevronDown className="w-2.5 h-2.5" />
+                                )}
+                              </button>
                             )}
                           </div>
-                          <span className="font-mono text-[10px] text-slate-500 shrink-0">
-                            {site.latitude.toFixed(3)}, {site.longitude.toFixed(3)}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        </td>
 
-                {/* Zones */}
-                <div className="mt-4 pt-3 border-t border-slate-100">
-                  <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">
-                    {t.projects.designatedZones.replace(
-                      '{count}',
-                      String(prj.zones?.length || 0)
-                    )}
-                  </span>
-                  <div className="space-y-1.5">
-                    {prj.zones?.slice(0, 2).map((zone) => (
-                      <div
-                        key={zone.id}
-                        className="p-2 rounded bg-slate-50 border border-slate-100 text-xs flex items-center justify-between"
-                      >
-                        <div className="truncate mr-2">
-                          <span className="font-semibold text-slate-800 block truncate">
-                            {zone.name}
+                        <td className="py-2.5 px-2.5 text-center">
+                          <span
+                            className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border inline-block ${
+                              prj.status === 'active'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : prj.status === 'completed'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}
+                          >
+                            {prj.status}
                           </span>
-                          <span className="text-[10px] text-slate-400 block truncate">
-                            {zone.description}
+                        </td>
+
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 tabular-nums">
+                          {prj.complianceRate}%
+                        </td>
+
+                        <td className="py-2.5 px-3 text-center font-mono text-[11px] tabular-nums">
+                          <span className="font-semibold text-slate-800">{prj.activeInspectionsCount}</span>
+                          <span className="text-slate-300 mx-1">/</span>
+                          <span className={prj.openIssuesCount > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}>
+                            {prj.openIssuesCount}
                           </span>
-                        </div>
-                        <span
-                          className={`text-[10px] font-bold uppercase shrink-0 ${
-                            zone.safetyLevel === 'High Risk'
-                              ? 'text-rose-700'
-                              : zone.safetyLevel === 'Restricted'
-                              ? 'text-amber-700'
-                              : 'text-slate-600'
-                          }`}
-                        >
-                          {zone.safetyLevel}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                        </td>
 
-              {/* Bottom Metrics */}
-              <div className="mt-5 pt-3 border-t border-slate-100 grid grid-cols-3 gap-2 text-center text-xs">
-                <div>
-                  <span className="text-[10px] text-slate-400 block">
-                    {t.projects.compliance}
-                  </span>
-                  <span className="font-bold text-emerald-600 font-mono tabular-nums">
-                    {prj.complianceRate}%
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 block">
-                    {t.projects.inspections}
-                  </span>
-                  <span className="font-bold text-slate-900 font-mono tabular-nums">
-                    {prj.activeInspectionsCount}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 block">
-                    {t.projects.openIssues}
-                  </span>
-                  <span
-                    className={`font-bold font-mono tabular-nums ${
-                      prj.openIssuesCount > 0 ? 'text-rose-600' : 'text-slate-500'
-                    }`}
-                  >
-                    {prj.openIssuesCount}
-                  </span>
-                </div>
-              </div>
+                        <td className="py-2.5 px-3.5 text-right">
+                          <div className="flex items-center justify-end space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProjectForStudio(prj)}
+                              className="px-2.5 py-1 rounded-md bg-[#0b0e14] hover:bg-[#1b2230] text-[#d4f038] border border-slate-800 text-[11px] font-bold transition-colors flex items-center space-x-1 cursor-pointer shadow-2xs"
+                              title="Buka Studio Setup WBS, Bobot & Workflow"
+                            >
+                              <FolderTree className="w-3 h-3 text-[#d4f038]" />
+                              <span>Setup WBS</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditModal(prj)}
+                              className="p-1 rounded-md border border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-600 transition-colors"
+                              title="Edit parameter & lokasi site"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
 
-              {/* Action Buttons: Edit Project & WBS Setup */}
-              <div className="mt-4 pt-3 border-t border-slate-100 grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleOpenEditModal(prj)}
-                  className="py-2 px-3 rounded-lg bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold transition-colors flex items-center justify-center space-x-1 cursor-pointer"
-                >
-                  <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Edit Info & Site</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedProjectForStudio(prj)}
-                  className="py-2 px-3 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold transition-colors flex items-center justify-center space-x-1 cursor-pointer"
-                >
-                  <FolderTree className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Setup WBS</span>
-                </button>
-              </div>
-            </div>
-          );
-        })}
+                      {/* Expanded Sites Detail Row */}
+                      {isSitesExpanded && prjSites.length > 1 && (
+                        <tr className="bg-blue-50/30">
+                          <td colSpan={7} className="py-2 px-6">
+                            <div className="flex flex-wrap gap-2 text-[11px]">
+                              {prjSites.map((site) => (
+                                <span
+                                  key={site.id}
+                                  className="inline-flex items-center space-x-1 bg-white border border-blue-200 rounded-md px-2 py-0.5 text-slate-700 shadow-2xs"
+                                >
+                                  <span>{site.isPrimary ? '🌟' : '📍'}</span>
+                                  <strong className="font-semibold">{site.name}</strong>
+                                  <span className="font-mono text-[9px] text-slate-400">
+                                    ({site.latitude.toFixed(3)}, {site.longitude.toFixed(3)})
+                                  </span>
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Unified Project Modal: Information, Multiple Sites (Leaflet), & Merged Employee Assignment */}

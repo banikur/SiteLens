@@ -513,7 +513,7 @@ function SiteLensWorkspace() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row text-slate-800 font-sans antialiased">
+    <div className="h-screen w-screen bg-slate-50 flex flex-col lg:flex-row text-slate-800 font-sans antialiased overflow-hidden">
       {/* SIDEBAR NAVIGATION */}
       <Navigation
         currentTab={currentTab}
@@ -550,9 +550,9 @@ function SiteLensWorkspace() {
       />
 
       {/* MAIN VIEW CONTAINER */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {/* Top Bar Contract */}
-        <header className="h-16 bg-white border-b border-slate-200 px-6 lg:px-8 flex items-center justify-between gap-8 shrink-0">
+        <header className="h-14 bg-white border-b border-slate-200 px-4 lg:px-6 flex items-center justify-between gap-6 shrink-0">
           {/* Zone 1: Contextual Breadcrumb */}
           <div className="flex items-center gap-2 text-xs text-slate-500 whitespace-nowrap shrink-0">
             <span className="font-bold text-slate-900">SiteLens</span>
@@ -638,7 +638,7 @@ function SiteLensWorkspace() {
         </header>
 
         {/* Dynamic Main Body Content */}
-        <main className="p-4 sm:p-6 lg:p-8 flex-1">
+        <main className="p-3 sm:p-3.5 flex-1 min-h-0 overflow-hidden flex flex-col">
           {executingTemplate ? (
             <InspectionExecution
               template={executingTemplate}

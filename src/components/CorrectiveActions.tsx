@@ -36,6 +36,8 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
     new Date(Date.now() + 3 * 86400000).toISOString().split('T')[0]
   );
 
+  const [selectedActionId, setSelectedActionId] = useState<string>('');
+
   // Filtered actions
   const filtered = actions.filter((a) => {
     const matchSeverity = severityFilter === 'all' || a.severity === severityFilter;
@@ -47,6 +49,9 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
       a.projectName.toLowerCase().includes(searchQuery.toLowerCase());
     return matchSeverity && matchSearch;
   });
+
+  // Keep active selection in sync
+  const activeAction = filtered.find((a) => a.id === selectedActionId) || filtered[0] || null;
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,203 +78,309 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
     };
 
     onAddAction(action);
+    setSelectedActionId(action.id);
     setNewModalOpen(false);
     setNewTitle('');
     setNewIssue('');
   };
 
+  const openCount = actions.filter((a) => a.status === 'OPEN').length;
+  const inProgCount = actions.filter(
+    (a) => a.status === 'IN_PROGRESS' || a.status === 'PENDING_VERIFICATION'
+  ).length;
+  const closedCount = actions.filter((a) => a.status === 'CLOSED').length;
+
   return (
-    <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
-            {t.actions.title}
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">{t.actions.subtitle}</p>
-        </div>
-        <button
-          onClick={() => setNewModalOpen(true)}
-          className="px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors flex items-center shadow-xs"
-        >
-          <Plus className="w-4 h-4 mr-1.5" />
-          {t.actions.logActionBtn}
-        </button>
-      </div>
+    <div className="h-full flex flex-col space-y-2 overflow-hidden">
+      {/* Consolidated Executive Toolbar */}
+      <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2.5 shrink-0 shadow-xs">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div>
+            <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
+              {t.actions.title}
+            </h1>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              {actions.length} {t.actions.totalIssues.toLowerCase()}
+            </p>
+          </div>
 
-      {/* KPI Overview */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">
-            {t.actions.totalIssues}
-          </span>
-          <span className="text-2xl font-bold text-slate-900 font-mono tabular-nums mt-1 block">
-            {actions.length}
-          </span>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">
-            {t.actions.openPending}
-          </span>
-          <span className="text-2xl font-bold text-rose-600 font-mono tabular-nums mt-1 block">
-            {actions.filter((a) => a.status === 'OPEN').length}
-          </span>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">
-            {t.actions.inRemediation}
-          </span>
-          <span className="text-2xl font-bold text-amber-600 font-mono tabular-nums mt-1 block">
-            {actions.filter((a) => a.status === 'IN_PROGRESS' || a.status === 'PENDING_VERIFICATION').length}
-          </span>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">
-            {t.actions.verifiedClosed}
-          </span>
-          <span className="text-2xl font-bold text-emerald-600 font-mono tabular-nums mt-1 block">
-            {actions.filter((a) => a.status === 'CLOSED').length}
-          </span>
-        </div>
-      </div>
+          <div className="h-4 w-px bg-slate-200 hidden sm:block" />
 
-      {/* Search and Filters */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+          {/* Quick KPI Inline Strip */}
+          <div className="hidden lg:flex items-center gap-1.5 text-[11px]">
+            <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-semibold border border-rose-200/60">
+              {t.actions.openPending}: <strong className="font-mono">{openCount}</strong>
+            </span>
+            <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-semibold border border-amber-200/60">
+              {t.actions.inRemediation}: <strong className="font-mono">{inProgCount}</strong>
+            </span>
+            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold border border-emerald-200/60">
+              {t.actions.verifiedClosed}: <strong className="font-mono">{closedCount}</strong>
+            </span>
+          </div>
+
+          <div className="h-4 w-px bg-slate-200 hidden lg:block" />
+
+          {/* Search Input */}
+          <div className="relative w-40 sm:w-52">
+            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
             <input
               type="text"
               placeholder={t.actions.searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+              className="w-full pl-8 pr-2.5 py-1 text-xs border border-slate-200 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-slate-50/50"
             />
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs text-slate-400 mr-1">
-              {t.actions.severityLabel}
-            </span>
-            {(['all', 'critical', 'high', 'medium', 'low'] as const).map(
-              (sev) => (
-                <button
-                  key={sev}
-                  onClick={() => setSeverityFilter(sev)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                    severityFilter === sev
-                      ? 'bg-slate-900 text-white font-semibold'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  {sev === 'all' ? t.common.all : sev.toUpperCase()}
-                </button>
-              )
-            )}
+          {/* Severity Filters */}
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg">
+            {(['all', 'critical', 'high', 'medium', 'low'] as const).map((sev) => (
+              <button
+                key={sev}
+                onClick={() => setSeverityFilter(sev)}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                  severityFilter === sev
+                    ? 'bg-white text-slate-900 font-bold shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {sev === 'all' ? t.common.all : sev.toUpperCase()}
+              </button>
+            ))}
           </div>
         </div>
+
+        {/* Action Button */}
+        <button
+          onClick={() => setNewModalOpen(true)}
+          className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors flex items-center shadow-xs"
+        >
+          <Plus className="w-3.5 h-3.5 mr-1" />
+          {t.actions.logActionBtn}
+        </button>
       </div>
 
-      {/* Actions Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filtered.map((act) => (
-          <div
-            key={act.id}
-            className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-all"
-          >
-            <div>
-              {/* Header */}
-              <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-mono text-slate-400 font-bold">
-                  #{act.id}
-                </span>
-                <span
-                  className={`font-mono text-[10px] font-bold uppercase ${
-                    act.severity === 'critical' || act.severity === 'high'
-                      ? 'text-rose-700'
-                      : act.severity === 'medium'
-                      ? 'text-amber-700'
-                      : 'text-slate-600'
-                  }`}
-                >
-                  {act.severity} {t.dashboard.severityLabel}
-                </span>
-              </div>
-
-              <h3 className="text-sm font-bold text-slate-900 leading-snug">
-                {act.fieldLabel}
-              </h3>
-
-              <p className="text-xs text-slate-600 mt-2 bg-slate-50 p-2.5 rounded-lg border border-slate-100 leading-relaxed">
-                {act.issueDescription}
-              </p>
-
-              {/* Attached evidence photo thumbnail */}
-              {act.evidencePhotoUrl && (
-                <div className="mt-3">
-                  <img
-                    src={act.evidencePhotoUrl}
-                    alt="Deficiency proof"
-                    referrerPolicy="no-referrer"
-                    className="w-full h-32 object-cover rounded-lg border border-slate-200"
-                  />
-                </div>
-              )}
-
-              {/* Metadata */}
-              <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-500 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span>{t.actions.projectSite}</span>
-                  <span className="font-semibold text-slate-800 truncate max-w-[150px]">
-                    {act.projectName}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>{t.actions.assignedTo}</span>
-                  <span className="font-medium text-slate-800">
-                    {act.assignedToName}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>{t.actions.targetDueDate}</span>
-                  <span className="font-mono font-semibold text-slate-800">
-                    {act.dueDate}
-                  </span>
-                </div>
-              </div>
-
-              {act.resolutionNotes && (
-                <div className="mt-3 p-2 bg-emerald-50 rounded text-[11px] text-emerald-900 border border-emerald-100">
-                  <span className="font-bold block">
-                    {t.actions.resolutionNotes}
-                  </span>
-                  {act.resolutionNotes}
-                </div>
-              )}
-            </div>
-
-            {/* Status Selector Footer */}
-            <div className="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-xs text-slate-500 font-medium">
-                {t.actions.statusLabel}
-              </span>
-              <select
-                value={act.status}
-                onChange={(e) =>
-                  onUpdateStatus(act.id, e.target.value as ActionStatus)
-                }
-                className="text-xs font-bold border border-slate-300 rounded px-2.5 py-1 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
-              >
-                <option value="OPEN">{translateStatus('OPEN')}</option>
-                <option value="IN_PROGRESS">{translateStatus('IN_PROGRESS')}</option>
-                <option value="PENDING_VERIFICATION">{translateStatus('PENDING_VERIFICATION')}</option>
-                <option value="EFFECTIVENESS_MONITORING">{translateStatus('EFFECTIVENESS_MONITORING')}</option>
-                <option value="CLOSED">{translateStatus('CLOSED')}</option>
-                <option value="REJECTED">{translateStatus('REJECTED')}</option>
-              </select>
-            </div>
+      {/* Main Single Container: Split Workspace (Left List 42% | Right Inspector 58%) */}
+      <div className="bg-white rounded-xl border border-slate-200 flex-1 min-h-0 overflow-hidden flex shadow-xs divide-x divide-slate-200">
+        {/* Left List Pane */}
+        <div className="w-full sm:w-[42%] flex flex-col min-w-0 h-full bg-slate-50/40">
+          <div className="px-3.5 py-2 border-b border-slate-200 bg-white flex items-center justify-between text-xs font-semibold text-slate-700 shrink-0">
+            <span>Daftar Defisiensi ({filtered.length})</span>
+            <span className="text-[10px] text-slate-400">Pilih untuk detail & audit</span>
           </div>
-        ))}
+
+          {filtered.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-400">
+              <span className="text-xs">Tidak ada tindakan perbaikan yang cocok.</span>
+            </div>
+          ) : (
+            <div className="flex-1 min-h-0 overflow-auto divide-y divide-slate-100">
+              {filtered.map((act) => {
+                const isSelected = activeAction?.id === act.id;
+                return (
+                  <div
+                    key={act.id}
+                    onClick={() => setSelectedActionId(act.id)}
+                    className={`p-3 cursor-pointer transition-all ${
+                      isSelected
+                        ? 'bg-white border-l-4 border-l-amber-500 shadow-xs'
+                        : 'hover:bg-slate-100/70 border-l-4 border-l-transparent'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="font-mono text-[11px] font-bold text-slate-500">
+                        #{act.id}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded ${
+                          act.severity === 'critical' || act.severity === 'high'
+                            ? 'bg-rose-100 text-rose-700'
+                            : act.severity === 'medium'
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        {act.severity}
+                      </span>
+                    </div>
+
+                    <div className="font-bold text-xs text-slate-900 truncate">
+                      {act.fieldLabel}
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">
+                      {act.issueDescription}
+                    </p>
+
+                    <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                      <span className="truncate max-w-[140px] text-slate-600 font-medium">
+                        {act.projectName}
+                      </span>
+                      <span
+                        className={`font-semibold uppercase ${
+                          act.status === 'CLOSED'
+                            ? 'text-emerald-600'
+                            : act.status === 'OPEN'
+                            ? 'text-rose-600'
+                            : 'text-amber-600'
+                        }`}
+                      >
+                        {translateStatus(act.status)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Right Detail & Resolution Inspector */}
+        <div className="hidden sm:flex sm:w-[58%] flex-col min-w-0 h-full bg-white">
+          {activeAction ? (
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Inspector Header */}
+              <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50/50 flex items-center justify-between gap-3 shrink-0">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-xs text-slate-400">
+                      #{activeAction.id}
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                        activeAction.severity === 'critical' || activeAction.severity === 'high'
+                          ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                          : activeAction.severity === 'medium'
+                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                          : 'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}
+                    >
+                      {activeAction.severity} {t.dashboard.severityLabel}
+                    </span>
+                  </div>
+                  <h2 className="text-sm font-bold text-slate-900 truncate mt-0.5">
+                    {activeAction.fieldLabel}
+                  </h2>
+                </div>
+
+                {/* Status Transition Control directly in header */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {t.actions.statusLabel}:
+                  </span>
+                  <select
+                    value={activeAction.status}
+                    onChange={(e) =>
+                      onUpdateStatus(activeAction.id, e.target.value as ActionStatus)
+                    }
+                    className="text-xs font-bold border border-slate-300 rounded-lg px-2 py-1 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs"
+                  >
+                    <option value="OPEN">{translateStatus('OPEN')}</option>
+                    <option value="IN_PROGRESS">{translateStatus('IN_PROGRESS')}</option>
+                    <option value="PENDING_VERIFICATION">
+                      {translateStatus('PENDING_VERIFICATION')}
+                    </option>
+                    <option value="EFFECTIVENESS_MONITORING">
+                      {translateStatus('EFFECTIVENESS_MONITORING')}
+                    </option>
+                    <option value="CLOSED">{translateStatus('CLOSED')}</option>
+                    <option value="REJECTED">{translateStatus('REJECTED')}</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Inspector Content Body (Scrollable Internally) */}
+              <div className="flex-1 min-h-0 overflow-auto p-4 space-y-3.5">
+                {/* Issue Description */}
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    Deskripsi Defisiensi / Temuan
+                  </label>
+                  <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 leading-relaxed font-sans">
+                    {activeAction.issueDescription}
+                  </p>
+                </div>
+
+                {/* Photo Evidence if any */}
+                {activeAction.evidencePhotoUrl && (
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                      Bukti Foto Lapangan
+                    </label>
+                    <img
+                      src={activeAction.evidencePhotoUrl}
+                      alt="Deficiency proof"
+                      referrerPolicy="no-referrer"
+                      className="w-full max-h-48 object-cover rounded-lg border border-slate-200"
+                    />
+                  </div>
+                )}
+
+                {/* Metadata Grid */}
+                <div className="grid grid-cols-2 gap-2.5 bg-slate-50/60 p-3 rounded-lg border border-slate-200 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                      {t.actions.projectSite}
+                    </span>
+                    <span className="font-semibold text-slate-900 truncate block">
+                      {activeAction.projectName}
+                    </span>
+                    <span className="text-[10px] text-slate-500">{activeAction.siteZone}</span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                      {t.actions.assignedTo}
+                    </span>
+                    <span className="font-semibold text-slate-900 block">
+                      {activeAction.assignedToName}
+                    </span>
+                    <span className="text-[10px] text-slate-500">
+                      {activeAction.assignedToRole}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                      {t.actions.targetDueDate}
+                    </span>
+                    <span className="font-mono font-bold text-slate-900">
+                      {activeAction.dueDate}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold block">
+                      Tanggal Dilaporkan
+                    </span>
+                    <span className="font-mono text-slate-700">
+                      {activeAction.createdAt}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Resolution Notes Box */}
+                {activeAction.resolutionNotes ? (
+                  <div className="p-3 bg-emerald-50 rounded-lg border border-emerald-200 text-xs text-emerald-900">
+                    <span className="font-bold block mb-1">
+                      {t.actions.resolutionNotes}
+                    </span>
+                    <p className="leading-relaxed">{activeAction.resolutionNotes}</p>
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-[11px] text-slate-500 flex items-center justify-between">
+                    <span>Belum ada catatan penyelesaian resmi.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-slate-400">
+              <span className="text-xs">Pilih tindakan perbaikan untuk melihat inspeksi detail.</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Manual Add Action Modal */}

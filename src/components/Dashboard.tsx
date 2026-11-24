@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   FileCheck2,
   AlertTriangle,
@@ -10,6 +10,7 @@ import {
   MapPin,
   Plus,
   Wand2,
+  BarChart3,
 } from 'lucide-react';
 import {
   InspectionRecord,
@@ -50,6 +51,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onOpenAIGenerator,
 }) => {
   const { t, translateCategory, translateRole, translateStatus } = useLanguage();
+  const [leftTab, setLeftTab] = useState<'inspections' | 'compliance'>('inspections');
+  const [rightTab, setRightTab] = useState<'actions' | 'protocols'>('actions');
 
   // Aggregate Metrics
   const totalInspections = inspections.length;
@@ -83,411 +86,332 @@ export const Dashboard: React.FC<DashboardProps> = ({
   });
 
   return (
-    <div className="space-y-8">
-      {/* Welcome Banner */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-            <span>{t.dashboard.welcomeBack}</span>
-            <span aria-hidden="true">·</span>
-            <span className="font-medium text-slate-700">{currentUser.name}</span>
-            <span aria-hidden="true">·</span>
-            <span>{translateRole(currentUser.role)}</span>
+    <div className="h-full flex flex-col space-y-2 overflow-hidden">
+      {/* =========================================================================
+          TOP EXECUTIVE TOOLBAR: Title, Compact KPI Strip, & Quick Actions (~44px)
+          ========================================================================= */}
+      <div className="bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-2.5 shrink-0">
+        {/* Left: Title & Context */}
+        <div className="flex items-center space-x-2.5">
+          <div className="w-8 h-8 rounded-lg bg-slate-900 text-[#d4f038] flex items-center justify-center font-bold font-mono text-xs shrink-0">
+            SL
           </div>
-          <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
-            {t.dashboard.title}
-          </h1>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-            {t.dashboard.subtitle}
-          </p>
+          <div>
+            <div className="flex items-center space-x-2">
+              <h1 className="text-sm font-bold text-slate-900 leading-tight">
+                {t.dashboard.title}
+              </h1>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 font-semibold text-slate-600">
+                {currentUser.name} ({translateRole(currentUser.role)})
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 hidden xl:block">
+              {t.dashboard.subtitle}
+            </p>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+
+        {/* Middle: Compact KPI Pill Strip */}
+        <div className="flex items-center space-x-2 flex-wrap text-xs">
+          <div className="px-2.5 py-1 rounded-md bg-slate-50 border border-slate-200 flex items-center space-x-1.5">
+            <FileCheck2 className="w-3.5 h-3.5 text-slate-500" />
+            <span className="font-mono font-bold text-slate-900">{totalInspections}</span>
+            <span className="text-[11px] text-slate-500 hidden sm:inline">Inspeksi</span>
+          </div>
+
+          <div className="px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 flex items-center space-x-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="font-mono font-bold text-emerald-700">{avgCompliance}%</span>
+            <span className="text-[11px] text-emerald-600 hidden sm:inline">Kepatuhan</span>
+          </div>
+
+          <div className="px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200 flex items-center space-x-1.5">
+            <Clock className="w-3.5 h-3.5 text-amber-600" />
+            <span className="font-mono font-bold text-amber-700">{underReviewCount}</span>
+            <span className="text-[11px] text-amber-700 hidden sm:inline">Verifikasi</span>
+          </div>
+
+          <div className="px-2.5 py-1 rounded-md bg-rose-50 border border-rose-200 flex items-center space-x-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+            <span className="font-mono font-bold text-rose-700">{openActions.length}</span>
+            <span className="text-[11px] text-rose-700 hidden sm:inline">Remedial</span>
+          </div>
+        </div>
+
+        {/* Right: Quick Action Buttons */}
+        <div className="flex items-center space-x-1.5">
           <button
             onClick={onOpenAIGenerator}
-            className="px-3.5 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center whitespace-nowrap"
+            className="p-1 sm:px-2.5 sm:py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-colors flex items-center whitespace-nowrap shadow-2xs"
+            title={t.dashboard.aiGenerator}
           >
-            <Wand2 className="w-3.5 h-3.5 mr-1.5 text-amber-400" />
-            {t.dashboard.aiGenerator}
+            <Wand2 className="w-3.5 h-3.5 sm:mr-1 text-amber-400" />
+            <span className="hidden sm:inline">AI Gen</span>
           </button>
           <button
             onClick={onNewTemplate}
-            className="px-3.5 py-2.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors flex items-center whitespace-nowrap"
+            className="p-1 sm:px-2.5 sm:py-1 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors flex items-center whitespace-nowrap shadow-2xs"
+            title={t.dashboard.newChecklist}
           >
-            <Plus className="w-3.5 h-3.5 mr-1.5" />
-            {t.dashboard.newChecklist}
+            <Plus className="w-3.5 h-3.5 sm:mr-1" />
+            <span className="hidden sm:inline">+ Template</span>
           </button>
           <button
             onClick={onNavigateToTemplates}
-            className="px-4 py-2.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors flex items-center shadow-xs whitespace-nowrap"
+            className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors flex items-center shadow-2xs whitespace-nowrap"
+            title={t.dashboard.performInspection}
           >
-            <Play className="w-3.5 h-3.5 mr-1.5 fill-current" />
-            {t.dashboard.performInspection}
+            <Play className="w-3 h-3 mr-1 fill-current" />
+            <span>Mulai</span>
           </button>
         </div>
       </div>
 
-      {/* Primary KPI Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              {t.dashboard.kpiTotalRecorded}
-            </span>
-            <FileCheck2 className="w-4 h-4 text-slate-400" />
-          </div>
-          <div className="text-3xl font-extrabold text-slate-900 font-mono tabular-nums">
-            {totalInspections}
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
-            <span>
-              {t.dashboard.kpiAcrossSites.replace(
-                '{count}',
-                String(projects.length)
-              )}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="text-emerald-600 font-medium">
-              {t.dashboard.kpiThisWeek}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              {t.dashboard.kpiComplianceIndex}
-            </span>
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-3xl font-extrabold text-emerald-600 font-mono tabular-nums">
-            {avgCompliance}%
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
-            <span>{t.dashboard.kpiBenchmark}</span>
-            <span aria-hidden="true">·</span>
-            <span className="text-slate-600 font-medium">
-              {t.dashboard.kpiNominal}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              {t.dashboard.kpiVerificationQueue}
-            </span>
-            <Clock className="w-4 h-4 text-amber-500" />
-          </div>
-          <div className="text-3xl font-extrabold text-amber-600 font-mono tabular-nums">
-            {underReviewCount}
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
-            <span>{t.dashboard.kpiAwaitingSignoff}</span>
-            <span aria-hidden="true">·</span>
-            <span className="text-amber-700 font-medium">
-              {t.dashboard.kpiEngineerAction}
-            </span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-semibold uppercase tracking-wider">
-              {t.dashboard.kpiRemedialItems}
-            </span>
-            <AlertTriangle className="w-4 h-4 text-rose-500" />
-          </div>
-          <div className="text-3xl font-extrabold text-rose-600 font-mono tabular-nums">
-            {openActions.length}
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-2">
-            <span>
-              {t.dashboard.kpiHighPriority.replace(
-                '{count}',
-                String(criticalActionsCount)
-              )}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className="text-rose-700 font-medium">
-              {t.dashboard.kpiImmediate}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Grid: Launchpad & Category Compliance */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Quick Launch Checklist Protocols */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  {t.dashboard.protocolsTitle}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {t.dashboard.protocolsSubtitle}
-                </p>
-              </div>
+      {/* =========================================================================
+          MAIN WORKSPACE: Split Feed & Operations Panel (100% Locked Height)
+          ========================================================================= */}
+      <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col lg:flex-row overflow-hidden">
+        {/* Left Pane (62%): Inspections & Compliance Sub-Views */}
+        <div className="w-full lg:w-[62%] border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col min-h-0 h-full bg-white">
+          {/* Sub-tab Bar */}
+          <div className="px-3.5 py-2 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between shrink-0">
+            <div className="flex items-center space-x-1">
               <button
-                onClick={onNavigateToTemplates}
-                className="text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center"
+                type="button"
+                onClick={() => setLeftTab('inspections')}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-colors flex items-center space-x-1.5 ${
+                  leftTab === 'inspections'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                {t.dashboard.viewAll} ({templates.length})
-                <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                <FileCheck2 className="w-3.5 h-3.5" />
+                <span>{t.dashboard.recentInspections} ({inspections.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLeftTab('compliance')}
+                className={`px-3 py-1 rounded-md text-xs font-bold transition-colors flex items-center space-x-1.5 ${
+                  leftTab === 'compliance'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>{t.dashboard.complianceByDiscipline}</span>
               </button>
             </div>
 
-            <div className="space-y-3">
-              {templates.slice(0, 3).map((tpl) => (
+            <button
+              onClick={onNavigateToInspections}
+              className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 flex items-center"
+            >
+              <span>{t.dashboard.viewAll}</span>
+              <ArrowRight className="w-3 h-3 ml-0.5" />
+            </button>
+          </div>
+
+          {/* Sub-view Content: Inspections Log Table */}
+          {leftTab === 'inspections' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 p-2 font-sans">
+              {inspections.length === 0 ? (
+                <div className="py-16 text-center text-slate-400 text-xs">
+                  Belum ada rekaman inspeksi lapangan.
+                </div>
+              ) : (
+                inspections.map((insp) => (
+                  <div
+                    key={insp.id}
+                    className="p-2.5 rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-between gap-3 group"
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="flex items-center space-x-2 text-[10px] text-slate-500 flex-wrap">
+                        <span className="font-mono font-bold text-slate-800">#{insp.id}</span>
+                        <span>•</span>
+                        <span className="font-semibold text-slate-700 truncate max-w-[150px]">{insp.projectName}</span>
+                        <span>•</span>
+                        <span className="truncate">{insp.inspectorName} ({translateRole(insp.inspectorRole)})</span>
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-900 truncate">
+                        {insp.templateTitle}
+                      </h4>
+                      <div className="flex items-center space-x-2 text-[10px] text-slate-400">
+                        <span className="flex items-center">
+                          <MapPin className="w-3 h-3 mr-0.5 text-slate-400" />
+                          {insp.siteZone}
+                        </span>
+                        <span>•</span>
+                        <span>{insp.submittedAt || insp.createdAt}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2 shrink-0">
+                      <div className="text-right">
+                        <span
+                          className={`font-mono text-xs font-bold block tabular-nums ${
+                            insp.scorePercent >= 90
+                              ? 'text-emerald-600'
+                              : insp.scorePercent >= 75
+                              ? 'text-amber-600'
+                              : 'text-rose-600'
+                          }`}
+                        >
+                          {insp.scorePercent}%
+                        </span>
+                        <span className="text-[9px] uppercase font-semibold text-slate-400">
+                          {translateStatus(insp.status)}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => onReviewInspection(insp)}
+                        className="p-1.5 rounded-md border border-slate-200 hover:border-slate-300 hover:bg-slate-100 text-slate-700 transition-colors"
+                        title="Tinjau detail verifikasi"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            /* Sub-view Content: Compliance Matrix */
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 font-sans">
+              {categoryStats.map((item) => (
+                <div key={item.category} className="p-2.5 rounded-lg bg-slate-50/70 border border-slate-200/80 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-800">
+                      {translateCategory(item.category)}
+                    </span>
+                    <span className="font-mono font-bold tabular-nums text-slate-900">
+                      {item.avg}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        item.avg >= 95
+                          ? 'bg-emerald-500'
+                          : item.avg >= 85
+                          ? 'bg-amber-500'
+                          : 'bg-rose-500'
+                      }`}
+                      style={{ width: `${item.avg}%` }}
+                    />
+                  </div>
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                    <span>{item.count} total audit tercatat</span>
+                    <span>Target standar: &ge;85%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Right Pane (38%): Critical Actions & Quick Launch Protocols */}
+        <div className="w-full lg:w-[38%] flex flex-col min-h-0 h-full bg-slate-50/30">
+          {/* Sub-tab Bar */}
+          <div className="px-3.5 py-2 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between shrink-0">
+            <div className="flex items-center space-x-1">
+              <button
+                type="button"
+                onClick={() => setRightTab('actions')}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors flex items-center space-x-1 ${
+                  rightTab === 'actions'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                <span>CAPA ({openActions.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRightTab('protocols')}
+                className={`px-2.5 py-1 rounded-md text-xs font-bold transition-colors flex items-center space-x-1 ${
+                  rightTab === 'protocols'
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Play className="w-3 h-3 text-amber-500 fill-current" />
+                <span>Protokol ({templates.length})</span>
+              </button>
+            </div>
+
+            <button
+              onClick={rightTab === 'actions' ? onNavigateToActions : onNavigateToTemplates}
+              className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 flex items-center"
+            >
+              <span>{t.dashboard.viewAll}</span>
+              <ArrowRight className="w-3 h-3 ml-0.5" />
+            </button>
+          </div>
+
+          {/* Right Pane Content */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-2">
+            {rightTab === 'actions' ? (
+              openActions.length === 0 ? (
+                <div className="py-16 text-center text-slate-400 text-xs">
+                  Tidak ada temuan non-conformance aktif.
+                </div>
+              ) : (
+                openActions.map((act) => (
+                  <div
+                    key={act.id}
+                    className="p-2.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-all space-y-1 shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="font-mono text-slate-400">#{act.id}</span>
+                      <span
+                        className={`font-bold uppercase px-1.5 py-0.2 rounded ${
+                          act.severity === 'critical' || act.severity === 'high'
+                            ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}
+                      >
+                        {act.severity}
+                      </span>
+                    </div>
+                    <div className="text-xs font-bold text-slate-900 truncate">
+                      {act.fieldLabel}
+                    </div>
+                    <p className="text-[11px] text-slate-500 line-clamp-1">
+                      {act.issueDescription}
+                    </p>
+                    <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400">
+                      <span className="truncate max-w-[130px]">PIC: {act.assignedToName}</span>
+                      <span className="font-mono">Jatuh Tempo: {act.dueDate}</span>
+                    </div>
+                  </div>
+                ))
+              )
+            ) : (
+              templates.map((tpl) => (
                 <div
                   key={tpl.id}
-                  className="p-4 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                  className="p-2.5 rounded-lg border border-slate-200 bg-white hover:border-slate-300 transition-all flex items-center justify-between gap-2 shadow-2xs"
                 >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-xs text-slate-500">
-                      <span className="font-semibold text-slate-700">
-                        {translateCategory(tpl.category)}
-                      </span>
-                      <span aria-hidden="true">·</span>
-                      <span className="font-mono">v{tpl.version}</span>
-                      <span aria-hidden="true">·</span>
-                      <span>
-                        ~{tpl.estimatedMinutes} {t.common.minutes}
-                      </span>
-                      {tpl.requiresApproval && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="text-amber-600 font-medium">
-                            {t.dashboard.requiresSignoff}
-                          </span>
-                        </>
-                      )}
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="text-[10px] text-slate-400">
+                      {translateCategory(tpl.category)} • ~{tpl.estimatedMinutes}m
                     </div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                    <h4 className="text-xs font-bold text-slate-900 truncate">
                       {tpl.title}
-                    </h3>
-                    <p className="text-xs text-slate-500 line-clamp-1">
-                      {tpl.description}
-                    </p>
+                    </h4>
                   </div>
                   <button
                     onClick={() => onExecuteTemplate(tpl)}
-                    className="px-3.5 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold flex items-center justify-center shrink-0 transition-colors whitespace-nowrap"
+                    className="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center space-x-1 shrink-0 transition-colors"
                   >
-                    <Play className="w-3 h-3 mr-1.5 fill-current text-amber-400" />
-                    {t.dashboard.performBtn}
+                    <Play className="w-3 h-3 fill-current text-amber-400" />
+                    <span>Mulai</span>
                   </button>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>{t.dashboard.customProtocolPrompt}</span>
-            <button
-              onClick={onOpenAIGenerator}
-              className="text-amber-600 font-semibold hover:text-amber-700 flex items-center whitespace-nowrap ml-2"
-            >
-              {t.dashboard.aiGenerator}
-              <ArrowRight className="w-3 h-3 ml-1" />
-            </button>
-          </div>
-        </div>
-
-        {/* Category Compliance Matrix */}
-        <div className="bg-white rounded-xl border border-slate-200 p-6">
-          <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-1">
-            {t.dashboard.complianceByDiscipline}
-          </h2>
-          <p className="text-xs text-slate-500 mb-5">
-            {t.dashboard.complianceByDisciplineSub}
-          </p>
-
-          <div className="space-y-4">
-            {categoryStats.map((item) => (
-              <div key={item.category} className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-medium text-slate-800">
-                    {translateCategory(item.category)}
-                  </span>
-                  <span className="font-mono font-semibold tabular-nums text-slate-900">
-                    {item.avg}%
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      item.avg >= 95
-                        ? 'bg-emerald-500'
-                        : item.avg >= 85
-                        ? 'bg-amber-500'
-                        : 'bg-rose-500'
-                    }`}
-                    style={{ width: `${item.avg}%` }}
-                  />
-                </div>
-                <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                  <span>
-                    {t.dashboard.recordedAudits.replace(
-                      '{count}',
-                      String(item.count)
-                    )}
-                  </span>
-                  <span>{t.dashboard.targetRate}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Two Column Section: Recent Inspections & Urgent Corrective Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Recent Inspections Log */}
-        <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                {t.dashboard.recentInspections}
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {t.dashboard.recentInspectionsSub}
-              </p>
-            </div>
-            <button
-              onClick={onNavigateToInspections}
-              className="text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center"
-            >
-              {t.dashboard.fullLog} ({inspections.length})
-              <ArrowRight className="w-3.5 h-3.5 ml-1" />
-            </button>
-          </div>
-
-          <div className="divide-y divide-slate-100">
-            {inspections.slice(0, 4).map((insp) => (
-              <div
-                key={insp.id}
-                className="py-3.5 first:pt-0 last:pb-0 flex items-center justify-between gap-4"
-              >
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span className="font-mono text-slate-700">#{insp.id}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="truncate">{insp.projectName}</span>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-medium text-slate-700">
-                      {insp.inspectorName}
-                    </span>
-                  </div>
-                  <div className="font-semibold text-sm text-slate-900 truncate">
-                    {insp.templateTitle}
-                  </div>
-                  <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                    <span className="flex items-center">
-                      <MapPin className="w-3 h-3 mr-1" />
-                      {insp.siteZone}
-                    </span>
-                    <span aria-hidden="true">·</span>
-                    <span>{insp.submittedAt || insp.createdAt}</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  <div className="text-right">
-                    <div
-                      className={`text-sm font-bold font-mono tabular-nums ${
-                        insp.scorePercent >= 90
-                          ? 'text-emerald-600'
-                          : insp.scorePercent >= 75
-                          ? 'text-amber-600'
-                          : 'text-rose-600'
-                      }`}
-                    >
-                      {insp.scorePercent}%
-                    </div>
-                    <div className="text-[10px] uppercase font-semibold text-slate-400">
-                      {translateStatus(insp.status)}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onReviewInspection(insp)}
-                    className="p-2 rounded-lg border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 transition-colors"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Priority Corrective Actions */}
-        <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 p-6 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                  {t.dashboard.activeNonConformances}
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  {t.dashboard.activeNonConformancesSub}
-                </p>
-              </div>
-              <button
-                onClick={onNavigateToActions}
-                className="text-xs font-semibold text-slate-700 hover:text-slate-900 flex items-center"
-              >
-                {t.dashboard.trackAll} ({actions.length})
-                <ArrowRight className="w-3.5 h-3.5 ml-1" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {actions.slice(0, 3).map((act) => (
-                <div
-                  key={act.id}
-                  className="p-3.5 rounded-lg border border-slate-200 bg-slate-50/50 space-y-2"
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-mono text-slate-500">#{act.id}</span>
-                    <span
-                      className={`font-semibold uppercase text-[10px] ${
-                        act.severity === 'critical' || act.severity === 'high'
-                          ? 'text-rose-600'
-                          : 'text-amber-600'
-                      }`}
-                    >
-                      {act.severity} {t.dashboard.severityLabel}
-                    </span>
-                  </div>
-                  <div className="text-xs font-bold text-slate-900">
-                    {act.fieldLabel}
-                  </div>
-                  <p className="text-xs text-slate-600 line-clamp-2">
-                    {act.issueDescription}
-                  </p>
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-                    <span>
-                      {t.dashboard.assignedLabel} {act.assignedToName}
-                    </span>
-                    <span className="font-mono">
-                      {t.dashboard.dueLabel} {act.dueDate}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <span>{t.dashboard.remediationFooter}</span>
-            <button
-              onClick={onNavigateToActions}
-              className="text-slate-900 font-semibold hover:underline whitespace-nowrap ml-2"
-            >
-              {t.dashboard.remediationBoardLink}
-            </button>
+              ))
+            )}
           </div>
         </div>
       </div>
