@@ -475,18 +475,18 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   }, [selectedNode, nodes]);
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+    <div className="flex-1 min-h-0 flex flex-col lg:flex-row bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
       {/* =========================================================================
-          LEFT PANE: Master WBS Tree & Quick Hierarchy Navigator (42% Width)
+          LEFT PANE: Master WBS Tree & Quick Hierarchy Navigator (38% Width)
           ========================================================================= */}
-      <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden flex flex-col h-[750px]">
+      <div className="w-full lg:w-[40%] xl:w-[38%] border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col min-h-0 h-full bg-white">
         {/* Left Header & Actions */}
-        <div className="p-3.5 border-b border-slate-200 bg-slate-50 space-y-2.5">
+        <div className="p-3 border-b border-slate-200 bg-slate-50/70 space-y-2 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <FolderTree className="w-4 h-4 text-slate-700" />
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Struktur WBS ({nodes.length} Node)
+              <h3 className="text-xs font-bold text-slate-900 tracking-wide">
+                Struktur WBS ({nodes.length})
               </h3>
             </div>
             <div className="flex items-center space-x-1">
@@ -495,7 +495,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                   <button
                     type="button"
                     onClick={onOpenPresetModal}
-                    className="px-2 py-1 text-[10px] font-semibold rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs transition-colors flex items-center space-x-1"
+                    className="px-2 py-0.5 text-[10px] font-semibold rounded bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 shadow-2xs transition-colors flex items-center space-x-1"
                     title="Gunakan Starter Pack Preset"
                   >
                     <Sparkles className="w-3 h-3 text-amber-500" />
@@ -504,7 +504,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                   <button
                     type="button"
                     onClick={() => onAddNode('')}
-                    className="px-2 py-1 text-[10px] font-bold rounded bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] shadow-2xs transition-colors flex items-center space-x-1"
+                    className="px-2 py-0.5 text-[10px] font-bold rounded bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] shadow-2xs transition-colors flex items-center space-x-1"
                     title="Tambah Node Tingkat Induk (Root)"
                   >
                     <Plus className="w-3 h-3" />
@@ -523,34 +523,8 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Cari kode, nama, atau drawing..."
-              className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg bg-white focus:outline-hidden focus:ring-1 focus:ring-amber-500 text-slate-800 placeholder-slate-400"
+              className="w-full pl-8 pr-3 py-1 text-xs border border-slate-200 rounded-md bg-white focus:outline-hidden focus:ring-1 focus:ring-amber-500 text-slate-800 placeholder-slate-400"
             />
-          </div>
-
-          {/* Tip for Drag & Drop */}
-          {canEdit && (
-            <div className="text-[10px] text-slate-500 flex items-center space-x-1.5 px-0.5">
-              <GripVertical className="w-3 h-3 text-slate-400 shrink-0" />
-              <span className="truncate">Tarik & lepas (drag-and-drop) item untuk mengatur struktur parent/anak.</span>
-            </div>
-          )}
-
-          {/* Sibling Weight Validation Banner */}
-          <div className="flex items-center justify-between text-[11px] px-2 py-1 rounded bg-white border border-slate-200">
-            <span className="text-slate-500 font-medium">Validasi Bobot Sibling:</span>
-            {!weightValidation.hasWarnings ? (
-              <span className="text-emerald-700 font-bold flex items-center space-x-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>100% Seimbang</span>
-              </span>
-            ) : (
-              <span className="text-amber-700 font-semibold flex items-center space-x-1" title={weightValidation.groups.find((g) => !g.isValid)?.message}>
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                <span className="truncate max-w-[170px]">
-                  {weightValidation.groups.find((g) => !g.isValid)?.message || 'Bobot belum 100%'}
-                </span>
-              </span>
-            )}
           </div>
         </div>
 
@@ -606,11 +580,6 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
               return (
                 <div
                   key={node.id}
-                  draggable={canEdit}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', node.id);
-                    setDraggedNodeId(node.id);
-                  }}
                   onDragOver={(e) => {
                     if (draggedNodeId && draggedNodeId !== node.id) {
                       e.preventDefault();
@@ -627,13 +596,8 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                     e.preventDefault();
                     handleDropOnNode(node.id);
                   }}
-                  onDragEnd={() => {
-                    setDraggedNodeId(null);
-                    setDragOverNodeId(null);
-                    setIsDragOverRoot(false);
-                  }}
                   onClick={() => setSelectedNodeId(node.id)}
-                  className={`group px-2 py-2 rounded-lg cursor-pointer transition-all flex items-center justify-between gap-2 relative ${
+                  className={`group px-2 py-1.5 rounded-lg cursor-pointer transition-all flex items-center justify-between gap-2 relative ${
                     isDragOver
                       ? 'border-2 border-amber-500 bg-amber-100/90 shadow-md ring-2 ring-amber-300 scale-[1.01]'
                       : isCurrentlyDragged
@@ -645,14 +609,28 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                   style={{ marginLeft: `${node.level * 14}px` }}
                 >
                   <div className="flex items-center space-x-1.5 overflow-hidden min-w-0">
-                    {/* Drag Handle Icon */}
+                    {/* 6-Dot Drag Handle Icon - ONLY dragging here starts drag & drop */}
                     {canEdit && (
-                      <span
-                        className="cursor-grab active:cursor-grabbing text-slate-400 group-hover:text-slate-700 p-0.5 shrink-0"
-                        title="Geser untuk memindahkan hierarki (Drag & Drop)"
+                      <div
+                        draggable={canEdit}
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          e.dataTransfer.setData('text/plain', node.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggedNodeId(node.id);
+                        }}
+                        onDragEnd={(e) => {
+                          e.stopPropagation();
+                          setDraggedNodeId(null);
+                          setDragOverNodeId(null);
+                          setIsDragOverRoot(false);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 p-0.5 rounded-sm shrink-0 transition-colors"
+                        title="Tarik handle 6-titik untuk memindahkan hierarki (Drag & Drop)"
                       >
                         <GripVertical className="w-3.5 h-3.5" />
-                      </span>
+                      </div>
                     )}
 
                     {/* Expand/Collapse Chevron */}
@@ -758,13 +736,13 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       </div>
 
       {/* =========================================================================
-          RIGHT PANE: Live Node Inspector & Multi-Stage Workflow Studio (58% Width)
+          RIGHT PANE: Live Node Inspector & Multi-Stage Workflow Studio (62% Width)
           ========================================================================= */}
-      <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden flex flex-col min-h-[750px]">
+      <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden bg-white">
         {selectedNode ? (
           <>
             {/* Inspector Header */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50/80">
+            <div className="p-3 border-b border-slate-200 bg-slate-50/80 shrink-0">
               {/* Breadcrumb Path */}
               <div className="flex items-center space-x-1.5 text-[10px] text-slate-500 font-mono overflow-hidden truncate mb-1">
                 {breadcrumbPath.map((item, idx) => (
@@ -777,17 +755,17 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                 ))}
               </div>
 
-              {/* Title & Level */}
+              {/* Title & Level & Actions */}
               <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <div className="flex items-center space-x-2">
-                    <span className="px-2 py-0.5 rounded font-mono font-bold text-xs bg-slate-900 text-[#d4f038]">
+                <div className="space-y-0.5 min-w-0">
+                  <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                    <span className="px-1.5 py-0.5 rounded font-mono font-bold text-xs bg-slate-900 text-[#d4f038]">
                       {selectedNode.wbsCode}
                     </span>
-                    <h2 className="text-sm font-bold text-slate-900 leading-tight">
+                    <h2 className="text-sm font-bold text-slate-900 truncate">
                       {selectedNode.name}
                     </h2>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-200 text-slate-700">
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-200 text-slate-700">
                       {(selectedNode.wbsCode.split('.').filter(Boolean).length - 1) === 0
                         ? 'Work Package'
                         : (selectedNode.wbsCode.split('.').filter(Boolean).length - 1) === 1
@@ -795,11 +773,6 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                         : 'Task Item'}
                     </span>
                   </div>
-                  <p className="text-[11px] text-slate-500">
-                    Dokumen: <strong className="text-slate-700">{selectedNode.documentReferenceNo || 'DWG-STR-101'}</strong> ({selectedNode.activeRevision || 'Rev A'})
-                    {' · '}SE: <strong className="text-slate-700">{selectedNode.assignedEngineerName || 'Dave Kowalski'}</strong>
-                    {' · '}QC: <strong className="text-slate-700">{selectedNode.assignedQcName || 'Elena Rostova'}</strong>
-                  </p>
                 </div>
 
                 {/* Top Action Buttons */}
@@ -809,7 +782,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       <button
                         type="button"
                         onClick={() => onAddNode(selectedNode.id)}
-                        className="px-2.5 py-1 text-xs font-semibold rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 flex items-center space-x-1 transition-colors"
+                        className="px-2 py-0.5 text-xs font-semibold rounded bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 flex items-center space-x-1 transition-colors"
                         title="Tambah Sub-Node di bawah item ini"
                       >
                         <Plus className="w-3.5 h-3.5 text-amber-600" />
@@ -818,45 +791,58 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       <button
                         type="button"
                         onClick={() => onDeleteNode(selectedNode)}
-                        className="px-2.5 py-1 text-xs font-semibold rounded bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 flex items-center space-x-1.5 transition-colors shadow-2xs"
+                        className="px-2 py-0.5 text-xs font-semibold rounded bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 flex items-center space-x-1 transition-colors shadow-2xs"
                         title="Hapus node pekerjaan ini"
                       >
                         <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                        <span>Hapus Node</span>
+                        <span>Hapus</span>
                       </button>
                     </>
                   )}
                 </div>
               </div>
 
-              {/* Progress Summary Strip */}
-              <div className="grid grid-cols-4 gap-2 mt-3 pt-3 border-t border-slate-200/80 text-[11px]">
-                <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <div className="text-slate-400 text-[10px]">Bobot Sibling</div>
-                  <div className="text-slate-900 font-bold font-mono text-xs">{Number(selectedNode.weightPercent).toFixed(2)}%</div>
+              {/* Compact Inline Metadata & Stats Strip */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 pt-2 border-t border-slate-200/80 text-[11px] text-slate-600">
+                <div className="flex items-center space-x-1">
+                  <span className="text-slate-400">Bobot:</span>
+                  <span className="font-mono font-bold text-slate-900">{Number(selectedNode.weightPercent).toFixed(2)}%</span>
                 </div>
-                <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <div className="text-slate-400 text-[10px]">Volume Rencana</div>
-                  <div className="text-slate-900 font-bold font-mono text-xs">
+                <span className="text-slate-300">•</span>
+                <div className="flex items-center space-x-1">
+                  <span className="text-slate-400">Vol:</span>
+                  <span className="font-mono font-semibold text-slate-800">
                     {selectedNode.volume ? `${selectedNode.volume} ${selectedNode.unit || 'm3'}` : '-'}
-                  </div>
+                  </span>
                 </div>
-                <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <div className="text-slate-400 text-[10px]">Klaim Progres</div>
-                  <div className="text-blue-600 font-bold font-mono text-xs">{selectedNode.claimedProgressPercent || 0}%</div>
+                <span className="text-slate-300">•</span>
+                <div className="flex items-center space-x-1">
+                  <span className="text-slate-400">Progres:</span>
+                  <span className="font-mono font-semibold text-blue-600">{selectedNode.claimedProgressPercent || 0}% klaim</span>
+                  <span className="text-slate-400">/</span>
+                  <span className="font-mono font-semibold text-emerald-600">{selectedNode.verifiedProgressPercent || 0}% verif</span>
                 </div>
-                <div className="bg-white p-2 rounded-lg border border-slate-200">
-                  <div className="text-slate-400 text-[10px]">Verifikasi Mutu</div>
-                  <div className="text-emerald-600 font-bold font-mono text-xs">{selectedNode.verifiedProgressPercent || 0}%</div>
+                <span className="text-slate-300">•</span>
+                <div className="flex items-center space-x-1">
+                  <span className="text-slate-400">Dok:</span>
+                  <span className="font-medium text-slate-700">{selectedNode.documentReferenceNo || 'DWG-STR-101'}</span>
+                  <span className="text-[10px] text-slate-400">({selectedNode.activeRevision || 'Rev A'})</span>
+                </div>
+                <span className="text-slate-300">•</span>
+                <div className="flex items-center space-x-1">
+                  <span className="text-slate-400">SE/QC:</span>
+                  <span className="text-slate-700">
+                    {selectedNode.assignedEngineerName?.split(' ')[0] || 'Dave'} / {selectedNode.assignedQcName?.split(' ')[0] || 'Elena'}
+                  </span>
                 </div>
               </div>
 
               {/* Tab Switcher inside Right Panel */}
-              <div className="flex items-center space-x-1 mt-3 border-b border-slate-200 pt-1">
+              <div className="flex items-center space-x-1 mt-2 border-b border-slate-200 pt-0.5">
                 <button
                   type="button"
                   onClick={() => setInspectorTab('workflow')}
-                  className={`pb-2 px-3 text-xs font-bold border-b-2 flex items-center space-x-1.5 transition-colors ${
+                  className={`pb-1.5 px-3 text-xs font-bold border-b-2 flex items-center space-x-1.5 transition-colors ${
                     inspectorTab === 'workflow'
                       ? 'border-slate-900 text-slate-900'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -873,7 +859,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                 <button
                   type="button"
                   onClick={() => setInspectorTab('edit')}
-                  className={`pb-2 px-3 text-xs font-bold border-b-2 flex items-center space-x-1.5 transition-colors ${
+                  className={`pb-1.5 px-3 text-xs font-bold border-b-2 flex items-center space-x-1.5 transition-colors ${
                     inspectorTab === 'edit'
                       ? 'border-slate-900 text-slate-900'
                       : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -945,37 +931,37 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                         return (
                           <div
                             key={stage.id}
-                            className={`p-3.5 rounded-xl border transition-all ${
+                            className={`p-2.5 rounded-lg border transition-all ${
                               stage.status === 'approved'
-                                ? 'bg-emerald-50/50 border-emerald-200'
+                                ? 'bg-emerald-50/40 border-emerald-200'
                                 : stage.status === 'rejected'
-                                ? 'bg-rose-50/50 border-rose-200'
+                                ? 'bg-rose-50/40 border-rose-200'
                                 : stage.status === 'submitted'
-                                ? 'bg-indigo-50/50 border-indigo-200'
+                                ? 'bg-indigo-50/40 border-indigo-200'
                                 : stage.status === 'requested'
-                                ? 'bg-blue-50/50 border-blue-200'
+                                ? 'bg-blue-50/40 border-blue-200'
                                 : !check.allowed
                                 ? 'bg-slate-50 border-slate-200 opacity-80'
                                 : 'bg-white border-slate-200 hover:border-slate-300'
                             }`}
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="space-y-1">
-                                <div className="flex items-center space-x-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="space-y-0.5 min-w-0">
+                                <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                                   <span className="w-5 h-5 rounded-full bg-slate-900 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
                                     {stage.stageOrder}
                                   </span>
-                                  <h4 className="text-xs font-bold text-slate-900">
+                                  <h4 className="text-xs font-bold text-slate-900 truncate">
                                     {stage.name}
                                   </h4>
                                   {stage.stageType === 'hold' && (
-                                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center space-x-1">
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center space-x-1 shrink-0">
                                       <Lock className="w-2.5 h-2.5 text-amber-700" />
                                       <span>HOLD POINT</span>
                                     </span>
                                   )}
                                   <span
-                                    className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                                    className={`px-1.5 py-0.2 rounded text-[10px] font-bold font-mono shrink-0 ${
                                       stage.status === 'approved'
                                         ? 'bg-emerald-100 text-emerald-800'
                                         : stage.status === 'rejected'
@@ -990,10 +976,10 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                                     {stage.status.toUpperCase()}
                                   </span>
                                 </div>
-                                <p className="text-[11px] text-slate-500 pl-7">
-                                  Role Pengaju: <strong className="text-slate-700">{stage.assignedRole}</strong>
-                                  {stage.approvalRole ? ` · Role Penyetuju: ${stage.approvalRole}` : ''}
-                                  {stage.requiresWetSignature ? ' · (Wajib Tanda Tangan Basah/Fisik)' : ''}
+                                <p className="text-[10px] text-slate-500 pl-7">
+                                  Pengaju: <strong className="text-slate-700">{stage.assignedRole}</strong>
+                                  {stage.approvalRole ? ` · Penyetuju: ${stage.approvalRole}` : ''}
+                                  {stage.requiresWetSignature ? ' · (Wajib Fisik)' : ''}
                                 </p>
                               </div>
 
@@ -1039,7 +1025,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                                 )}
 
                                 {stage.status === 'approved' && (
-                                  <span className="px-2 py-1 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center space-x-1">
+                                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px] flex items-center space-x-1">
                                     <CheckCircle2 className="w-3 h-3 text-emerald-700" />
                                     <span>Lulus</span>
                                   </span>
@@ -1049,7 +1035,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
 
                             {/* Upstream Hold Point Lock Warning */}
                             {!check.allowed && (
-                              <div className="mt-2 text-[10px] text-amber-700 bg-amber-50 p-2 rounded border border-amber-200 flex items-center space-x-1.5 ml-7">
+                              <div className="mt-1.5 text-[10px] text-amber-700 bg-amber-50/80 px-2 py-1 rounded border border-amber-200 flex items-center space-x-1.5 ml-7">
                                 <Lock className="w-3 h-3 text-amber-600 shrink-0" />
                                 <span>{check.reason}</span>
                               </div>
