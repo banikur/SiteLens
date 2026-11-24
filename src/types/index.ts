@@ -235,6 +235,18 @@ export interface ProjectZone {
   safetyLevel: 'Standard' | 'Restricted' | 'High Risk';
 }
 
+export interface ProjectSite {
+  id: string;
+  name: string;
+  code?: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  radiusMeters?: number;
+  isPrimary?: boolean;
+  notes?: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -243,7 +255,10 @@ export interface Project {
   location: string;
   status: 'active' | 'completed' | 'on_hold';
   zones: ProjectZone[];
+  sites?: ProjectSite[];
   leadManager: string;
+  capaLockoutSeverities?: string[];
+  flowPresetId?: string | null;
   activeInspectionsCount: number;
   openIssuesCount: number;
   complianceRate: number;

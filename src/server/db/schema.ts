@@ -20,6 +20,7 @@ import type {
   ActionSeverity,
   ActionStatus,
   ProjectZone,
+  ProjectSite,
   StandardBody,
   InspectionPointType,
   WorkflowTrigger,
@@ -107,6 +108,7 @@ export const projects = pgTable('projects', {
   location: text('location').notNull(),
   status: text('status').$type<'active' | 'completed' | 'on_hold'>().notNull().default('active'),
   zones: jsonb('zones').$type<ProjectZone[]>().notNull().default([]),
+  sites: jsonb('sites').$type<ProjectSite[]>().notNull().default([]),
   leadManager: text('lead_manager').notNull(),
   flowPresetId: uuid('flow_preset_id').references(() => flowPresets.id, { onDelete: 'set null' }),
   capaLockoutSeverities: text('capa_lockout_severities')

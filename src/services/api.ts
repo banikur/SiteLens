@@ -128,7 +128,9 @@ export async function apiUpdateActionStatus(
   return res.action;
 }
 
-export async function apiSaveProject(project: Project): Promise<Project> {
+export async function apiSaveProject(
+  project: Project & { teamMembers?: Array<{ userId: string; roleId: string }> }
+): Promise<Project> {
   const res = await apiJson<{ project: Project }>('/api/projects', {
     method: 'POST',
     body: JSON.stringify(project),
@@ -689,7 +691,7 @@ export async function apiDeleteAssignment(assignmentId: string): Promise<void> {
 
 export async function apiUpdateProject(
   projectId: string,
-  data: Partial<Project>
+  data: Partial<Project> & { teamMembers?: Array<{ userId: string; roleId: string }> }
 ): Promise<{ project: Project }> {
   return apiJson(`/api/projects/${encodeURIComponent(projectId)}`, {
     method: 'PUT',

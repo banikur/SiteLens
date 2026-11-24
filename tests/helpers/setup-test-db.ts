@@ -62,6 +62,11 @@ export async function ensureTestDatabaseSchema() {
     END $$;
 
     DO $$ BEGIN
+      ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "sites" jsonb DEFAULT '[]'::jsonb NOT NULL;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
+    DO $$ BEGIN
       ALTER TABLE "inspection_attempts" ADD COLUMN IF NOT EXISTS "requester_id" uuid REFERENCES "users"("id") ON DELETE SET NULL;
     EXCEPTION WHEN duplicate_column THEN null;
     END $$;
@@ -107,6 +112,7 @@ export async function ensureTestDatabaseSchema() {
         "location" text NOT NULL,
         "status" text DEFAULT 'active' NOT NULL,
         "zones" jsonb DEFAULT '[]'::jsonb NOT NULL,
+        "sites" jsonb DEFAULT '[]'::jsonb NOT NULL,
         "lead_manager" text NOT NULL,
         "flow_preset_id" uuid REFERENCES "flow_presets"("id") ON DELETE SET NULL,
         "capa_lockout_severities" text[] DEFAULT ARRAY['critical', 'high']::text[] NOT NULL,

@@ -351,6 +351,10 @@ apiRouter.post(
     const id = resolveUuid(p.id);
 
     const [saved] = await db.transaction(async (tx) => {
+      const sitesList = Array.isArray(p.sites) ? p.sites : [];
+      const primarySite = sitesList.find((s: any) => s.isPrimary) || sitesList[0];
+      const derivedLocation = p.location || primarySite?.name || 'Central Industrial Sector';
+
       const [savedProject] = await tx
         .insert(projects)
         .values({
@@ -358,9 +362,10 @@ apiRouter.post(
           name: p.name,
           code: p.code,
           client: p.client,
-          location: p.location,
+          location: derivedLocation,
           status: p.status || 'active',
           zones: Array.isArray(p.zones) ? p.zones : [],
+          sites: sitesList,
           leadManager: p.leadManager || req.authUser!.name,
         })
         .onConflictDoUpdate({
@@ -369,9 +374,10 @@ apiRouter.post(
             name: p.name,
             code: p.code,
             client: p.client,
-            location: p.location,
+            location: derivedLocation,
             status: p.status || 'active',
             zones: Array.isArray(p.zones) ? p.zones : [],
+            sites: sitesList,
             leadManager: p.leadManager || req.authUser!.name,
           },
         })
@@ -388,6 +394,43 @@ apiRouter.post(
           isActive: true,
         })
         .onConflictDoNothing();
+
+      // Merged employee assignments if provided in the same payload
+      if (Array.isArray(p.teamMembers)) {
+        for (const member of p.teamMembers) {
+          if (member.userId && member.roleId) {
+            const [existingAssignment] = await tx
+              .select()
+              .from(roleAssignments)
+              .where(
+                and(
+                  eq(roleAssignments.userId, member.userId as any),
+                  eq(roleAssignments.projectId, savedProject.id as any),
+                  eq(roleAssignments.scopeType, 'project')
+                )
+              )
+              .limit(1);
+
+            if (existingAssignment) {
+              await tx
+                .update(roleAssignments)
+                .set({
+                  roleId: member.roleId,
+                  isActive: true,
+                })
+                .where(eq(roleAssignments.id, existingAssignment.id));
+            } else {
+              await tx.insert(roleAssignments).values({
+                userId: member.userId as any,
+                roleId: member.roleId,
+                scopeType: 'project',
+                projectId: savedProject.id as any,
+                isActive: true,
+              });
+            }
+          }
+        }
+      }
 
       return [savedProject];
     });
@@ -443,7 +486,7 @@ apiRouter.put(
       return;
     }
 
-    const { name, code, client, location, status, zones, leadManager, capaLockoutSeverities } = req.body ?? {};
+    const { name, code, client, location, status, zones, sites, leadManager, capaLockoutSeverities, teamMembers } = req.body ?? {};
     const updates: Partial<typeof projects.$inferInsert> = {};
     if (typeof name === 'string' && name.trim()) updates.name = name.trim();
     if (typeof code === 'string' && code.trim()) updates.code = code.trim();
@@ -451,14 +494,62 @@ apiRouter.put(
     if (typeof location === 'string' && location.trim()) updates.location = location.trim();
     if (status && ['active', 'completed', 'on_hold'].includes(status)) updates.status = status;
     if (Array.isArray(zones)) updates.zones = zones;
+    if (Array.isArray(sites)) {
+      updates.sites = sites;
+      if (!updates.location && sites.length > 0) {
+        const primarySite = sites.find((s: any) => s.isPrimary) || sites[0];
+        if (primarySite?.name) updates.location = primarySite.name;
+      }
+    }
     if (typeof leadManager === 'string' && leadManager.trim()) updates.leadManager = leadManager.trim();
     if (Array.isArray(capaLockoutSeverities)) updates.capaLockoutSeverities = capaLockoutSeverities;
 
-    const [updated] = await db
-      .update(projects)
-      .set(updates)
-      .where(eq(projects.id, projectId as any))
-      .returning();
+    const [updated] = await db.transaction(async (tx) => {
+      const [proj] = await tx
+        .update(projects)
+        .set(updates)
+        .where(eq(projects.id, projectId as any))
+        .returning();
+
+      // Merged employee assignments if provided in the same payload
+      if (Array.isArray(teamMembers)) {
+        for (const member of teamMembers) {
+          if (member.userId && member.roleId) {
+            const [existingAssignment] = await tx
+              .select()
+              .from(roleAssignments)
+              .where(
+                and(
+                  eq(roleAssignments.userId, member.userId as any),
+                  eq(roleAssignments.projectId, projectId as any),
+                  eq(roleAssignments.scopeType, 'project')
+                )
+              )
+              .limit(1);
+
+            if (existingAssignment) {
+              await tx
+                .update(roleAssignments)
+                .set({
+                  roleId: member.roleId,
+                  isActive: true,
+                })
+                .where(eq(roleAssignments.id, existingAssignment.id));
+            } else {
+              await tx.insert(roleAssignments).values({
+                userId: member.userId as any,
+                roleId: member.roleId,
+                scopeType: 'project',
+                projectId: projectId as any,
+                isActive: true,
+              });
+            }
+          }
+        }
+      }
+
+      return [proj];
+    });
 
     await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_PROJECT', 'project', projectId, updates);
 

@@ -61,6 +61,7 @@ import {
   apiReviewInspection,
   apiSaveAction,
   apiSaveProject,
+  apiUpdateProject,
   apiSaveTemplate,
   apiSubmitInspection,
   apiUpdateActionStatus,
@@ -441,7 +442,7 @@ function SiteLensWorkspace() {
   };
 
   // Project Handlers
-  const handleAddProject = async (project: Project) => {
+  const handleAddProject = async (project: Project & { teamMembers?: Array<{ userId: string; roleId: string }> }) => {
     if (authEnabled && authUser) {
       const saved = await apiSaveProject(project);
       setProjects((prev) => [saved, ...prev]);
@@ -449,6 +450,18 @@ function SiteLensWorkspace() {
     }
     const updated = saveProject(project);
     setProjects(updated);
+  };
+
+  const handleUpdateProject = async (
+    projectId: string,
+    data: Partial<Project> & { teamMembers?: Array<{ userId: string; roleId: string }> }
+  ) => {
+    if (authEnabled && authUser) {
+      const res = await apiUpdateProject(projectId, data);
+      setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, ...res.project } : p)));
+      return;
+    }
+    setProjects((prev) => prev.map((p) => (p.id === projectId ? { ...p, ...data } : p)));
   };
 
   const pendingReviewsCount = inspections.filter(
@@ -681,7 +694,9 @@ function SiteLensWorkspace() {
             <ProjectsManager
               projects={projects}
               currentUser={currentUser}
+              users={users}
               onAddProject={handleAddProject}
+              onUpdateProject={handleUpdateProject}
             />
           ) : currentTab === 'analytics' ? (
             <AnalyticsReports
