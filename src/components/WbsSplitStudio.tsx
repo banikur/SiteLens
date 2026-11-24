@@ -722,19 +722,32 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       />
                     </div>
 
-                    {/* Hover Add Child Button */}
+                    {/* Hover Action Buttons */}
                     {canEdit && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAddNode(node.id);
-                        }}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-slate-200 text-slate-600 transition-opacity"
-                        title="Tambah Sub-Pekerjaan di bawah ini"
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
+                      <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddNode(node.id);
+                          }}
+                          className="p-1 rounded hover:bg-slate-200 text-slate-600 transition-colors"
+                          title="Tambah Sub-Pekerjaan di bawah ini"
+                        >
+                          <Plus className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteNode(node);
+                          }}
+                          className="p-1 rounded hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-colors"
+                          title="Hapus pekerjaan ini"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -805,10 +818,11 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       <button
                         type="button"
                         onClick={() => onDeleteNode(selectedNode)}
-                        className="p-1.5 rounded hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-transparent hover:border-rose-200 transition-colors"
-                        title="Hapus node ini"
+                        className="px-2.5 py-1 text-xs font-semibold rounded bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 flex items-center space-x-1.5 transition-colors shadow-2xs"
+                        title="Hapus node pekerjaan ini"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Hapus Node</span>
                       </button>
                     </>
                   )}
@@ -1363,11 +1377,21 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-2 flex justify-end">
+                  <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteNode(selectedNode)}
+                        className="px-3 py-2 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-semibold transition-colors flex items-center space-x-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Hapus Pekerjaan Ini</span>
+                      </button>
+                    )}
                     <button
                       type="submit"
                       disabled={inlineSaving || !canEdit}
-                      className="px-4 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs shadow-xs transition-colors flex items-center space-x-1.5 disabled:opacity-50"
+                      className="px-4 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs shadow-xs transition-colors flex items-center space-x-1.5 disabled:opacity-50 ml-auto"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>{inlineSaving ? 'Menyimpan...' : 'Simpan Perubahan'}</span>
