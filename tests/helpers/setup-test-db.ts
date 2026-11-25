@@ -83,6 +83,7 @@ export async function ensureTestDatabaseSchema() {
 
     DO $$ BEGIN
       ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "allow_detailing" boolean DEFAULT false NOT NULL;
+      ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "requires_checklist" boolean DEFAULT false NOT NULL;
     EXCEPTION WHEN duplicate_column THEN null;
     END $$;
 
@@ -400,6 +401,7 @@ export async function ensureTestDatabaseSchema() {
         "claimed_progress_percent" integer DEFAULT 0 NOT NULL,
         "verified_progress_percent" integer DEFAULT 0 NOT NULL,
         "allow_detailing" boolean DEFAULT false NOT NULL,
+        "requires_checklist" boolean DEFAULT false NOT NULL,
         "detailing_status" text DEFAULT 'active' NOT NULL,
         "volume" numeric(12, 2),
         "unit" text,

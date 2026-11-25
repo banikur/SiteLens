@@ -427,12 +427,17 @@ test('Tahap 2a: RBAC Matrix, Route Registry Reflection & Isolation Verification'
       'POST /api/master-projects',
       'PATCH /api/master-projects/:id',
       'PATCH /api/master-projects/:id/archive',
+      'DELETE /api/master-projects/:id',
       'POST /api/master-projects/:id/sites',
+      'DELETE /api/projects/:projectId',
       'POST /api/projects/:projectId/assignments',
       'PUT /api/projects/:projectId/assignments/:assignmentId',
       'DELETE /api/projects/:projectId/assignments/:assignmentId',
       'PATCH /api/projects/:projectId/wbs/nodes/:nodeId/detailing',
       'PUT /api/projects/:projectId/wbs/nodes-batch',
+      'POST /api/projects/:projectId/wbs/nodes/:nodeId/stages',
+      'PUT /api/projects/:projectId/wbs/stages/:stageId',
+      'DELETE /api/projects/:projectId/wbs/stages/:stageId',
     ]);
 
     // Golden check 1: All 23 catalogue routes MUST exist in discovered Express registry

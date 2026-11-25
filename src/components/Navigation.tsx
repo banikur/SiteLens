@@ -88,10 +88,10 @@ export const Navigation: React.FC<NavigationProps> = ({
   const isFocusMode = (activeUser as any)?.focusMode === 'setup-flow';
 
   React.useEffect(() => {
-    if (isFocusMode && currentTab !== 'projects') {
-      onSelectTab('projects');
+    if (currentTab !== 'dashboard' && currentTab !== 'projects') {
+      onSelectTab('dashboard');
     }
-  }, [isFocusMode, currentTab, onSelectTab]);
+  }, [currentTab, onSelectTab]);
 
   type NavItem = {
     id: ActiveTab;
@@ -102,77 +102,20 @@ export const Navigation: React.FC<NavigationProps> = ({
     badgeAlert?: boolean;
   };
 
-  const standardNavItems: NavItem[] = [
+  // Focused verified menus: Dashboard first, Master Project directly below.
+  // Secondary/unverified modules are hidden from sidebar until their flows are perfected.
+  const navItems: NavItem[] = [
     {
       id: 'dashboard' as ActiveTab,
-      label: t.nav.dashboard,
+      label: lang === 'id' ? 'Dashboard' : 'Dashboard',
       icon: Layers,
     },
     {
-      id: 'templates' as ActiveTab,
-      label: t.nav.templates,
-      icon: ClipboardList,
-      count: totalTemplatesCount,
-    },
-    {
-      id: 'inspections' as ActiveTab,
-      label: t.nav.inspections,
-      icon: CheckSquare,
-      badge:
-        pendingReviewsCount > 0
-          ? `${pendingReviewsCount} ${t.nav.reviewBadge}`
-          : undefined,
-    },
-    {
-      id: 'actions' as ActiveTab,
-      label: t.nav.actions,
-      icon: AlertTriangle,
-      badge:
-        openActionsCount > 0 ? `${openActionsCount} ${t.nav.openBadge}` : undefined,
-      badgeAlert: true,
-    },
-    {
       id: 'projects' as ActiveTab,
-      label: t.nav.projects,
-      icon: Building2,
-    },
-    {
-      id: 'analytics' as ActiveTab,
-      label: t.nav.analytics,
-      icon: BarChart3,
-    },
-    {
-      id: 'team' as ActiveTab,
-      label: t.nav.team,
-      icon: Users,
-    },
-    {
-      id: 'compliance' as ActiveTab,
-      label: lang === 'id' ? 'Kepatuhan & Profil' : 'Dual-Compliance',
-      icon: Shield,
-    },
-    ...(authEnabled &&
-      !isLoadingPerms &&
-      (can(PERMISSIONS.ADMIN_ROLES) || can(PERMISSIONS.ADMIN_SETTINGS) || can(PERMISSIONS.ADMIN_USERS))
-      ? [
-        {
-          id: 'settings' as ActiveTab,
-          label: lang === 'id' ? 'Notifikasi & Audit' : 'Alerts & Audit',
-          icon: Settings,
-        },
-      ]
-      : []),
-  ];
-
-  const focusNavItems: NavItem[] = [
-    {
-      id: 'projects' as ActiveTab,
-      label: lang === 'id' ? 'Master & Site Proyek' : 'Master Projects & Sites',
+      label: lang === 'id' ? 'Master Project' : 'Master Projects',
       icon: Building2,
     },
   ];
-
-  const navItems = isFocusMode ? focusNavItems : standardNavItems;
 
   return (
     <>

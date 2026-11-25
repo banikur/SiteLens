@@ -19,6 +19,15 @@ import type {
   FlowPresetStep,
 } from '../types';
 
+export class ApiHttpError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiHttpError';
+    this.status = status;
+  }
+}
+
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     credentials: 'include',
@@ -30,7 +39,7 @@ async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.error || `Request failed (${res.status})`);
+    throw new ApiHttpError(data.error || `Request failed (${res.status})`, res.status);
   }
   return data as T;
 }
@@ -441,6 +450,46 @@ export async function apiInitDefaultWorkflow(
   }
 }
 
+export async function apiAddWbsStage(
+  projectId: string,
+  nodeId: string,
+  data: { name: string; stageType?: 'work' | 'hold' | 'review'; requiresWetSignature?: boolean }
+): Promise<{ stage: WorkStage }> {
+  return apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/stages`,
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function apiUpdateWbsStage(
+  projectId: string,
+  stageId: string,
+  data: { name?: string; stageType?: 'work' | 'hold' | 'review' }
+): Promise<{ stage: WorkStage }> {
+  return apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/stages/${encodeURIComponent(stageId)}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export async function apiDeleteWbsStage(
+  projectId: string,
+  stageId: string
+): Promise<{ success: boolean; message: string }> {
+  return apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/stages/${encodeURIComponent(stageId)}`,
+    {
+      method: 'DELETE',
+    }
+  );
+}
+
 export async function apiGetStageAttempts(stageId: string): Promise<{
   stage: WorkStage;
   attempts: InspectionAttempt[];
@@ -448,7 +497,8 @@ export async function apiGetStageAttempts(stageId: string): Promise<{
 }> {
   try {
     return await apiJson(`/api/stages/${encodeURIComponent(stageId)}/attempts`);
-  } catch {
+  } catch (err) {
+    if (err instanceof ApiHttpError) throw err;
     return {
       stage: {
         id: stageId,
@@ -495,7 +545,8 @@ export async function apiSubmitStageAttempt(
       method: 'POST',
       body: JSON.stringify(data),
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof ApiHttpError) throw err;
     const user = getActiveUser();
     return submitDemoStageAttempt(stageId, data, user);
   }
@@ -517,7 +568,8 @@ export async function apiReviewStageAttempt(
       method: 'POST',
       body: JSON.stringify(data),
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof ApiHttpError) throw err;
     const user = getActiveUser();
     return reviewDemoStageAttempt(stageId, data, user);
   }
@@ -807,9 +859,21 @@ export async function apiArchiveMasterProject(id: string): Promise<{ masterProje
   });
 }
 
+export async function apiDeleteMasterProject(id: string): Promise<{ success: boolean; message: string }> {
+  return apiJson(`/api/master-projects/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function apiDeleteProject(projectId: string): Promise<{ success: boolean; message: string }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function apiCreateMasterProjectSite(
   masterId: string,
-  data: Partial<Project>
+  data: Partial<Project> & { leadManagerUserId?: string }
 ): Promise<{ site: Project }> {
   return apiJson(`/api/master-projects/${encodeURIComponent(masterId)}/sites`, {
     method: 'POST',

@@ -28,6 +28,7 @@ import {
 } from './services/storage';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { Language } from './i18n/translations';
+import { usePermission, PERMISSIONS } from './hooks/usePermission';
 
 import { Navigation, ActiveTab } from './components/Navigation';
 import { Dashboard } from './components/Dashboard';
@@ -78,7 +79,9 @@ import {
 
 function SiteLensWorkspace() {
   const { lang, t } = useLanguage();
+  const { can, isLoading: isLoadingPerms } = usePermission();
   const [currentTab, setCurrentTab] = useState<ActiveTab>('dashboard');
+  const [initialStudioSite, setInitialStudioSite] = useState<Project | null>(null);
 
   // Core Data States
   const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
@@ -622,18 +625,19 @@ function SiteLensWorkspace() {
               >
                 {t.nav.closeBuilder}
               </button>
-            ) : (
+            ) : !isLoadingPerms &&
+              can(PERMISSIONS.INSPECTION_ROUTINE) &&
+              !can(PERMISSIONS.MASTERPROJECT_MANAGE) &&
+              templates.length > 0 ? (
               <button
                 onClick={() => {
-                  if (templates.length > 0) {
-                    setExecutingTemplate(templates[0]);
-                  }
+                  setExecutingTemplate(templates[0]);
                 }}
                 className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors whitespace-nowrap shadow-xs cursor-pointer"
               >
                 {t.nav.quickPerform}
               </button>
-            )}
+            ) : null}
           </div>
         </header>
 
@@ -670,6 +674,11 @@ function SiteLensWorkspace() {
               onNavigateToTemplates={() => setCurrentTab('templates')}
               onNavigateToInspections={() => setCurrentTab('inspections')}
               onNavigateToActions={() => setCurrentTab('actions')}
+              onNavigateToProjects={() => setCurrentTab('projects')}
+              onOpenSiteWbs={(site) => {
+                setInitialStudioSite(site);
+                setCurrentTab('projects');
+              }}
               onNewTemplate={() => {
                 setEditingTemplate(null);
                 setCurrentTab('builder');
@@ -727,6 +736,8 @@ function SiteLensWorkspace() {
               users={users}
               onAddProject={handleAddProject}
               onUpdateProject={handleUpdateProject}
+              initialStudioSite={initialStudioSite}
+              onClearInitialStudioSite={() => setInitialStudioSite(null)}
             />
           ) : currentTab === 'analytics' ? (
             <AnalyticsReports

@@ -31,6 +31,8 @@ import {
   X,
   ExternalLink,
   GripVertical,
+  CornerUpLeft,
+  CornerDownRight,
 } from 'lucide-react';
 import type { WorkNode, WorkWorkflow, WorkStage, InspectionAttempt, Project, User } from '../types';
 import {
@@ -41,6 +43,9 @@ import {
   apiReviewStageAttempt,
   apiUpdateWbsNode,
   apiApproveWbsDetails,
+  apiAddWbsStage,
+  apiUpdateWbsStage,
+  apiDeleteWbsStage,
 } from '../services/api';
 import {
   buildWbsTree,
@@ -161,6 +166,15 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   const [inlineSaving, setInlineSaving] = useState(false);
   const [inlineSaveSuccess, setInlineSaveSuccess] = useState(false);
   const [approvingDetailsLoading, setApprovingDetailsLoading] = useState(false);
+  const [claimProgressDraft, setClaimProgressDraft] = useState<number>(0);
+  const [savingProgressClaim, setSavingProgressClaim] = useState(false);
+  const [togglingStrict, setTogglingStrict] = useState(false);
+  const [newStageName, setNewStageName] = useState('');
+  const [newStageType, setNewStageType] = useState<'work' | 'hold' | 'review'>('work');
+  const [addingStage, setAddingStage] = useState(false);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [editingStageName, setEditingStageName] = useState('');
+  const [editingStageType, setEditingStageType] = useState<'work' | 'hold' | 'review'>('work');
 
   // Drag and drop reparenting & reordering states
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
@@ -332,6 +346,148 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
     }
   };
 
+  const handleOutdentNode = async (node: WbsTreeNode) => {
+    if (!node.parentId) return;
+    const parent = nodes.find((n) => n.id === node.parentId);
+    const nextParentId = parent?.parentId ?? null;
+    try {
+      setReparentingLoading(true);
+      await apiUpdateWbsNode(project.id, node.id, { parentId: nextParentId });
+      setWorkflowSuccess(
+        nextParentId
+          ? `'${node.name}' dipindahkan keluar satu tingkat.`
+          : `'${node.name}' dijadikan Item Tingkat Induk (Root).`
+      );
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal mengeluarkan item dari induknya.');
+    } finally {
+      setReparentingLoading(false);
+    }
+  };
+
+  const getPrevSibling = (node: WbsTreeNode): WorkNode | null => {
+    const siblings = nodes
+      .filter((n) => (n.parentId || null) === (node.parentId || null))
+      .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+    const idx = siblings.findIndex((s) => s.id === node.id);
+    return idx > 0 ? siblings[idx - 1] : null;
+  };
+
+  const handleIndentNode = async (node: WbsTreeNode) => {
+    const prevSibling = getPrevSibling(node);
+    if (!prevSibling) return;
+    if (checkIsDescendant(node.id, prevSibling.id)) return;
+    try {
+      setReparentingLoading(true);
+      await apiUpdateWbsNode(project.id, node.id, { parentId: prevSibling.id });
+      setWorkflowSuccess(`'${node.name}' dimasukkan ke bawah induk '${prevSibling.name}'.`);
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memasukkan item ke induk di atasnya.');
+    } finally {
+      setReparentingLoading(false);
+    }
+  };
+
+  const handleToggleStrictChecklist = async () => {
+    if (!selectedNode) return;
+    const nextVal = !Boolean(selectedNode.requiresChecklist);
+    try {
+      setTogglingStrict(true);
+      await apiUpdateWbsNode(project.id, selectedNode.id, {
+        requiresChecklist: nextVal,
+      });
+      setWorkflowSuccess(
+        nextVal
+          ? `Node '${selectedNode.name}' diset ke Mode Strict (Wajib Ceklis Inspeksi).`
+          : `Node '${selectedNode.name}' diset ke Mode Klaim Langsung.`
+      );
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal mengubah mode strict node.');
+    } finally {
+      setTogglingStrict(false);
+    }
+  };
+
+  const handleSaveClaimProgress = async () => {
+    if (!selectedNode) return;
+    try {
+      setSavingProgressClaim(true);
+      await apiUpdateWbsNode(project.id, selectedNode.id, {
+        claimedProgressPercent: claimProgressDraft,
+      });
+      setWorkflowSuccess(`Klaim progres '${selectedNode.name}' disimpan (${claimProgressDraft}%).`);
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menyimpan klaim progres.');
+    } finally {
+      setSavingProgressClaim(false);
+    }
+  };
+
+  const handleAddCustomStage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedNode || !newStageName.trim()) return;
+    try {
+      setAddingStage(true);
+      await apiAddWbsStage(project.id, selectedNode.id, {
+        name: newStageName.trim(),
+        stageType: newStageType,
+      });
+      setNewStageName('');
+      setNewStageType('work');
+      const res = await apiGetNodeWorkflow(project.id, selectedNode.id);
+      setWorkflow(res.workflow);
+      setStages(res.stages || []);
+      setAttempts(res.attempts || []);
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menambah tahapan.');
+    } finally {
+      setAddingStage(false);
+    }
+  };
+
+  const handleUpdateStage = async (stageId: string) => {
+    if (!selectedNode || !editingStageName.trim()) return;
+    try {
+      setActionLoading(true);
+      await apiUpdateWbsStage(project.id, stageId, {
+        name: editingStageName.trim(),
+        stageType: editingStageType,
+      });
+      setEditingStageId(null);
+      const res = await apiGetNodeWorkflow(project.id, selectedNode.id);
+      setWorkflow(res.workflow);
+      setStages(res.stages || []);
+      setAttempts(res.attempts || []);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal mengubah tahapan.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteStage = async (stageId: string, stageName: string) => {
+    if (!selectedNode) return;
+    if (!confirm(`Hapus tahapan "${stageName}"?`)) return;
+    try {
+      setActionLoading(true);
+      await apiDeleteWbsStage(project.id, stageId);
+      const res = await apiGetNodeWorkflow(project.id, selectedNode.id);
+      setWorkflow(res.workflow);
+      setStages(res.stages || []);
+      setAttempts(res.attempts || []);
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menghapus tahapan.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleCollapseAll = () => {
     const parentIds = new Set<string>();
     for (const n of nodes) {
@@ -386,6 +542,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       setInlineEngineerName(selectedNode.assignedEngineerName || 'Dave Kowalski (Site Engineer)');
       setInlineQcName(selectedNode.assignedQcName || 'Elena Rostova (QA/QC Lead)');
       setInlineAllowDetailing(Boolean(selectedNode.allowDetailing));
+      setClaimProgressDraft(Number(selectedNode.claimedProgressPercent) || 0);
       setInlineSaveSuccess(false);
 
       // Reset action states
@@ -735,7 +892,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
 
         {/* Tree List (Scrollable) */}
         <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-1.5 font-sans">
-          {/* Drop Target for Root Level */}
+          {/* Sticky Drop Target for Root Level at Top */}
           {draggedNodeId && (
             <div
               onDragOver={(e) => {
@@ -748,13 +905,13 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                 e.preventDefault();
                 handleDropToRoot();
               }}
-              className={`p-2.5 mb-2 rounded-lg border-2 border-dashed text-center text-xs font-bold transition-all cursor-pointer ${
+              className={`sticky top-0 z-20 p-3 mb-2 rounded-lg border-2 border-dashed text-center text-xs font-bold transition-all cursor-pointer ${
                 isDragOverRoot
-                  ? 'border-blue-500 bg-blue-100 text-blue-900 scale-[1.01] shadow-xs'
-                  : 'border-slate-300 bg-slate-50 text-slate-600 hover:border-slate-400'
+                  ? 'border-blue-600 bg-blue-100 text-blue-950 scale-[1.01] shadow-md'
+                  : 'border-blue-300 bg-blue-50/95 text-blue-800 hover:border-blue-500 shadow-xs'
               }`}
             >
-              <span>📦 Jatuhkan di sini untuk jadikan Item Tingkat Induk (Root)</span>
+              <span>📦 Jatuhkan di sini untuk Keluar dari Induk (Jadikan Tingkat Induk / Root)</span>
             </div>
           )}
 
@@ -962,7 +1119,33 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
 
                     {/* Action Buttons */}
                     {isEditor && (
-                      <div className="flex items-center space-x-0.5 opacity-50 group-hover:opacity-100 hover:opacity-100 transition-opacity pointer-events-auto">
+                      <div className="flex items-center space-x-0.5 opacity-60 group-hover:opacity-100 hover:opacity-100 transition-opacity pointer-events-auto">
+                        {node.parentId && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleOutdentNode(node);
+                            }}
+                            className="p-1 rounded hover:bg-blue-100 text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                            title="Keluarkan dari induk (Outdent / naik 1 tingkat)"
+                          >
+                            <CornerUpLeft className="w-3 h-3" />
+                          </button>
+                        )}
+                        {getPrevSibling(node) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleIndentNode(node);
+                            }}
+                            className="p-1 rounded hover:bg-emerald-100 text-emerald-600 hover:text-emerald-800 transition-colors cursor-pointer"
+                            title={`Jadikan sub-item di bawah '${getPrevSibling(node)?.name}' (Indent)`}
+                          >
+                            <CornerDownRight className="w-3 h-3" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -1013,6 +1196,29 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                 </div>
               );
             })
+          )}
+
+          {/* Spacious Bottom Drop Target for Root Level (always easy to reach when dragging down) */}
+          {draggedNodeId && (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setIsDragOverRoot(true);
+              }}
+              onDragLeave={() => setIsDragOverRoot(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                handleDropToRoot();
+              }}
+              className={`mt-2 min-h-[72px] p-4 rounded-xl border-2 border-dashed flex items-center justify-center text-center text-xs font-bold transition-all cursor-pointer ${
+                isDragOverRoot
+                  ? 'border-blue-600 bg-blue-100 text-blue-950 scale-[1.01] shadow-md'
+                  : 'border-blue-300 bg-blue-50/70 text-blue-700 hover:border-blue-500'
+              }`}
+            >
+              <span>📦 Jatuhkan di area kosong ini untuk Keluar dari Induk (Jadikan Tingkat Induk / Root)</span>
+            </div>
           )}
         </div>
       </div>
@@ -1133,6 +1339,103 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                 </div>
               </div>
 
+              {/* Hybrid Progress Control: Strict (Flow Required) vs Direct Claim */}
+              <div className="mt-2 p-2.5 rounded-lg bg-white border border-slate-200 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center space-x-2">
+                  {selectedNode.requiresChecklist ? (
+                    <span className="px-2 py-1 rounded-md bg-amber-50 border border-amber-200 text-amber-800 font-bold text-[11px] flex items-center space-x-1">
+                      <Lock className="w-3 h-3 text-amber-600" />
+                      <span>Mode Strict (Terkunci ke Flow Tahapan)</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-800 font-bold text-[11px] flex items-center space-x-1">
+                      <CheckCircle2 className="w-3 h-3 text-blue-600" />
+                      <span>Mode Klaim Langsung</span>
+                    </span>
+                  )}
+
+                  {canEditStructure && (
+                    <button
+                      type="button"
+                      disabled={togglingStrict}
+                      onClick={() => void handleToggleStrictChecklist()}
+                      className={`px-2.5 py-1 rounded-md border font-semibold text-[11px] transition-colors cursor-pointer disabled:opacity-50 ${
+                        selectedNode.requiresChecklist
+                          ? 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                          : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900'
+                      }`}
+                      title="Ubah antara Mode Strict (wajib selesaikan flow tahapan) dan Klaim Langsung"
+                    >
+                      {togglingStrict
+                        ? 'Menyimpan...'
+                        : selectedNode.requiresChecklist
+                        ? 'Buka ke Klaim Langsung'
+                        : 'Kunci Mode Strict'}
+                    </button>
+                  )}
+                </div>
+
+                {selectedNode.requiresChecklist ? (
+                  <div className="text-[11px] text-amber-900 bg-amber-50/70 border border-amber-200/80 px-2.5 py-1 rounded-md">
+                    {stages.length > 0 ? (
+                      <span>
+                        Terkunci:{' '}
+                        <strong>
+                          {stages.filter((s) => s.status === 'approved').length}/{stages.length} Tahapan
+                        </strong>{' '}
+                        selesai (
+                        <strong>
+                          {Math.round(
+                            (stages.filter((s) => s.status === 'approved').length / stages.length) * 100
+                          )}
+                          %
+                        </strong>
+                        ). Selesaikan semua tahapan untuk 100%.
+                      </span>
+                    ) : (
+                      <span>
+                        Terkunci: Tambahkan minimal 1 tahapan flow di bawah untuk menghitung progres menuju 100%.
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  isEditor && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-[11px] font-semibold text-slate-600">Progres Langsung:</span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={claimProgressDraft}
+                        onChange={(e) => setClaimProgressDraft(Number(e.target.value))}
+                        className="w-28 accent-slate-900 cursor-pointer"
+                      />
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={claimProgressDraft}
+                          onChange={(e) =>
+                            setClaimProgressDraft(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
+                          }
+                          className="w-14 px-2 py-1 rounded border border-slate-300 text-xs font-bold text-right"
+                        />
+                        <span className="text-slate-500 font-semibold">%</span>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={savingProgressClaim}
+                        onClick={() => void handleSaveClaimProgress()}
+                        className="px-2.5 py-1 rounded-md bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-[11px] shadow-2xs cursor-pointer disabled:opacity-50"
+                      >
+                        {savingProgressClaim ? 'Menyimpan...' : 'Simpan Progres'}
+                      </button>
+                    </div>
+                  )
+                )}
+              </div>
+
               {/* Pending PM Approval Action Banner */}
               {selectedNode.detailingStatus === 'pending_pm_approval' && (
                 <div className="mt-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs flex items-center justify-between gap-2 shadow-2xs">
@@ -1214,30 +1517,89 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       <p className="text-xs">Memuat tahapan alur kerja...</p>
                     </div>
                   ) : stages.length === 0 ? (
-                    <div className="p-8 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-3">
-                      <ShieldCheck className="w-10 h-10 text-slate-300 mx-auto" />
+                    <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 text-center space-y-4">
+                      <Layers className="w-8 h-8 text-slate-300 mx-auto" />
                       <div>
                         <h4 className="text-xs font-bold text-slate-800">
-                          Belum Ada Alur Tahapan Inspeksi
+                          Belum Ada Tahapan Pekerjaan / Flow
                         </h4>
                         <p className="text-[11px] text-slate-500 max-w-md mx-auto mt-1">
-                          Node ini belum memiliki rangkaian gerbang inspeksi (RFI, Checklist, dan Four-Eyes Hold Point).
+                          Tambahkan tahapan kerja atau verifikasi yang harus diselesaikan pada item ini.
                         </p>
                       </div>
-                      {canEdit && (
-                        <button
-                          type="button"
-                          onClick={handleInitDefaultWorkflow}
-                          disabled={actionLoading}
-                          className="px-3.5 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs shadow-xs transition-colors inline-flex items-center space-x-2"
-                        >
-                          <Sparkles className="w-4 h-4" />
-                          <span>Terapkan Alur Standar 3-Tahap</span>
-                        </button>
+                      {isEditor && (
+                        <div className="max-w-md mx-auto space-y-2.5 text-left">
+                          <form onSubmit={handleAddCustomStage} className="flex flex-wrap sm:flex-nowrap gap-1.5">
+                            <input
+                              type="text"
+                              value={newStageName}
+                              onChange={(e) => setNewStageName(e.target.value)}
+                              placeholder="Nama tahapan, mis. Persiapan Lahan / Review Dokumen..."
+                              className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs focus:outline-none focus:border-slate-800"
+                            />
+                            <select
+                              value={newStageType}
+                              onChange={(e) => setNewStageType(e.target.value as any)}
+                              className="px-2 py-1.5 rounded-lg border border-slate-300 bg-white text-xs"
+                            >
+                              <option value="work">Tahap Kerja</option>
+                              <option value="hold">Hold Point</option>
+                              <option value="review">Review</option>
+                            </select>
+                            <button
+                              type="submit"
+                              disabled={addingStage || !newStageName.trim()}
+                              className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs cursor-pointer disabled:opacity-50 shrink-0"
+                            >
+                              {addingStage ? '...' : '+ Tambah'}
+                            </button>
+                          </form>
+                          <div className="text-center pt-1">
+                            <button
+                              type="button"
+                              onClick={handleInitDefaultWorkflow}
+                              disabled={actionLoading}
+                              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-semibold text-[11px] transition-colors inline-flex items-center space-x-1.5 cursor-pointer"
+                            >
+                              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                              <span>Atau Gunakan Template Standar 3-Tahap</span>
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   ) : (
                     <div className="space-y-3">
+                      {isEditor && (
+                        <form
+                          onSubmit={handleAddCustomStage}
+                          className="p-2 rounded-lg bg-slate-50 border border-slate-200 flex flex-wrap sm:flex-nowrap gap-1.5 items-center"
+                        >
+                          <input
+                            type="text"
+                            value={newStageName}
+                            onChange={(e) => setNewStageName(e.target.value)}
+                            placeholder="Tambah tahapan baru..."
+                            className="flex-1 min-w-0 px-2.5 py-1 rounded-md border border-slate-300 bg-white text-xs focus:outline-none focus:border-slate-800"
+                          />
+                          <select
+                            value={newStageType}
+                            onChange={(e) => setNewStageType(e.target.value as any)}
+                            className="px-2 py-1 rounded-md border border-slate-300 bg-white text-xs"
+                          >
+                            <option value="work">Tahap Kerja</option>
+                            <option value="hold">Hold Point</option>
+                            <option value="review">Review</option>
+                          </select>
+                          <button
+                            type="submit"
+                            disabled={addingStage || !newStageName.trim()}
+                            className="px-2.5 py-1 rounded-md bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] cursor-pointer disabled:opacity-50 shrink-0"
+                          >
+                            {addingStage ? '...' : '+ Tambah Tahapan'}
+                          </button>
+                        </form>
+                      )}
                       {stages.map((stage, idx) => {
                         const check = canProceedToStage(stages, stage.id);
                         const stageAttempts = attempts.filter((a) => a.stageId === stage.id);
@@ -1267,9 +1629,44 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                                   <span className="w-5 h-5 rounded-full bg-slate-900 text-white font-mono text-[10px] font-bold flex items-center justify-center shrink-0">
                                     {stage.stageOrder}
                                   </span>
-                                  <h4 className="text-xs font-bold text-slate-900 truncate">
-                                    {stage.name}
-                                  </h4>
+                                  {editingStageId === stage.id ? (
+                                    <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
+                                      <input
+                                        type="text"
+                                        value={editingStageName}
+                                        onChange={(e) => setEditingStageName(e.target.value)}
+                                        className="px-2 py-0.5 rounded border border-slate-300 text-xs bg-white font-semibold"
+                                      />
+                                      <select
+                                        value={editingStageType}
+                                        onChange={(e) => setEditingStageType(e.target.value as any)}
+                                        className="px-1.5 py-0.5 rounded border border-slate-300 text-xs bg-white"
+                                      >
+                                        <option value="work">Tahap Kerja</option>
+                                        <option value="hold">Hold Point</option>
+                                        <option value="review">Review</option>
+                                      </select>
+                                      <button
+                                        type="button"
+                                        disabled={actionLoading}
+                                        onClick={() => void handleUpdateStage(stage.id)}
+                                        className="px-2 py-0.5 rounded bg-slate-900 text-white text-[10px] font-bold cursor-pointer"
+                                      >
+                                        Simpan
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingStageId(null)}
+                                        className="px-2 py-0.5 rounded border border-slate-300 text-slate-600 text-[10px] cursor-pointer"
+                                      >
+                                        Batal
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <h4 className="text-xs font-bold text-slate-900 truncate">
+                                      {stage.name}
+                                    </h4>
+                                  )}
                                   {stage.stageType === 'hold' && (
                                     <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center space-x-1 shrink-0">
                                       <Lock className="w-2.5 h-2.5 text-amber-700" />
@@ -1301,6 +1698,31 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
 
                               {/* Action Buttons Per Stage */}
                               <div className="flex items-center space-x-1.5 shrink-0">
+                                {isEditor && stage.status !== 'approved' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setEditingStageId(stage.id);
+                                        setEditingStageName(stage.name);
+                                        setEditingStageType(stage.stageType as any);
+                                      }}
+                                      className="p-1 rounded border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+                                      title="Edit nama atau tipe tahapan ini"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={actionLoading}
+                                      onClick={() => void handleDeleteStage(stage.id, stage.name)}
+                                      className="p-1 rounded border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors cursor-pointer"
+                                      title="Hapus tahapan ini"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </>
+                                )}
                                 {stage.status === 'pending' && (
                                   <button
                                     type="button"

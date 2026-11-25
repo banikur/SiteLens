@@ -415,7 +415,7 @@ apiRouter.post(
       return;
     }
 
-    const { code, name, ownerClient, description, startDate, endDate, status } = req.body ?? {};
+    const { code, name, ownerClient, description, startDate, endDate, status, pmoUserId } = req.body ?? {};
     if (!code || !name || !ownerClient) {
       res.status(400).json({ error: 'code, name, and ownerClient are required.' });
       return;
@@ -440,6 +440,7 @@ apiRouter.post(
         startDate: startDate ? String(startDate) : null,
         endDate: endDate ? String(endDate) : null,
         status: status === 'archived' ? 'archived' : 'active',
+        pmoUserId: (pmoUserId ? String(pmoUserId) : req.authUser.id) as any,
         createdBy: req.authUser.id as any,
       })
       .returning();
@@ -530,7 +531,7 @@ apiRouter.patch(
       return;
     }
 
-    const { name, ownerClient, description, startDate, endDate, status } = req.body ?? {};
+    const { name, ownerClient, description, startDate, endDate, status, pmoUserId } = req.body ?? {};
     const updatePayload: Record<string, any> = { updatedAt: new Date() };
     if (name !== undefined) updatePayload.name = String(name).trim();
     if (ownerClient !== undefined) updatePayload.ownerClient = String(ownerClient).trim();
@@ -538,6 +539,7 @@ apiRouter.patch(
     if (startDate !== undefined) updatePayload.startDate = startDate ? String(startDate) : null;
     if (endDate !== undefined) updatePayload.endDate = endDate ? String(endDate) : null;
     if (status !== undefined) updatePayload.status = status === 'archived' ? 'archived' : 'active';
+    if (pmoUserId !== undefined) updatePayload.pmoUserId = pmoUserId ? String(pmoUserId) : null;
 
     const [updated] = await db
       .update(masterProjects)
@@ -594,6 +596,50 @@ apiRouter.patch(
   }
 );
 
+apiRouter.delete(
+  '/master-projects/:id',
+  requirePermission(PERMISSIONS.MASTERPROJECT_MANAGE),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const id = String(req.params.id);
+    const [existing] = await db.select().from(masterProjects).where(eq(masterProjects.id, id as any));
+    if (!existing) {
+      res.status(404).json({ error: 'Master project not found.' });
+      return;
+    }
+
+    const childSites = await db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.masterProjectId, id as any));
+
+    if (childSites.length > 0) {
+      res.status(409).json({
+        error: `Tidak dapat menghapus Project karena masih memiliki ${childSites.length} Site Lapangan. Hapus site di dalamnya terlebih dahulu, atau gunakan Arsip.`,
+      });
+      return;
+    }
+
+    await db.delete(masterProjects).where(eq(masterProjects.id, id as any));
+
+    await logAudit(
+      req.authUser.id,
+      req.authUser.name,
+      'MASTER_PROJECT_DELETED',
+      'master_project',
+      id,
+      { code: existing.code, name: existing.name }
+    );
+
+    res.json({ success: true, message: 'Master project deleted.' });
+  }
+);
+
 apiRouter.post(
   '/master-projects/:id/sites',
   requirePermission(PERMISSIONS.PROJECT_CREATE),
@@ -631,6 +677,21 @@ apiRouter.post(
     const primarySite = sitesList.find((s: any) => s.isPrimary) || sitesList[0];
     const derivedLocation = p.location || primarySite?.name || 'Site Industrial Area';
 
+    let appointedPmUser: { id: string; name: string } | null = null;
+    if (p.leadManagerUserId && typeof p.leadManagerUserId === 'string') {
+      const [u] = await db
+        .select({ id: users.id, name: users.name })
+        .from(users)
+        .where(eq(users.id, p.leadManagerUserId as any));
+      if (!u) {
+        res.status(404).json({ error: 'Selected Project Manager user not found.' });
+        return;
+      }
+      appointedPmUser = u;
+    }
+
+    const creatorPerms = await resolveUserPermissions(req.authUser.id);
+
     const savedProject = await db.transaction(async (tx) => {
       const [newProj] = await tx
         .insert(projects)
@@ -644,19 +705,33 @@ apiRouter.post(
           status: p.status || 'active',
           zones: Array.isArray(p.zones) ? p.zones : [],
           sites: sitesList,
-          leadManager: p.leadManager || req.authUser!.name,
+          leadManager: appointedPmUser?.name || p.leadManager || req.authUser!.name,
         })
         .returning();
 
-      // Auto-assign creator in the SAME transaction (B3 requirement)
+      const pmTargetId = appointedPmUser ? appointedPmUser.id : req.authUser!.id;
+
+      // Assign appointed PM (or creator) in the SAME transaction
       await tx.insert(roleAssignments).values({
-        userId: req.authUser!.id as any,
+        userId: pmTargetId as any,
         projectId: newProj.id as any,
         roleId: 'project_manager',
         scopeType: 'project',
         source: 'manual',
         isActive: true,
       });
+
+      // If creator appointed someone else and creator does NOT have org scope, ensure creator retains site access
+      if (appointedPmUser && appointedPmUser.id !== req.authUser!.id && !creatorPerms.hasOrgScope) {
+        await tx.insert(roleAssignments).values({
+          userId: req.authUser!.id as any,
+          projectId: newProj.id as any,
+          roleId: 'project_manager',
+          scopeType: 'project',
+          source: 'manual',
+          isActive: true,
+        });
+      }
 
       return newProj;
     });
@@ -958,6 +1033,56 @@ apiRouter.put(
   }
 );
 
+apiRouter.delete(
+  '/projects/:projectId',
+  requirePermission([PERMISSIONS.PROJECT_CREATE, PERMISSIONS.MASTERPROJECT_MANAGE]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectId = String(req.params.projectId);
+    const [existing] = await db.select().from(projects).where(eq(projects.id, projectId as any));
+    if (!existing) {
+      res.status(404).json({ error: 'Project site not found.' });
+      return;
+    }
+
+    const [inspRow] = await db
+      .select({ id: inspections.id })
+      .from(inspections)
+      .where(eq(inspections.projectId, projectId as any))
+      .limit(1);
+    const [capaRow] = await db
+      .select({ id: correctiveActions.id })
+      .from(correctiveActions)
+      .where(eq(correctiveActions.projectId, projectId as any))
+      .limit(1);
+
+    if (inspRow || capaRow) {
+      res.status(409).json({
+        error: 'Tidak dapat menghapus Site karena sudah memiliki riwayat inspeksi atau temuan CAPA. Ubah status menjadi On Hold.',
+      });
+      return;
+    }
+
+    await db.delete(projects).where(eq(projects.id, projectId as any));
+
+    await logAudit(
+      req.authUser.id,
+      req.authUser.name,
+      'PROJECT_SITE_DELETED',
+      'project',
+      projectId,
+      { code: existing.code, name: existing.name }
+    );
+
+    res.json({ success: true, message: 'Project site deleted.' });
+  }
+);
+
 // Blueprint Tahap 2b (Bagian B.2 & Section 124): Project Members Management
 apiRouter.get(
   '/projects/:projectId/members',
@@ -1160,10 +1285,10 @@ apiRouter.get('/users/search', requireAuth, async (req: Request, res: Response) 
         eq(users.isActive, true),
         q
           ? or(
-              ilike(users.name, searchPattern),
-              ilike(users.email, searchPattern),
-              ilike(users.username, searchPattern)
-            )
+            ilike(users.name, searchPattern),
+            ilike(users.email, searchPattern),
+            ilike(users.username, searchPattern)
+          )
           : sql`true`
       )
     )
@@ -1702,6 +1827,7 @@ apiRouter.post(
         claimedProgressPercent: Number(body.claimedProgressPercent) || 0,
         verifiedProgressPercent: Number(body.verifiedProgressPercent) || 0,
         allowDetailing,
+        requiresChecklist: Boolean(body.requiresChecklist),
         detailingStatus,
         volume: body.volume != null && String(body.volume).trim() !== '' ? String(body.volume) : null,
         unit: body.unit ? String(body.unit).trim() : null,
@@ -1825,6 +1951,37 @@ apiRouter.put(
         ? body.detailingStatus
         : existingNode.detailingStatus;
 
+    const updatedRequiresChecklist =
+      hasStructurePerm && body.requiresChecklist !== undefined
+        ? Boolean(body.requiresChecklist)
+        : existingNode.requiresChecklist;
+
+    if (
+      !hasStructurePerm &&
+      body.requiresChecklist !== undefined &&
+      Boolean(body.requiresChecklist) !== existingNode.requiresChecklist
+    ) {
+      res.status(403).json({
+        error: 'Hanya pemegang wbs.edit_structure (PMO/PM) yang dapat mengubah Mode Strict.',
+      });
+      return;
+    }
+
+    if (body.claimedProgressPercent !== undefined) {
+      if (updatedRequiresChecklist) {
+        res.status(422).json({
+          error:
+            'Node ini berada dalam Mode Strict (Wajib Ceklis Inspeksi). Progres hanya dapat naik melalui persetujuan tahapan inspeksi.',
+        });
+        return;
+      }
+      const val = Number(body.claimedProgressPercent);
+      if (Number.isNaN(val) || val < 0 || val > 100) {
+        res.status(400).json({ error: 'claimedProgressPercent harus antara 0 hingga 100.' });
+        return;
+      }
+    }
+
     const [updatedNode] = await db
       .update(workNodes)
       .set({
@@ -1836,9 +1993,15 @@ apiRouter.put(
         plannedEndDate: body.plannedEndDate !== undefined ? (body.plannedEndDate ? new Date(body.plannedEndDate) : null) : existingNode.plannedEndDate,
         documentReferenceNo: body.documentReferenceNo !== undefined ? body.documentReferenceNo : existingNode.documentReferenceNo,
         activeRevision: body.activeRevision !== undefined ? body.activeRevision : existingNode.activeRevision,
-        claimedProgressPercent: body.claimedProgressPercent !== undefined ? Number(body.claimedProgressPercent) : existingNode.claimedProgressPercent,
-        verifiedProgressPercent: body.verifiedProgressPercent !== undefined ? Number(body.verifiedProgressPercent) : existingNode.verifiedProgressPercent,
+        claimedProgressPercent: body.claimedProgressPercent !== undefined ? Math.round(Number(body.claimedProgressPercent)) : existingNode.claimedProgressPercent,
+        verifiedProgressPercent:
+          body.verifiedProgressPercent !== undefined
+            ? Number(body.verifiedProgressPercent)
+            : body.claimedProgressPercent !== undefined && !updatedRequiresChecklist
+              ? Math.round(Number(body.claimedProgressPercent))
+              : existingNode.verifiedProgressPercent,
         allowDetailing: updatedAllowDetailing,
+        requiresChecklist: updatedRequiresChecklist,
         detailingStatus: updatedDetailingStatus,
         volume: body.volume !== undefined ? (body.volume != null && String(body.volume).trim() !== '' ? String(body.volume) : null) : existingNode.volume,
         unit: body.unit !== undefined ? (body.unit ? String(body.unit).trim() : null) : existingNode.unit,
@@ -2611,6 +2774,234 @@ apiRouter.post(
   }
 );
 
+apiRouter.post(
+  '/projects/:projectId/wbs/nodes/:nodeId/stages',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requirePermission([PERMISSIONS.WBS_EDIT_STRUCTURE, PERMISSIONS.WBS_EDIT_DETAIL]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectScopeId = String(req.params.projectId || '');
+    const nodeScopeId = String(req.params.nodeId || '');
+    const { name, stageType = 'work', requiresWetSignature = false } = req.body ?? {};
+
+    if (!name || !String(name).trim()) {
+      res.status(400).json({ error: 'Nama tahapan wajib diisi.' });
+      return;
+    }
+
+    const [matchedNode] = await db
+      .select()
+      .from(workNodes)
+      .where(and(eq(workNodes.id, nodeScopeId as any), eq(workNodes.projectId, projectScopeId as any)))
+      .limit(1);
+
+    if (!matchedNode) {
+      res.status(404).json({ error: 'WBS node not found.' });
+      return;
+    }
+
+    let [existingWf] = await db
+      .select()
+      .from(workWorkflows)
+      .where(eq(workWorkflows.nodeId, matchedNode.id))
+      .limit(1);
+
+    if (!existingWf) {
+      const [newWf] = await db
+        .insert(workWorkflows)
+        .values({
+          nodeId: matchedNode.id,
+          title: `Alur Tahapan: ${matchedNode.name}`,
+        })
+        .returning();
+      existingWf = newWf;
+    }
+
+    const existingStages = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.workflowId, existingWf.id))
+      .orderBy(workStages.stageOrder);
+
+    const nextOrder =
+      existingStages.length > 0
+        ? Math.max(...existingStages.map((s) => Number(s.stageOrder) || 0)) + 1
+        : 1;
+
+    const validType = ['work', 'hold', 'review'].includes(stageType) ? stageType : 'work';
+
+    const [createdStage] = await db
+      .insert(workStages)
+      .values({
+        workflowId: existingWf.id,
+        stageOrder: nextOrder,
+        stageType: validType,
+        name: String(name).trim(),
+        assignedRole: 'Project / Site Engineer',
+        approvalRole: 'QA/QC Lead / Owner Inspector',
+        requiresWetSignature: Boolean(requiresWetSignature),
+        status: 'pending',
+      })
+      .returning();
+
+    // Recompute node verified progress percentage based on total stages
+    const allStages = [...existingStages, createdStage];
+    const approvedCount = allStages.filter((s) => s.status === 'approved').length;
+    const newVerified = Math.round((approvedCount / allStages.length) * 100);
+    await db
+      .update(workNodes)
+      .set({ verifiedProgressPercent: newVerified, updatedAt: new Date() })
+      .where(eq(workNodes.id, matchedNode.id));
+    await recalculateAndSaveNodeRollups(db, projectScopeId);
+
+    await logAudit(req.authUser.id, req.authUser.name, 'CREATE_WBS_STAGE', 'work_stage', createdStage.id, {
+      nodeId: matchedNode.id,
+      name: createdStage.name,
+      stageType: createdStage.stageType,
+    });
+
+    res.status(201).json({ stage: createdStage });
+  }
+);
+
+apiRouter.put(
+  '/projects/:projectId/wbs/stages/:stageId',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requirePermission([PERMISSIONS.WBS_EDIT_STRUCTURE, PERMISSIONS.WBS_EDIT_DETAIL]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectId = String(req.params.projectId || '');
+    const stageId = String(req.params.stageId || '');
+    const stageProjectId = await getProjectIdByStageId(stageId);
+    if (!stageProjectId || stageProjectId !== projectId) {
+      res.status(404).json({ error: 'Stage not found in this project.' });
+      return;
+    }
+
+    const [targetStage] = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.id, stageId as any))
+      .limit(1);
+
+    if (!targetStage) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    const { name, stageType } = req.body ?? {};
+    const updates: Partial<typeof workStages.$inferInsert> = {};
+    if (typeof name === 'string' && name.trim()) updates.name = name.trim();
+    if (stageType && ['work', 'hold', 'review'].includes(stageType)) updates.stageType = stageType;
+
+    const [updated] = await db
+      .update(workStages)
+      .set(updates)
+      .where(eq(workStages.id, stageId as any))
+      .returning();
+
+    await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_WBS_STAGE', 'work_stage', stageId, updates);
+    res.json({ stage: updated });
+  }
+);
+
+apiRouter.delete(
+  '/projects/:projectId/wbs/stages/:stageId',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requirePermission([PERMISSIONS.WBS_EDIT_STRUCTURE, PERMISSIONS.WBS_EDIT_DETAIL]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const projectId = String(req.params.projectId || '');
+    const stageId = String(req.params.stageId || '');
+    const stageProjectId = await getProjectIdByStageId(stageId);
+    if (!stageProjectId || stageProjectId !== projectId) {
+      res.status(404).json({ error: 'Stage not found in this project.' });
+      return;
+    }
+
+    const [targetStage] = await db
+      .select()
+      .from(workStages)
+      .where(eq(workStages.id, stageId as any))
+      .limit(1);
+
+    if (!targetStage) {
+      res.status(404).json({ error: 'Stage not found.' });
+      return;
+    }
+
+    if (targetStage.status === 'approved') {
+      res.status(409).json({ error: 'Tahapan yang sudah disetujui (approved) tidak dapat dihapus.' });
+      return;
+    }
+
+    const [wf] = await db
+      .select()
+      .from(workWorkflows)
+      .where(eq(workWorkflows.id, targetStage.workflowId))
+      .limit(1);
+
+    await db.delete(workStages).where(eq(workStages.id, targetStage.id));
+
+    if (wf) {
+      const remaining = await db
+        .select()
+        .from(workStages)
+        .where(eq(workStages.workflowId, wf.id))
+        .orderBy(workStages.stageOrder);
+
+      for (let i = 0; i < remaining.length; i++) {
+        if (remaining[i].stageOrder !== i + 1) {
+          await db
+            .update(workStages)
+            .set({ stageOrder: i + 1 })
+            .where(eq(workStages.id, remaining[i].id));
+        }
+      }
+
+      const [node] = await db
+        .select()
+        .from(workNodes)
+        .where(eq(workNodes.id, wf.nodeId))
+        .limit(1);
+
+      if (node) {
+        const approvedCount = remaining.filter((s) => s.status === 'approved').length;
+        const newVerified = remaining.length > 0 ? Math.round((approvedCount / remaining.length) * 100) : 0;
+        await db
+          .update(workNodes)
+          .set({ verifiedProgressPercent: newVerified, updatedAt: new Date() })
+          .where(eq(workNodes.id, node.id));
+        await recalculateAndSaveNodeRollups(db, node.projectId);
+      }
+    }
+
+    await logAudit(req.authUser.id, req.authUser.name, 'DELETE_WBS_STAGE', 'work_stage', stageId, {
+      name: targetStage.name,
+    });
+
+    res.json({ success: true, message: 'Tahapan berhasil dihapus.' });
+  }
+);
+
 apiRouter.get(
   '/stages/:stageId/attempts',
   requireAuth,
@@ -3072,7 +3463,12 @@ apiRouter.get(
 
     const projectScopeId = String(req.params.projectId || '');
     const [targetProject] = await db
-      .select({ id: projects.id, name: projects.name, code: projects.code })
+      .select({
+        id: projects.id,
+        name: projects.name,
+        code: projects.code,
+        masterProjectId: projects.masterProjectId,
+      })
       .from(projects)
       .where(eq(projects.id, projectScopeId as any))
       .limit(1);
@@ -3119,7 +3515,19 @@ apiRouter.get(
       }
     }
 
-    // Determine project start and end dates from nodes or default 12-week window
+    // Determine project start and end dates: prioritize Master Project start/end dates, then WBS node dates, then 12-week default
+    let masterStart: Date | null = null;
+    let masterEnd: Date | null = null;
+    if (targetProject.masterProjectId) {
+      const [mp] = await db
+        .select({ startDate: masterProjects.startDate, endDate: masterProjects.endDate })
+        .from(masterProjects)
+        .where(eq(masterProjects.id, targetProject.masterProjectId as any))
+        .limit(1);
+      if (mp?.startDate) masterStart = new Date(`${String(mp.startDate).slice(0, 10)}T00:00:00Z`);
+      if (mp?.endDate) masterEnd = new Date(`${String(mp.endDate).slice(0, 10)}T00:00:00Z`);
+    }
+
     let earliestStart = new Date();
     let latestEnd = new Date();
     latestEnd.setDate(latestEnd.getDate() + 84); // 12 weeks default
@@ -3127,11 +3535,21 @@ apiRouter.get(
     const validStarts = nodes.map((n) => n.plannedStartDate).filter(Boolean) as Date[];
     const validEnds = nodes.map((n) => n.plannedEndDate).filter(Boolean) as Date[];
 
-    if (validStarts.length > 0) {
+    if (masterStart && !Number.isNaN(masterStart.getTime())) {
+      earliestStart = masterStart;
+    } else if (validStarts.length > 0) {
       earliestStart = new Date(Math.min(...validStarts.map((d) => new Date(d).getTime())));
     }
-    if (validEnds.length > 0) {
+
+    if (masterEnd && !Number.isNaN(masterEnd.getTime())) {
+      latestEnd = masterEnd;
+    } else if (validEnds.length > 0) {
       latestEnd = new Date(Math.max(...validEnds.map((d) => new Date(d).getTime())));
+    }
+
+    if (latestEnd.getTime() <= earliestStart.getTime()) {
+      latestEnd = new Date(earliestStart);
+      latestEnd.setDate(latestEnd.getDate() + 84);
     }
 
     const weeks = generateProjectCalendarWeeks(earliestStart, latestEnd);

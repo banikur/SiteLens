@@ -257,6 +257,7 @@ export interface MasterProject {
   status: 'active' | 'archived';
   startDate?: string | null;
   endDate?: string | null;
+  pmoUserId?: string | null;
   createdBy?: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -374,6 +375,7 @@ export interface WorkNode {
   claimedProgressPercent: number;
   verifiedProgressPercent: number;
   allowDetailing?: boolean;
+  requiresChecklist?: boolean;
   detailingStatus?: 'active' | 'pending_pm_approval' | 'rejected';
   sortOrder: number;
   volume?: number | string | null;

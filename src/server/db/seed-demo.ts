@@ -82,7 +82,7 @@ export async function runDemoSeed() {
 
   const passwordHash = hashSecret(password.trim());
 
-  // 1. Five Demo Users
+  // 1. Demo Users & Employees
   const DEMO_USERS = [
     {
       id: toUuid('demo-user-pmo'),
@@ -123,6 +123,86 @@ export async function runDemoSeed() {
       email: 'budi@sitelens.demo',
       title: 'Site Engineer at Site A / Viewer at Site B',
       role: 'Project / Site Engineer' as const,
+    },
+    {
+      id: toUuid('demo-user-pso-1'),
+      username: 'pso_rina',
+      name: 'Rina Kusuma (PSO)',
+      email: 'rina.pso@sitelens.demo',
+      title: 'Project Support Officer',
+      role: 'Project / Site Engineer' as const,
+    },
+    {
+      id: toUuid('demo-user-pso-2'),
+      username: 'pso_dimas',
+      name: 'Dimas Aditya (PSO)',
+      email: 'dimas.pso@sitelens.demo',
+      title: 'Project Support Officer',
+      role: 'Project / Site Engineer' as const,
+    },
+    {
+      id: toUuid('demo-user-admin-1'),
+      username: 'admin_sari',
+      name: 'Sari Wulandari (Admin Project)',
+      email: 'sari.admin@sitelens.demo',
+      title: 'Admin Project',
+      role: 'Project / Site Engineer' as const,
+    },
+    {
+      id: toUuid('demo-user-admin-2'),
+      username: 'admin_fajar',
+      name: 'Fajar Nugroho (Admin Project)',
+      email: 'fajar.admin@sitelens.demo',
+      title: 'Admin Project',
+      role: 'Project / Site Engineer' as const,
+    },
+    {
+      id: toUuid('demo-user-pm-2'),
+      username: 'pm_hendra',
+      name: 'Hendra Wijaya (Site Manager)',
+      email: 'hendra.pm@sitelens.demo',
+      title: 'Project Site Manager',
+      role: 'Project Director & Tenant Admin' as const,
+    },
+    {
+      id: toUuid('demo-user-se-2'),
+      username: 'se_putri',
+      name: 'Putri Rahayu (Site Engineer)',
+      email: 'putri.se@sitelens.demo',
+      title: 'Civil & Structural Site Engineer',
+      role: 'Project / Site Engineer' as const,
+    },
+    {
+      id: toUuid('demo-user-qa-1'),
+      username: 'qa_reza',
+      name: 'Reza Mahendra (QA/QC Lead)',
+      email: 'reza.qa@sitelens.demo',
+      title: 'QA/QC Lead Inspector',
+      role: 'QA/QC Lead / Owner Inspector' as const,
+    },
+    {
+      id: toUuid('demo-user-insp-1'),
+      username: 'insp_andi',
+      name: 'Andi Setiawan (Field Inspector)',
+      email: 'andi.inspector@sitelens.demo',
+      title: 'Field QC Inspector',
+      role: 'Field / QC Inspector' as const,
+    },
+    {
+      id: toUuid('demo-user-insp-2'),
+      username: 'insp_nia',
+      name: 'Nia Kartika (Field Inspector)',
+      email: 'nia.inspector@sitelens.demo',
+      title: 'MEP Field Inspector',
+      role: 'Field / QC Inspector' as const,
+    },
+    {
+      id: toUuid('demo-user-subcon-1'),
+      username: 'subcon_eko',
+      name: 'Eko Prasetyo (Subcontractor)',
+      email: 'eko.subcon@sitelens.demo',
+      title: 'Structural Subcontractor Lead',
+      role: 'Action Owner / Subcontractor' as const,
     },
   ];
 
