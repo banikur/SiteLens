@@ -103,7 +103,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   }, [project?.id, setActiveProjectId]);
 
   const isStaffRole = Boolean(currentUser && currentUser.role !== 'Client / Vendor Viewer');
-  const isEditor = canEdit || isStaffRole;
+  const isEditor = canEdit || isStaffRole || Boolean(currentUser?.role === 'Project Director & Tenant Admin' || currentUser?.role === ('Head Office PMO / Quality Director' as any));
   const canEditStructure =
     (!isLoadingPerms && can(PERMISSIONS.WBS_EDIT_STRUCTURE, project.id)) ||
     Boolean(
@@ -785,19 +785,6 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
               return (
                 <div
                   key={node.id}
-                  draggable={isEditor && activeDragHandleId === node.id}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('text/plain', node.id);
-                    e.dataTransfer.effectAllowed = 'move';
-                    setDraggedNodeId(node.id);
-                  }}
-                  onDragEnd={() => {
-                    setDraggedNodeId(null);
-                    setDragOverNodeId(null);
-                    setDropPosition(null);
-                    setIsDragOverRoot(false);
-                    setActiveDragHandleId(null);
-                  }}
                   onDragOver={(e) => {
                     if (draggedNodeId && draggedNodeId !== node.id) {
                       e.preventDefault();
@@ -852,16 +839,28 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                   }`}
                   style={{ marginLeft: `${node.level * 14}px` }}
                 >
-                  <div className={`flex items-center space-x-1.5 overflow-hidden min-w-0 ${draggedNodeId ? 'pointer-events-none' : ''}`}>
-                    {/* 6-Dot Drag Handle Icon - ONLY grabbing here activates row drag */}
+                  <div className="flex items-center space-x-1.5 overflow-hidden min-w-0">
+                    {/* 6-Dot Drag Handle Icon - Grabbing directly activates drag-and-drop */}
                     {isEditor && (
                       <div
-                        onMouseDown={() => setActiveDragHandleId(node.id)}
-                        onMouseUp={() => setActiveDragHandleId(null)}
-                        className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-900 hover:bg-slate-200/90 p-1 rounded-sm shrink-0 transition-colors pointer-events-auto"
-                        title="Tarik handle 6-titik ini untuk memindahkan hierarki atau urutan (Drag & Drop)"
+                        draggable={true}
+                        onDragStart={(e) => {
+                          e.stopPropagation();
+                          e.dataTransfer.setData('text/plain', node.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setDraggedNodeId(node.id);
+                        }}
+                        onDragEnd={() => {
+                          setDraggedNodeId(null);
+                          setDragOverNodeId(null);
+                          setDropPosition(null);
+                          setIsDragOverRoot(false);
+                          setActiveDragHandleId(null);
+                        }}
+                        className="cursor-grab active:cursor-grabbing bg-slate-100 hover:bg-amber-100 border border-slate-300 hover:border-amber-400 text-slate-600 hover:text-slate-900 p-0.5 rounded shrink-0 transition-colors pointer-events-auto shadow-2xs"
+                        title="Tarik icon 6-titik ini untuk memindahkan hierarki atau urutan pekerjaan (Drag & Drop)"
                       >
-                        <SixDotsGripHandle className="w-3.5 h-3.5 text-slate-600 hover:text-slate-950" />
+                        <GripVertical className="w-3.5 h-3.5" />
                       </div>
                     )}
 
@@ -873,13 +872,13 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                           e.stopPropagation();
                           toggleCollapse(node.id);
                         }}
-                        className="p-0.5 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 shrink-0 pointer-events-auto"
+                        className="p-0.5 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-200 shrink-0 pointer-events-auto"
                         title={isCollapsed ? 'Buka sub-pekerjaan' : 'Tutup sub-pekerjaan'}
                       >
                         {isCollapsed ? (
                           <ChevronRight className="w-3.5 h-3.5 text-amber-600 font-bold" />
                         ) : (
-                          <ChevronDown className="w-3.5 h-3.5 text-slate-600" />
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-700 font-bold" />
                         )}
                       </button>
                     ) : (
@@ -943,7 +942,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                   </div>
 
                   {/* Right Meta in Row */}
-                  <div className={`flex items-center space-x-2 shrink-0 ${draggedNodeId ? 'pointer-events-none' : ''}`}>
+                  <div className="flex items-center space-x-2 shrink-0">
                     {/* Weight % */}
                     <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1 rounded">
                       {Number(node.weightPercent).toFixed(1)}%
@@ -961,9 +960,9 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       />
                     </div>
 
-                    {/* Hover Action Buttons */}
+                    {/* Action Buttons */}
                     {isEditor && (
-                      <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
+                      <div className="flex items-center space-x-0.5 opacity-50 group-hover:opacity-100 hover:opacity-100 transition-opacity pointer-events-auto">
                         <button
                           type="button"
                           onClick={(e) => {

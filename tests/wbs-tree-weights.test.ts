@@ -5,6 +5,11 @@ import {
   flattenWbsTree,
   validateWbsWeights,
   calculateRollupProgress,
+  detectCycle,
+  distributeEvenlyWeights,
+  calculateSiblingWeightSum,
+  reparentNode,
+  isNodeInAllowedDetailingSubtree,
 } from '../src/utils/wbs';
 import type { WorkNode } from '../src/types';
 
@@ -288,4 +293,169 @@ test('WBS Tree: computes weighted progress rollups correctly from child leaves t
   const progress = calculateRollupProgress(constructionNode);
   assert.equal(progress.claimedProgress, 32);
   assert.equal(progress.verifiedProgress, 22);
+});
+
+test('WBS Tree Logic: detectCycle identifies direct and indirect cyclic hierarchies', () => {
+  const nodes = [
+    { id: 'root', parentId: null },
+    { id: 'child-1', parentId: 'root' },
+    { id: 'grandchild-1', parentId: 'child-1' },
+    { id: 'other-root', parentId: null },
+  ];
+
+  // Self parent is a cycle
+  assert.equal(detectCycle(nodes, 'root', 'root'), true);
+
+  // Making parent child of its own descendant is a cycle
+  assert.equal(detectCycle(nodes, 'root', 'child-1'), true);
+  assert.equal(detectCycle(nodes, 'root', 'grandchild-1'), true);
+
+  // Moving grandchild under other root is NOT a cycle
+  assert.equal(detectCycle(nodes, 'grandchild-1', 'other-root'), false);
+
+  // Moving to root is NOT a cycle
+  assert.equal(detectCycle(nodes, 'grandchild-1', null), false);
+});
+
+test('WBS Tree Logic: distributeEvenlyWeights strictly sums to 100.00%', () => {
+  // 1 item
+  assert.deepEqual(distributeEvenlyWeights(1), [100.0]);
+
+  // 2 items
+  assert.deepEqual(distributeEvenlyWeights(2), [50.0, 50.0]);
+
+  // 3 items -> 33.34 + 33.33 + 33.33 = 100.00
+  const three = distributeEvenlyWeights(3);
+  assert.equal(three.length, 3);
+  const sum3 = three.reduce((a, b) => a + b, 0);
+  assert.equal(Math.round(sum3 * 100) / 100, 100.0);
+  assert.deepEqual(three, [33.34, 33.33, 33.33]);
+
+  // 6 items -> 16.70 + 5 * 16.66 = 100.00
+  const six = distributeEvenlyWeights(6);
+  assert.equal(six.length, 6);
+  const sum6 = six.reduce((a, b) => a + b, 0);
+  assert.equal(Math.round(sum6 * 100) / 100, 100.0);
+});
+
+test('WBS Tree Logic: calculateSiblingWeightSum calculates sum with 2 decimals', () => {
+  const siblings = [
+    { weightPercent: '33.34' },
+    { weightPercent: '33.33' },
+    { weightPercent: '33.33' },
+  ];
+  assert.equal(calculateSiblingWeightSum(siblings), 100.0);
+
+  const unbalanced = [
+    { weightPercent: '40.0' },
+    { weightPercent: '35.0' },
+  ];
+  assert.equal(calculateSiblingWeightSum(unbalanced), 75.0);
+});
+
+test('WBS Tree Logic: reparentNode updates hierarchy and rejects cycles', () => {
+  const nodes: WorkNode[] = [
+    {
+      id: 'root-1',
+      projectId: 'p1',
+      parentId: null,
+      wbsCode: '1.0',
+      name: 'Root 1',
+      weightPercent: '100.00',
+      claimedProgressPercent: 0,
+      verifiedProgressPercent: 0,
+      sortOrder: 1,
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+    },
+    {
+      id: 'child-1',
+      projectId: 'p1',
+      parentId: 'root-1',
+      wbsCode: '1.1',
+      name: 'Child 1',
+      weightPercent: '100.00',
+      claimedProgressPercent: 0,
+      verifiedProgressPercent: 0,
+      sortOrder: 1,
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+    },
+  ];
+
+  // Valid reparenting
+  const reparented = reparentNode(nodes, 'child-1', null, 2);
+  assert.equal(reparented.find((n) => n.id === 'child-1')?.parentId, null);
+  assert.equal(reparented.find((n) => n.id === 'child-1')?.sortOrder, 2);
+
+  // Cycle throws
+  assert.throws(() => {
+    reparentNode(nodes, 'root-1', 'child-1');
+  }, /Siklus terdeteksi/);
+});
+
+test('WBS Tree Logic: isNodeInAllowedDetailingSubtree walks parent chain', () => {
+  const nodes: WorkNode[] = [
+    {
+      id: 'root-locked',
+      projectId: 'p1',
+      parentId: null,
+      wbsCode: '1.0',
+      name: 'Root Locked',
+      weightPercent: '50.00',
+      claimedProgressPercent: 0,
+      verifiedProgressPercent: 0,
+      allowDetailing: false,
+      sortOrder: 1,
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+    },
+    {
+      id: 'root-allowed',
+      projectId: 'p1',
+      parentId: null,
+      wbsCode: '2.0',
+      name: 'Root Allowed',
+      weightPercent: '50.00',
+      claimedProgressPercent: 0,
+      verifiedProgressPercent: 0,
+      allowDetailing: true,
+      sortOrder: 2,
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+    },
+    {
+      id: 'child-locked',
+      projectId: 'p1',
+      parentId: 'root-locked',
+      wbsCode: '1.1',
+      name: 'Child Locked',
+      weightPercent: '100.00',
+      claimedProgressPercent: 0,
+      verifiedProgressPercent: 0,
+      allowDetailing: false,
+      sortOrder: 1,
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+    },
+    {
+      id: 'child-allowed',
+      projectId: 'p1',
+      parentId: 'root-allowed',
+      wbsCode: '2.1',
+      name: 'Child Allowed',
+      weightPercent: '100.00',
+      claimedProgressPercent: 0,
+      verifiedProgressPercent: 0,
+      allowDetailing: false,
+      sortOrder: 1,
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+    },
+  ];
+
+  assert.equal(isNodeInAllowedDetailingSubtree(nodes, 'root-locked'), false);
+  assert.equal(isNodeInAllowedDetailingSubtree(nodes, 'child-locked'), false);
+  assert.equal(isNodeInAllowedDetailingSubtree(nodes, 'root-allowed'), true);
+  assert.equal(isNodeInAllowedDetailingSubtree(nodes, 'child-allowed'), true);
 });

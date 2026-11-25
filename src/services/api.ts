@@ -4,6 +4,7 @@ import type {
   CorrectiveAction,
   InspectionRecord,
   Project,
+  MasterProject,
   User,
   WorkNode,
   WorkWorkflow,
@@ -775,6 +776,110 @@ export async function apiDeleteFlowPreset(
     method: 'DELETE',
   });
 }
+
+// ---------------- MASTER PROJECTS & ASSIGNMENTS (FASE B3) ----------------
+
+export async function apiGetMasterProjects(): Promise<{ masterProjects: MasterProject[] }> {
+  return apiJson('/api/master-projects');
+}
+
+export async function apiCreateMasterProject(data: Partial<MasterProject>): Promise<{ masterProject: MasterProject }> {
+  return apiJson('/api/master-projects', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiGetMasterProject(id: string): Promise<{ masterProject: MasterProject }> {
+  return apiJson(`/api/master-projects/${encodeURIComponent(id)}`);
+}
+
+export async function apiUpdateMasterProject(id: string, data: Partial<MasterProject>): Promise<{ masterProject: MasterProject }> {
+  return apiJson(`/api/master-projects/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiArchiveMasterProject(id: string): Promise<{ masterProject: MasterProject }> {
+  return apiJson(`/api/master-projects/${encodeURIComponent(id)}/archive`, {
+    method: 'PATCH',
+  });
+}
+
+export async function apiCreateMasterProjectSite(
+  masterId: string,
+  data: Partial<Project>
+): Promise<{ site: Project }> {
+  return apiJson(`/api/master-projects/${encodeURIComponent(masterId)}/sites`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiGetMasterProjectSites(masterId: string): Promise<{ sites: Project[] }> {
+  return apiJson(`/api/master-projects/${encodeURIComponent(masterId)}/sites`);
+}
+
+export async function apiGetProjectAssignments(projectId: string): Promise<{ assignments: any[] }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/assignments`);
+}
+
+export async function apiAddProjectAssignment(
+  projectId: string,
+  data: { userId: string; roleId: string }
+): Promise<{ assignment: any }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/assignments`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiUpdateProjectAssignment(
+  projectId: string,
+  assignmentId: string,
+  data: { roleId: string }
+): Promise<{ assignment: any }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/assignments/${encodeURIComponent(assignmentId)}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiDeleteProjectAssignment(
+  projectId: string,
+  assignmentId: string
+): Promise<{ success: boolean; message: string }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/assignments/${encodeURIComponent(assignmentId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function apiSearchUsers(q: string = ''): Promise<{ users: User[] }> {
+  return apiJson(`/api/users/search?q=${encodeURIComponent(q)}`);
+}
+
+export async function apiToggleWbsDetailing(
+  projectId: string,
+  nodeId: string,
+  allowDetailing: boolean
+): Promise<{ node: WorkNode }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/detailing`, {
+    method: 'PATCH',
+    body: JSON.stringify({ allowDetailing }),
+  });
+}
+
+export async function apiBatchUpdateWbsNodes(
+  projectId: string,
+  updates: Array<{ id: string; parentId?: string | null; sortOrder?: number; weightPercent?: string | number; name?: string }>
+): Promise<{ success: boolean; updatedCount: number }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/wbs/nodes-batch`, {
+    method: 'PUT',
+    body: JSON.stringify({ updates }),
+  });
+}
+
 
 
 

@@ -30,6 +30,10 @@ export interface PermissionDefinition {
 }
 
 export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
+  // Master Project
+  { id: PERMISSIONS.MASTERPROJECT_VIEW, module: 'masterproject', description: 'Melihat daftar & detail Master Project', scopeLevel: 'organization_or_project' },
+  { id: PERMISSIONS.MASTERPROJECT_MANAGE, module: 'masterproject', description: 'Membuat, mengubah, dan mengarsipkan Master Project', scopeLevel: 'organization' },
+
   // Proyek & Keanggotaan
   { id: PERMISSIONS.PROJECT_VIEW, module: 'project', description: 'Melihat daftar & detail proyek', scopeLevel: 'organization_or_project' },
   { id: PERMISSIONS.PROJECT_CREATE, module: 'project', description: 'Membuat entitas proyek baru', scopeLevel: 'organization' },
@@ -108,6 +112,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
     name: 'Field Inspector',
     isSystem: true,
     permissions: [
+      PERMISSIONS.MASTERPROJECT_VIEW,
       PERMISSIONS.PROJECT_VIEW,
       PERMISSIONS.WBS_VIEW,
       PERMISSIONS.STAGE_VIEW,
@@ -127,6 +132,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
     name: 'Subcontractor / Mandor',
     isSystem: true,
     permissions: [
+      PERMISSIONS.MASTERPROJECT_VIEW,
       PERMISSIONS.PROJECT_VIEW,
       PERMISSIONS.WBS_VIEW,
       PERMISSIONS.STAGE_VIEW,
@@ -142,6 +148,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
     name: 'Site Engineer',
     isSystem: true,
     permissions: [
+      PERMISSIONS.MASTERPROJECT_VIEW,
       PERMISSIONS.PROJECT_VIEW,
       PERMISSIONS.WBS_VIEW,
       PERMISSIONS.WBS_EDIT_DETAIL,
@@ -164,6 +171,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
     name: 'QA/QC Lead',
     isSystem: true,
     permissions: [
+      PERMISSIONS.MASTERPROJECT_VIEW,
       PERMISSIONS.PROJECT_VIEW,
       PERMISSIONS.WBS_VIEW,
       PERMISSIONS.STAGE_VIEW,
@@ -188,6 +196,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
     name: 'Site Project Manager',
     isSystem: true,
     permissions: [
+      PERMISSIONS.MASTERPROJECT_VIEW,
       PERMISSIONS.PROJECT_VIEW,
       PERMISSIONS.PROJECT_EDIT,
       PERMISSIONS.PROJECT_MANAGE_MEMBERS,
@@ -214,6 +223,8 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
     name: 'Head Office / PMO',
     isSystem: true,
     permissions: [
+      PERMISSIONS.MASTERPROJECT_VIEW,
+      PERMISSIONS.MASTERPROJECT_MANAGE,
       PERMISSIONS.PROJECT_VIEW,
       PERMISSIONS.PROJECT_CREATE,
       PERMISSIONS.PROJECT_EDIT,
@@ -248,6 +259,7 @@ export const BUILTIN_ROLES: BuiltInRoleDefinition[] = [
     name: 'Client Viewer',
     isSystem: true,
     permissions: [
+      PERMISSIONS.MASTERPROJECT_VIEW,
       PERMISSIONS.PROJECT_VIEW,
       PERMISSIONS.WBS_VIEW,
       PERMISSIONS.STAGE_VIEW,
@@ -737,7 +749,7 @@ export function requirePermission(permissionOrList: PermissionKey | PermissionKe
         const hasProjectPerm = targetProjectId
           ? perms.projectPermissions.has(key)
           : perms.allProjectPermissions.has(key);
-        if (hasProjectPerm) {
+        if (hasProjectPerm || (perms.hasOrgScope && perms.orgPermissions.has(key))) {
           isAllowed = true;
           break;
         }

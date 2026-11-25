@@ -9,11 +9,15 @@ export interface AuthenticatedUser extends User {
   hasPin: boolean;
   passkeysCount: number;
   globalPermissions?: string[];
+  enabledModules?: string[];
+  focusMode?: string | null;
 }
 
 export interface CurrentUserResponse {
   user: AuthenticatedUser;
   globalPermissions: string[];
+  enabledModules?: string[];
+  focusMode?: string | null;
 }
 
 export interface HealthStatus {
@@ -40,6 +44,8 @@ export async function fetchCurrentUser(): Promise<AuthenticatedUser | null> {
   return {
     ...data.user,
     globalPermissions: data.globalPermissions || [],
+    focusMode: data.focusMode,
+    enabledModules: data.enabledModules,
   };
 }
 
@@ -49,8 +55,15 @@ export async function fetchCurrentUserWithPermissions(): Promise<CurrentUserResp
   const data = await res.json();
   if (!data.user) return null;
   return {
-    user: data.user,
+    user: {
+      ...data.user,
+      globalPermissions: data.globalPermissions || [],
+      focusMode: data.focusMode,
+      enabledModules: data.enabledModules,
+    },
     globalPermissions: data.globalPermissions || [],
+    enabledModules: data.enabledModules,
+    focusMode: data.focusMode,
   };
 }
 

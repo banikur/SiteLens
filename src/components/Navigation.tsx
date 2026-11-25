@@ -85,7 +85,24 @@ export const Navigation: React.FC<NavigationProps> = ({
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navItems = [
+  const isFocusMode = (activeUser as any)?.focusMode === 'setup-flow';
+
+  React.useEffect(() => {
+    if (isFocusMode && currentTab !== 'projects') {
+      onSelectTab('projects');
+    }
+  }, [isFocusMode, currentTab, onSelectTab]);
+
+  type NavItem = {
+    id: ActiveTab;
+    label: string;
+    icon: any;
+    count?: number;
+    badge?: string;
+    badgeAlert?: boolean;
+  };
+
+  const standardNavItems: NavItem[] = [
     {
       id: 'dashboard' as ActiveTab,
       label: t.nav.dashboard,
@@ -146,6 +163,16 @@ export const Navigation: React.FC<NavigationProps> = ({
       ]
       : []),
   ];
+
+  const focusNavItems: NavItem[] = [
+    {
+      id: 'projects' as ActiveTab,
+      label: lang === 'id' ? 'Master & Site Proyek' : 'Master Projects & Sites',
+      icon: Building2,
+    },
+  ];
+
+  const navItems = isFocusMode ? focusNavItems : standardNavItems;
 
   return (
     <>
@@ -498,15 +525,64 @@ export const Navigation: React.FC<NavigationProps> = ({
               </div>
 
               <div className="max-h-64 overflow-y-auto py-1 divide-y divide-slate-800/40">
-                {[
-                  { id: 'usr-admin-1', roleName: 'Project Director & Tenant Admin', title: 'Project Director & Tenant Admin', badge: 'Otoritas Tertinggi Tenant (Org Scope)', abbr: 'DIR', color: 'bg-amber-500 text-slate-950 font-bold', border: 'border-amber-400' },
-                  { id: 'usr-pm-1', roleName: 'Project / Site Engineer', title: 'Project Manager (PM)', badge: 'Setup WBS & Bobot Relatif', abbr: 'PM', color: 'bg-blue-600 text-white font-bold', border: 'border-blue-400' },
-                  { id: 'usr-sup-1', roleName: 'Project / Site Engineer', title: 'Site Engineer (SE)', badge: 'Submitter RFI & Pengajuan Tahap', abbr: 'SE', color: 'bg-cyan-600 text-white font-bold', border: 'border-cyan-400' },
-                  { id: 'usr-hse-1', roleName: 'QA/QC Lead / Owner Inspector', title: 'QA/QC Lead Inspector', badge: 'Witness, Hold Point & Approval', abbr: 'QC', color: 'bg-indigo-600 text-white font-bold', border: 'border-indigo-400' },
-                  { id: 'usr-op-1', roleName: 'Field / QC Inspector', title: 'Field / QC Inspector', badge: 'Inspeksi & Ceklis Lapangan', abbr: 'INSP', color: 'bg-emerald-600 text-white font-bold', border: 'border-emerald-400' },
-                  { id: 'usr-sub-1', roleName: 'Action Owner / Subcontractor', title: 'Subcontractor / Pelaksana', badge: 'Penyelesaian Temuan CAPA', abbr: 'SUBC', color: 'bg-orange-600 text-white font-bold', border: 'border-orange-400' },
-                  { id: 'usr-view-1', roleName: 'Client / Vendor Viewer', title: 'Client / Vendor Viewer', badge: 'Mode Pantau Read-Only', abbr: 'VIEW', color: 'bg-slate-600 text-white font-bold', border: 'border-slate-400' },
-                ].map((r) => {
+                {(isFocusMode
+                  ? [
+                      {
+                        id: 'pmo',
+                        roleName: 'Project Director & Tenant Admin',
+                        title: 'Head Office PMO',
+                        badge: 'Organisasi: Kelola Master & Struktur WBS',
+                        abbr: 'PMO',
+                        color: 'bg-amber-500 text-slate-950 font-bold',
+                        border: 'border-amber-400',
+                      },
+                      {
+                        id: 'pm',
+                        roleName: 'Project / Site Engineer',
+                        title: 'Project Manager (PM)',
+                        badge: 'Kelola Tim & Site A',
+                        abbr: 'PM',
+                        color: 'bg-blue-600 text-white font-bold',
+                        border: 'border-blue-400',
+                      },
+                      {
+                        id: 'se',
+                        roleName: 'Project / Site Engineer',
+                        title: 'Site Engineer (SE)',
+                        badge: 'Detail Rincian Pekerjaan WBS',
+                        abbr: 'SE',
+                        color: 'bg-cyan-600 text-white font-bold',
+                        border: 'border-cyan-400',
+                      },
+                      {
+                        id: 'client',
+                        roleName: 'Client / Vendor Viewer',
+                        title: 'Client / Vendor Viewer',
+                        badge: 'Mode Pantau Read-Only',
+                        abbr: 'VIEW',
+                        color: 'bg-slate-600 text-white font-bold',
+                        border: 'border-slate-400',
+                      },
+                      {
+                        id: 'budi',
+                        roleName: 'Project / Site Engineer',
+                        title: 'Budi (Multi-Site)',
+                        badge: 'SE di Site A, Viewer di Site B',
+                        abbr: 'BUDI',
+                        color: 'bg-emerald-600 text-white font-bold',
+                        border: 'border-emerald-400',
+                      },
+                    ]
+                  : [
+                      { id: 'usr-admin-1', roleName: 'Project Director & Tenant Admin', title: 'Project Director & Tenant Admin', badge: 'Otoritas Tertinggi Tenant (Org Scope)', abbr: 'DIR', color: 'bg-amber-500 text-slate-950 font-bold', border: 'border-amber-400' },
+                      { id: 'usr-pm-1', roleName: 'Project / Site Engineer', title: 'Project Manager (PM)', badge: 'Setup WBS & Bobot Relatif', abbr: 'PM', color: 'bg-blue-600 text-white font-bold', border: 'border-blue-400' },
+                      { id: 'usr-sup-1', roleName: 'Project / Site Engineer', title: 'Site Engineer (SE)', badge: 'Submitter RFI & Pengajuan Tahap', abbr: 'SE', color: 'bg-cyan-600 text-white font-bold', border: 'border-cyan-400' },
+                      { id: 'usr-hse-1', roleName: 'QA/QC Lead / Owner Inspector', title: 'QA/QC Lead Inspector', badge: 'Witness, Hold Point & Approval', abbr: 'QC', color: 'bg-indigo-600 text-white font-bold', border: 'border-indigo-400' },
+                      { id: 'usr-op-1', roleName: 'Field / QC Inspector', title: 'Field / QC Inspector', badge: 'Inspeksi & Ceklis Lapangan', abbr: 'INSP', color: 'bg-emerald-600 text-white font-bold', border: 'border-emerald-400' },
+                      { id: 'usr-sub-1', roleName: 'Action Owner / Subcontractor', title: 'Subcontractor / Pelaksana', badge: 'Penyelesaian Temuan CAPA', abbr: 'SUBC', color: 'bg-orange-600 text-white font-bold', border: 'border-orange-400' },
+                      { id: 'usr-view-1', roleName: 'Client / Vendor Viewer', title: 'Client / Vendor Viewer', badge: 'Mode Pantau Read-Only', abbr: 'VIEW', color: 'bg-slate-600 text-white font-bold', border: 'border-slate-400' },
+                    ]
+                ).map((r) => {
                   const isCurrent = activeUser.id === r.id || activeUser.role === r.roleName;
                   return (
                     <button

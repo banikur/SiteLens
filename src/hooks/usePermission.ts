@@ -27,6 +27,8 @@ export function usePermission() {
       setActiveProjectId: (_id: string | null) => {},
       refreshPermissions: async () => {},
       user: null,
+      enabledModules: [] as string[],
+      focusMode: null as string | null,
     };
   }
 
@@ -39,5 +41,7 @@ export function usePermission() {
     setActiveProjectId: context.setActiveProjectId,
     refreshPermissions: context.refreshPermissions,
     user: context.user,
+    enabledModules: context.enabledModules,
+    focusMode: context.focusMode,
   };
 }

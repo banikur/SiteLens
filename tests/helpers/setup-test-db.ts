@@ -106,6 +106,25 @@ export async function ensureTestDatabaseSchema() {
     EXCEPTION WHEN duplicate_column THEN null;
     END $$;
 
+    CREATE TABLE IF NOT EXISTS "master_projects" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "code" text NOT NULL UNIQUE,
+      "name" text NOT NULL,
+      "owner_client" text NOT NULL,
+      "description" text,
+      "status" text DEFAULT 'active' NOT NULL,
+      "start_date" date,
+      "end_date" date,
+      "created_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+
+    DO $$ BEGIN
+      ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "master_project_id" uuid REFERENCES "master_projects"("id") ON DELETE RESTRICT;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
     DROP TABLE IF EXISTS "punchlist_items" CASCADE;
   `);
 
@@ -136,22 +155,6 @@ export async function ensureTestDatabaseSchema() {
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
 
-      CREATE TABLE "projects" (
-        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        "name" text NOT NULL,
-        "code" text NOT NULL UNIQUE,
-        "client" text NOT NULL,
-        "location" text NOT NULL,
-        "status" text DEFAULT 'active' NOT NULL,
-        "zones" jsonb DEFAULT '[]'::jsonb NOT NULL,
-        "sites" jsonb DEFAULT '[]'::jsonb NOT NULL,
-        "lead_manager" text NOT NULL,
-        "flow_preset_id" uuid REFERENCES "flow_presets"("id") ON DELETE SET NULL,
-        "require_pm_approval_for_detailing" boolean DEFAULT false NOT NULL,
-        "capa_lockout_severities" text[] DEFAULT ARRAY['critical', 'high']::text[] NOT NULL,
-        "created_at" timestamp with time zone DEFAULT now() NOT NULL
-      );
-
       CREATE TABLE "users" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         "username" text NOT NULL UNIQUE,
@@ -165,6 +168,37 @@ export async function ensureTestDatabaseSchema() {
         "assigned_projects" jsonb DEFAULT '[]'::jsonb NOT NULL,
         "certifications" jsonb DEFAULT '[]'::jsonb NOT NULL,
         "is_active" boolean DEFAULT true NOT NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL
+      );
+
+      CREATE TABLE "master_projects" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "code" text NOT NULL UNIQUE,
+        "name" text NOT NULL,
+        "owner_client" text NOT NULL,
+        "description" text,
+        "status" text DEFAULT 'active' NOT NULL,
+        "start_date" date,
+        "end_date" date,
+        "created_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+        "created_at" timestamp with time zone DEFAULT now() NOT NULL,
+        "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+      );
+
+      CREATE TABLE "projects" (
+        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "master_project_id" uuid REFERENCES "master_projects"("id") ON DELETE RESTRICT,
+        "name" text NOT NULL,
+        "code" text NOT NULL UNIQUE,
+        "client" text NOT NULL,
+        "location" text NOT NULL,
+        "status" text DEFAULT 'active' NOT NULL,
+        "zones" jsonb DEFAULT '[]'::jsonb NOT NULL,
+        "sites" jsonb DEFAULT '[]'::jsonb NOT NULL,
+        "lead_manager" text NOT NULL,
+        "flow_preset_id" uuid REFERENCES "flow_presets"("id") ON DELETE SET NULL,
+        "require_pm_approval_for_detailing" boolean DEFAULT false NOT NULL,
+        "capa_lockout_severities" text[] DEFAULT ARRAY['critical', 'high']::text[] NOT NULL,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
 

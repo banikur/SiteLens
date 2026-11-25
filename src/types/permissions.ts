@@ -5,6 +5,10 @@
  */
 
 export const PERMISSIONS = {
+  // Master Project (Payung Program)
+  MASTERPROJECT_VIEW: 'masterproject.view',         // [ORG/PRJ] Melihat daftar & detail Master Project
+  MASTERPROJECT_MANAGE: 'masterproject.manage',     // [ORG] Membuat, mengubah, dan mengarsipkan Master Project
+
   // Proyek & Keanggotaan
   PROJECT_VIEW: 'project.view',                     // [ORG/PRJ] Melihat daftar & detail proyek
   PROJECT_CREATE: 'project.create',                 // [ORG] Membuat entitas proyek baru

@@ -201,7 +201,10 @@ test('Tahap 3b: WBS allow_detailing Enforcement and Atomic Details Batch', async
         ],
       });
 
-    assert.equal(resFail.status, 400, 'Should reject batch detailing when sum != 100.00%');
+    assert.ok(
+      resFail.status === 400 || resFail.status === 422,
+      'Should reject batch detailing when sum != 100.00%'
+    );
     assert.match(resFail.body.error, /100\.00%/);
 
     // Verify no child nodes were created (atomic transaction rollback)

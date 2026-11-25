@@ -163,3 +163,107 @@ export function calculateRollupProgress(node: WbsTreeNode): {
     verifiedProgress: Math.round((weightedVerified / totalChildWeight) * 100) / 100,
   };
 }
+
+/**
+ * Pure tree logic: Detects whether moving `moveNodeId` under `newParentId` would form a cycle.
+ */
+export function detectCycle(
+  nodes: { id: string; parentId?: string | null }[],
+  moveNodeId: string,
+  newParentId: string | null
+): boolean {
+  if (!newParentId) return false;
+  if (moveNodeId === newParentId) return true;
+
+  const parentMap = new Map<string, string | null>();
+  for (const n of nodes) {
+    parentMap.set(n.id, n.parentId || null);
+  }
+
+  let curr: string | null = newParentId;
+  const visited = new Set<string>();
+
+  while (curr) {
+    if (curr === moveNodeId) return true;
+    if (visited.has(curr)) return true;
+    visited.add(curr);
+    curr = parentMap.get(curr) || null;
+  }
+
+  return false;
+}
+
+/**
+ * Pure tree logic: Distributes 100.00% evenly across `count` sibling items.
+ * The remainder is assigned to the first item so sum is strictly 100.00%.
+ */
+export function distributeEvenlyWeights(count: number): number[] {
+  if (count <= 0) return [];
+  if (count === 1) return [100.0];
+
+  const base = Math.floor(10000 / count) / 100;
+  const remainder = Math.round((10000 - base * 100 * count)) / 100;
+
+  const weights = new Array(count).fill(base);
+  weights[0] = Math.round((weights[0] + remainder) * 100) / 100;
+  return weights;
+}
+
+/**
+ * Pure tree logic: Computes total weight sum for a sibling array, rounded to 2 decimals.
+ */
+export function calculateSiblingWeightSum(siblings: { weightPercent: string | number }[]): number {
+  const sum = siblings.reduce((acc, curr) => acc + (Number(curr.weightPercent) || 0), 0);
+  return Math.round(sum * 100) / 100;
+}
+
+/**
+ * Pure tree logic: Reparents a node in an immutable array of nodes.
+ * Throws an error if cycle is detected.
+ */
+export function reparentNode(
+  nodes: any[],
+  nodeId: string,
+  newParentId: string | null,
+  newSortOrder?: number
+): WorkNode[] {
+  if (detectCycle(nodes, nodeId, newParentId)) {
+    throw new Error('Siklus terdeteksi: tidak dapat memindahkan simpul ke bawah turunannya sendiri.');
+  }
+
+  return nodes.map((n) => {
+    if (n.id === nodeId) {
+      return {
+        ...n,
+        parentId: newParentId,
+        sortOrder: newSortOrder !== undefined ? newSortOrder : n.sortOrder,
+      };
+    }
+    return n;
+  });
+}
+
+/**
+ * Pure tree logic: Checks whether a node is inside an allow_detailing subtree.
+ */
+export function isNodeInAllowedDetailingSubtree(
+  nodes: any[],
+  targetNodeId: string
+): boolean {
+  const nodeMap = new Map<string, any>();
+  for (const n of nodes) {
+    nodeMap.set(n.id, n);
+  }
+
+  let curr: WorkNode | undefined = nodeMap.get(targetNodeId);
+  const visited = new Set<string>();
+
+  while (curr) {
+    if (curr.allowDetailing) return true;
+    if (visited.has(curr.id)) break;
+    visited.add(curr.id);
+    curr = curr.parentId ? nodeMap.get(curr.parentId) : undefined;
+  }
+
+  return false;
+}

@@ -248,8 +248,25 @@ export interface ProjectSite {
   notes?: string;
 }
 
+export interface MasterProject {
+  id: string;
+  code: string;
+  name: string;
+  ownerClient: string;
+  description?: string | null;
+  status: 'active' | 'archived';
+  startDate?: string | null;
+  endDate?: string | null;
+  createdBy?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  sitesCount?: number;
+  sites?: Project[];
+}
+
 export interface Project {
   id: string;
+  masterProjectId?: string | null;
   name: string;
   code: string;
   client: string;

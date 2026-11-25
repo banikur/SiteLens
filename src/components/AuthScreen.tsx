@@ -5,15 +5,10 @@ import {
   Lock,
   ShieldCheck,
   AlertCircle,
-  Users2,
-  FolderPlus,
-  Compass,
-  ArrowRight,
-  Shield,
-  Eye,
+  Zap,
+  Sparkles,
   CheckCircle2,
-  Ban,
-  Scale,
+  ArrowRight,
 } from 'lucide-react';
 import {
   AuthenticatedUser,
@@ -30,252 +25,83 @@ interface AuthScreenProps {
   onStartGuidedTour?: () => void;
 }
 
-type ScreenMode = 'demo_roles' | 'credentials';
 type AuthMode = 'password' | 'pin' | 'biometric';
-
-interface RoleCardData {
-  id: string;
-  name: string;
-  roleTitle: string;
-  roleAbbr: string;
-  badge: string;
-  avatar: string;
-  canDo: string[];
-  restrictedFrom: string[];
-  fourEyesRole: string;
-  defaultActionTab: string;
-}
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({
   onAuthenticated,
-  onStartGuidedTour,
 }) => {
   const { lang, setLang } = useLanguage();
   const isId = lang === 'id';
 
-  const [screenMode, setScreenMode] = useState<ScreenMode>('demo_roles');
   const [authMode, setAuthMode] = useState<AuthMode>('password');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('pmo');
+  const [password, setPassword] = useState('DemoSecret123!');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autofillSuccess, setAutofillSuccess] = useState<string | null>(
+    'Kredensial pmo (Citra PMO) terisi otomatis'
+  );
 
-  const demoRoles: RoleCardData[] = [
+  const demoAccounts = [
     {
-      id: 'usr-admin-1',
-      name: isId ? 'Project Director & Tenant Admin' : 'Project Director & Tenant Admin',
-      roleTitle: isId ? 'Project Director & Tenant Admin' : 'Project Director & Tenant Admin',
-      roleAbbr: 'DIR',
-      badge: isId ? 'Otoritas Tertinggi Tenant' : 'Tenant Director Authority',
-      avatar: '',
-      canDo: isId ? [
-        'Akses penuh lintas seluruh proyek dalam satu tenant',
-        'Konfigurasi profil kepatuhan ganda SMK3 PP 50/2012 & ISO 45001',
-        'Audit trail sistem, log integritas SHA-256, & lisensi pengguna',
-        'Setup webhook integrasi ERP & keamanan PIN/Biometrik',
-      ] : [
-        'Full oversight access across all projects within tenant',
-        'Dual-compliance profiling for SMK3 PP 50/2012 & ISO 45001',
-        'System audit trail, SHA-256 integrity logs, and user licenses',
-        'ERP webhook integration & biometric/PIN security settings',
-      ],
-      restrictedFrom: isId ? [
-        'Tidak difokuskan untuk submit inspeksi teknis harian',
-      ] : [
-        'Not intended for routine daily field inspection submissions',
-      ],
-      fourEyesRole: isId ? 'Auditor Final & Eksekutif' : 'Final Executive Auditor',
-      defaultActionTab: 'compliance',
+      uname: 'pmo',
+      label: 'PMO',
+      name: 'Citra PMO',
+      roleTitle: 'Head Office PMO',
+      scope: 'Organisasi (Global)',
+      description: 'Kelola Master Project, buat site, atur izin detail WBS',
     },
     {
-      id: 'usr-pm-1',
-      name: isId ? 'Project Manager (PM)' : 'Project Manager (PM)',
-      roleTitle: isId ? 'Project Manager (PM)' : 'Project Manager (PM)',
-      roleAbbr: 'PM',
-      badge: isId ? 'Setup Proyek & Alokasi WBS' : 'Project Setup & WBS Owner',
-      avatar: '',
-      canDo: isId ? [
-        'Membuat & mengonfigurasi Proyek Baru dari awal',
-        'Menyusun struktur WBS Tree & menetapkan bobot pekerjaan (%)',
-        'Menugaskan Site Engineer & QA/QC ke setiap node pekerjaan',
-        'Mencatat log cuaca harian & klaim perpanjangan waktu (EOT)',
-        'Melakukan override manual Kurva S jika terjadi deviasi',
-      ] : [
-        'Create and configure new projects from scratch',
-        'Structure WBS Tree and assign work package weights (%)',
-        'Assign Site Engineers & QA/QC Inspectors to each node',
-        'Log daily weather and calculate recommended EOT claims',
-        'Apply manual S-Curve baseline overrides when warranted',
-      ],
-      restrictedFrom: isId ? [
-        'Dilarang memverifikasi inspeksi fisik mandiri di lapangan',
-      ] : [
-        'Cannot self-certify physical inspection stages on the ground',
-      ],
-      fourEyesRole: isId ? 'Inisiator Baseline & Pemilik Proyek' : 'Baseline Initiator & Project Owner',
-      defaultActionTab: 'projects',
+      uname: 'pm',
+      label: 'PM',
+      name: 'Agus Pratama',
+      roleTitle: 'Project Manager',
+      scope: 'Site A & B',
+      description: 'Kelola tim site, anti-eskalasi, proteksi manajer terakhir',
     },
     {
-      id: 'usr-sup-1',
-      name: isId ? 'Site Engineer (SE)' : 'Site Engineer (SE)',
-      roleTitle: isId ? 'Site Engineer / Pelaksana Lapangan' : 'Site Engineer / Field Lead',
-      roleAbbr: 'SE',
-      badge: isId ? 'Pelaksana & Submitter RFI' : 'Field Submitter & Lead',
-      avatar: '',
-      canDo: isId ? [
-        'Mengajukan Request for Inspection (RFI) tahap pekerjaan',
-        'Mengisi lembar ceklis kepatuhan gambar teknis & toleransi',
-        'Mengunggah bukti foto lapangan ber-geotag',
-        'Membubuhkan tanda tangan pemohon sebelum Hold Point',
-      ] : [
-        'Submit Request for Inspection (RFI) for assigned work nodes',
-        'Complete technical drawing compliance checklists & tolerances',
-        'Upload geotagged field evidence photos',
-        'Provide submitter digital sign-off engaging Hold Points',
-      ],
-      restrictedFrom: isId ? [
-        'Dilarang mengesahkan hasil inspeksi sendiri tanpa verifikasi QA/QC',
-      ] : [
-        'Cannot approve own work; Hold Point locks until QA/QC signs',
-      ],
-      fourEyesRole: isId ? 'Pemohon Lapangan (Submitter)' : 'Field Submitter',
-      defaultActionTab: 'projects',
+      uname: 'se',
+      label: 'SE',
+      name: 'Dewi Lestari',
+      roleTitle: 'Lead Site Engineer',
+      scope: 'Site A saja',
+      description: 'Isolasi data (Site A saja), edit rincian pekerjaan WBS',
     },
     {
-      id: 'usr-hse-1',
-      name: isId ? 'QA/QC Lead / Owner Inspector' : 'QA/QC Lead / Owner Inspector',
-      roleTitle: isId ? 'QA/QC Lead / Owner Inspector' : 'QA/QC Lead / Inspector',
-      roleAbbr: 'QC',
-      badge: isId ? 'Verifikator Mutu & Four-Eyes' : 'Quality Verifier & Four-Eyes',
-      avatar: '',
-      canDo: isId ? [
-        'Memeriksa & mengesahkan pengajuan inspeksi (Witness/Approval)',
-        'Membuka & melepaskan Hold Point teknis di lapangan',
-        'Menandatangani sertifikat kelulusan mutu digital / lembar fisik',
-        'Menerbitkan & memverifikasi penutupan Punchlist (CAPA)',
-      ] : [
-        'Inspect and approve stage inspection requests (Witness/Approval)',
-        'Unlock and clear technical Hold Points in field execution',
-        'Sign digital acceptance certificates / physical scanned sheets',
-        'Issue and verify closure of Punchlist (CAPA) findings',
-      ],
-      restrictedFrom: isId ? [
-        'Dilarang meng-approve inspeksi yang diajukan oleh dirinya sendiri (Four-Eyes locked)',
-      ] : [
-        'Strictly blocked from self-approving own submissions (Four-Eyes locked)',
-      ],
-      fourEyesRole: isId ? 'Verifikator Independen Wajib' : 'Mandatory Independent Verifier',
-      defaultActionTab: 'inspections',
+      uname: 'client',
+      label: 'Client',
+      name: 'Pak Bambang',
+      roleTitle: 'Client Owner',
+      scope: 'Site A & B',
+      description: 'Mode pantau (Read-Only) penuh di seluruh modul',
     },
     {
-      id: 'usr-op-1',
-      name: isId ? 'Field / QC Inspector' : 'Field / QC Inspector',
-      roleTitle: isId ? 'Field / QC Inspector' : 'Field / QC Inspector',
-      roleAbbr: 'INSP',
-      badge: isId ? 'Pelaksana Ceklis Lapangan' : 'Field Checklist Execution',
-      avatar: '',
-      canDo: isId ? [
-        'Mengisi form ceklis inspeksi harian di lapangan',
-        'Mencatat temuan non-conformance (NCR) / punchlist awal',
-        'Mengambil foto evidens bergeotag dan timestamp',
-      ] : [
-        'Complete daily field inspection checklists',
-        'Record preliminary punchlist / non-conformance items',
-        'Capture geotagged & timestamped evidence photos',
-      ],
-      restrictedFrom: isId ? [
-        'Dilarang mengubah konfigurasi WBS atau menutup Hold Point kritis tanpa QA Lead',
-      ] : [
-        'Cannot modify WBS hierarchy or clear critical Hold Points without QA Lead',
-      ],
-      fourEyesRole: isId ? 'Petugas Lapangan' : 'Field Inspector',
-      defaultActionTab: 'inspections',
-    },
-    {
-      id: 'usr-viewer-1',
-      name: isId ? 'Client / Vendor Viewer' : 'Client / Vendor Viewer',
-      roleTitle: isId ? 'Client / Vendor Viewer' : 'Client / Vendor Viewer',
-      roleAbbr: 'VIEW',
-      badge: isId ? 'Mode Pengawas (Read-Only)' : 'Auditor Mode (Read-Only)',
-      avatar: '',
-      canDo: isId ? [
-        'Memantau Kurva S fisik terverifikasi secara real-time',
-        'Melihat radar bottleneck keterlambatan persetujuan SLA',
-        'Mengekspor laporan progres & riwayat audit digital',
-      ] : [
-        'Monitor verified physical S-Curve in real-time',
-        'Track SLA approval aging and bottleneck radar alerts',
-        'Export progress reports and tamper-evident audit history',
-      ],
-      restrictedFrom: isId ? [
-        'Mode baca saja (Read-only): Tidak dapat mengubah WBS atau mengesahkan inspeksi',
-      ] : [
-        'Strictly read-only: Cannot mutate WBS nodes or sign off stages',
-      ],
-      fourEyesRole: isId ? 'Pengawas Eksternal' : 'External Observer',
-      defaultActionTab: 'dashboard',
+      uname: 'budi',
+      label: 'Budi',
+      name: 'Budi Santoso',
+      roleTitle: 'Contextual Multi-Site',
+      scope: 'SE Site A / Viewer Site B',
+      description: 'Pembuktian hak akses berganti dinamis antar-site',
     },
   ];
 
-  const handleSelectDemoRole = (roleData: RoleCardData) => {
-    const existing = MOCK_USERS.find((u) => u.id === roleData.id) || {
-      id: roleData.id,
-      name: roleData.roleTitle,
-      role: roleData.roleTitle as any,
-      title: roleData.roleTitle,
-      email: `${roleData.id}@sitelens-demo.internal`,
-      avatar: '',
-      assignedProjects: ['prj-101', 'prj-102', 'prj-103'],
-      certifications: ['API 510', 'ISO 9001', 'SMK3'],
-    };
-
-    setActiveUser(existing.id);
-
-    const authUser: AuthenticatedUser = {
-      ...existing,
-      name: roleData.roleTitle,
-      username: existing.id,
-      hasPin: true,
-      passkeysCount: 1,
-    };
-
-    onAuthenticated(authUser);
-  };
-
-  const handleStartDemoScenario = () => {
-    const pmRole = demoRoles.find((r) => r.id === 'usr-pm-1') || demoRoles[1];
-    handleSelectDemoRole(pmRole);
-    if (onStartGuidedTour) {
-      setTimeout(() => {
-        onStartGuidedTour();
-      }, 150);
-    }
-  };
-
-  const handleSubmitCredentials = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doLoginWithCredentials = async (uname: string, pwd: string) => {
     setError(null);
     setLoading(true);
     try {
-      if (authMode === 'password') {
-        const user = await loginWithPassword(username, password);
-        onAuthenticated(user);
-      } else if (authMode === 'pin') {
-        const user = await loginWithPin(username, pin);
-        onAuthenticated(user);
-      } else {
-        const user = await loginWithBiometric(username);
-        onAuthenticated(user);
-      }
+      const user = await loginWithPassword(uname, pwd);
+      setActiveUser(user.id);
+      onAuthenticated(user);
     } catch (err: any) {
-      if (username) {
+      if (uname) {
         const match = MOCK_USERS.find(
           (u) =>
-            u.id.toLowerCase() === username.toLowerCase() ||
-            u.name.toLowerCase().includes(username.toLowerCase())
+            u.id.toLowerCase() === uname.toLowerCase() ||
+            u.name.toLowerCase().includes(uname.toLowerCase())
         );
         if (match) {
+          setActiveUser(match.id);
           const authUser: AuthenticatedUser = {
             ...match,
             username: match.id,
@@ -289,17 +115,68 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       setError(
         err?.message ||
           (isId
-            ? 'Gagal masuk. Gunakan tab "Pilihan Peran Demo" untuk demonstrasi instan.'
-            : 'Sign in failed. Please use "Demo Roles & Scenarios" tab for instant access.')
+            ? 'Gagal masuk. Periksa username dan kata sandi.'
+            : 'Sign in failed. Check credentials.')
       );
     } finally {
       setLoading(false);
     }
   };
 
+  const handleAutoFill = (uname: string, autoSubmit = false) => {
+    const acc = demoAccounts.find((a) => a.uname === uname);
+    const demoPwd = 'DemoSecret123!';
+    setUsername(uname);
+    setPassword(demoPwd);
+    setAuthMode('password');
+    setError(null);
+    setAutofillSuccess(
+      isId
+        ? `Auto-fill berhasil: ${acc?.name || uname} (${uname} / ${demoPwd})`
+        : `Auto-fill success: ${acc?.name || uname} (${uname} / ${demoPwd})`
+    );
+
+    if (autoSubmit) {
+      void doLoginWithCredentials(uname, demoPwd);
+    }
+  };
+
+  const handleSubmitCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (authMode === 'password') {
+      await doLoginWithCredentials(username, password);
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    try {
+      if (authMode === 'pin') {
+        const user = await loginWithPin(username, pin);
+        setActiveUser(user.id);
+        onAuthenticated(user);
+      } else {
+        const user = await loginWithBiometric(username);
+        setActiveUser(user.id);
+        onAuthenticated(user);
+      }
+    } catch (err: any) {
+      setError(
+        err?.message ||
+          (isId
+            ? 'Gagal masuk. Periksa kredensial PIN / Biometrik.'
+            : 'Sign in failed. Check PIN / Biometric.')
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const selectedAccount = demoAccounts.find((a) => a.uname === username);
+
   return (
     <div className="min-h-screen bg-[#06090e] flex flex-col justify-center items-center p-4 sm:p-6 text-slate-200 select-none">
-      <div className="w-full max-w-5xl bg-[#0b0e14] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="w-full max-w-md bg-[#0b0e14] border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Top Navbar */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#0e131d]">
           <div className="flex items-center space-x-3">
@@ -317,8 +194,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </div>
               <p className="text-[11px] text-slate-400">
                 {isId
-                  ? 'Sistem Kendali Presisi Operasional & Inspeksi Lapangan'
-                  : 'Precision Site Operations & Inspection Control System'}
+                  ? 'Sistem Kendali Presisi Operasional & Inspeksi'
+                  : 'Precision Operations & Inspection Control System'}
               </p>
             </div>
           </div>
@@ -329,7 +206,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setLang('en')}
-                className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
+                className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                   lang === 'en'
                     ? 'bg-[#d4f038] text-[#0b0e14] shadow-xs'
                     : 'text-slate-400 hover:text-white'
@@ -340,7 +217,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <button
                 type="button"
                 onClick={() => setLang('id')}
-                className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors ${
+                className={`px-2.5 py-1 rounded text-[10px] font-bold transition-colors cursor-pointer ${
                   lang === 'id'
                     ? 'bg-[#d4f038] text-[#0b0e14] shadow-xs'
                     : 'text-slate-400 hover:text-white'
@@ -352,318 +229,252 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           </div>
         </div>
 
-        {/* Mode Selector Tabs */}
-        <div className="grid grid-cols-2 border-b border-slate-800 bg-[#080b10]">
-          <button
-            type="button"
-            onClick={() => setScreenMode('demo_roles')}
-            className={`py-3 px-4 text-center font-bold text-xs flex items-center justify-center space-x-2 border-b-2 transition-all ${
-              screenMode === 'demo_roles'
-                ? 'border-[#d4f038] bg-[#d4f038]/10 text-white'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Users2 className="w-4 h-4 text-[#d4f038]" />
-            <span>
-              {isId
-                ? 'Pilihan Peran Demo (Matriks Kapabilitas 6 Roles)'
-                : 'Demo Roles Explorer (6 Role Capability Matrix)'}
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setScreenMode('credentials')}
-            className={`py-3 px-4 text-center font-bold text-xs flex items-center justify-center space-x-2 border-b-2 transition-all ${
-              screenMode === 'credentials'
-                ? 'border-[#d4f038] bg-[#d4f038]/10 text-white'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Lock className="w-4 h-4 text-[#d4f038]" />
-            <span>
-              {isId ? 'Masuk Kredensial (Password / PIN / Biometrik)' : 'Sign In with Credentials'}
-            </span>
-          </button>
-        </div>
-
-        {/* Tab 1: Demo Roles & Capability Matrix */}
-        {screenMode === 'demo_roles' && (
-          <div className="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
-            {/* Guided Scenario Banner */}
-            <div className="p-4 rounded-xl border border-[#d4f038]/40 bg-[#d4f038]/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-start space-x-3.5">
-                <div className="w-10 h-10 rounded-lg bg-[#d4f038] text-[#0b0e14] flex items-center justify-center font-bold shrink-0 mt-0.5">
-                  <Compass className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#d4f038] text-[#0b0e14]">
-                      {isId ? 'ALUR LENGKAP RESMI' : 'OFFICIAL WORKFLOW'}
-                    </span>
-                    <h3 className="text-sm font-bold text-white tracking-tight">
-                      {isId
-                        ? 'Mulai Alur Demonstrasi Dari Awal (End-to-End Walkthrough)'
-                        : 'Start Guided End-to-End Demonstration Scenario'}
-                    </h3>
-                  </div>
-                  <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                    {isId
-                      ? 'Setup Proyek Baru ➔ Susun WBS & Assign Personel per Node ➔ Login Site Engineer (Submit RFI) ➔ Login QA/QC Lead (Four-Eyes Sign-Off) ➔ Perhatikan S-Curve bergerak real-time!'
-                      : 'Setup New Project ➔ WBS Structure & Assign Personnel per Node ➔ Submit RFI as Site Engineer ➔ Four-Eyes Sign-Off as QA/QC Lead ➔ Watch S-Curve advance!'}
-                  </p>
-                </div>
+        {/* Login Body */}
+        <div className="p-6 space-y-5">
+          {/* Dedicated Auto-Fill Demo Accounts Section */}
+          <div className="p-3.5 rounded-xl bg-[#080d17] border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5 text-xs font-bold text-[#d4f038]">
+                <Zap className="w-3.5 h-3.5 fill-[#d4f038]" />
+                <span>{isId ? 'Auto-Fill Akun Demo' : 'Auto-Fill Demo Accounts'}</span>
               </div>
-              <button
-                type="button"
-                onClick={handleStartDemoScenario}
-                className="px-4 py-2.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-xs flex items-center space-x-2 transition-colors shrink-0 shadow-xs"
-              >
-                <span>{isId ? 'Mulai Skenario Terpandu' : 'Launch Guided Scenario'}</span>
-                <ArrowRight className="w-4 h-4" />
-              </button>
+              <span className="text-[10px] text-slate-400 font-mono">
+                Sandi: <strong className="text-slate-200">DemoSecret123!</strong>
+              </span>
             </div>
 
-            {/* Role Capability Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {demoRoles.map((role) => (
-                <div
-                  key={role.id}
-                  className="p-4 rounded-xl border border-slate-800 bg-[#0e131d] hover:border-slate-700 transition-all flex flex-col justify-between"
-                >
-                  <div className="space-y-3">
-                    {/* Header */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-2.5">
-                        <div className="w-10 h-10 rounded-lg bg-[#161c28] border border-slate-700 text-[#d4f038] font-mono font-black flex items-center justify-center text-xs shadow-inner shrink-0">
-                          {role.roleAbbr}
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-white leading-tight">{role.name}</div>
-                          <div className="text-[10px] text-slate-400 mt-0.5">
-                            {role.badge}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Four-Eyes Position Badge */}
-                    <div className="p-2 rounded-lg bg-[#06090e] border border-slate-800 text-[10px] flex items-center space-x-2">
-                      <Scale className="w-3.5 h-3.5 text-[#d4f038] shrink-0" />
-                      <div className="truncate">
-                        <span className="text-slate-400">Four-Eyes:</span>{' '}
-                        <strong className="text-white">{role.fourEyesRole}</strong>
-                      </div>
-                    </div>
-
-                    {/* What Can Do */}
-                    <div>
-                      <div className="text-[10px] font-semibold text-slate-300 uppercase tracking-wider mb-1 flex items-center space-x-1">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                        <span>{isId ? 'Kewenangan Utama:' : 'Key Capabilities:'}</span>
-                      </div>
-                      <ul className="space-y-1 text-[11px] text-slate-300">
-                        {role.canDo.map((item, idx) => (
-                          <li key={idx} className="flex items-start space-x-1.5 leading-snug">
-                            <span className="text-[#d4f038] mt-0.5">•</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* Restrictions */}
-                    <div>
-                      <div className="text-[10px] font-semibold text-rose-300 uppercase tracking-wider mb-1 flex items-center space-x-1">
-                        <Ban className="w-3 h-3 text-rose-400" />
-                        <span>{isId ? 'Restriksi / Larangan:' : 'Strict Restrictions:'}</span>
-                      </div>
-                      <ul className="space-y-1 text-[11px] text-rose-300/90">
-                        {role.restrictedFrom.map((item, idx) => (
-                          <li key={idx} className="flex items-start space-x-1.5 leading-snug">
-                            <span>✕</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* CTA Button */}
-                  <div className="pt-4 mt-3 border-t border-slate-800/80">
-                    <button
-                      type="button"
-                      onClick={() => handleSelectDemoRole(role)}
-                      className="w-full py-2.5 px-3 rounded-lg bg-slate-800 hover:bg-[#d4f038] hover:text-[#0b0e14] text-white font-bold text-xs transition-all flex items-center justify-center space-x-2 shadow-xs group"
+            {/* 5 Quick Role Buttons */}
+            <div className="grid grid-cols-5 gap-1.5">
+              {demoAccounts.map((acc) => {
+                const isSelected = username === acc.uname;
+                return (
+                  <button
+                    key={acc.uname}
+                    type="button"
+                    onClick={() => handleAutoFill(acc.uname, false)}
+                    className={`py-2 px-1 rounded-lg text-center border transition-all cursor-pointer flex flex-col items-center justify-between ${
+                      isSelected
+                        ? 'bg-[#d4f038] text-[#0b0e14] border-[#d4f038] shadow-md font-black scale-[1.03]'
+                        : 'bg-[#121824] text-slate-300 border-slate-800 hover:border-slate-600 hover:text-white'
+                    }`}
+                    title={`${acc.name} (${acc.roleTitle}) - ${acc.scope}`}
+                  >
+                    <span className="font-mono text-xs uppercase tracking-tight">{acc.label}</span>
+                    <span
+                      className={`text-[9px] truncate max-w-full px-0.5 mt-0.5 ${
+                        isSelected ? 'text-[#0b0e14]/80 font-bold' : 'text-slate-400'
+                      }`}
                     >
-                      <span className="truncate">
-                        {isId ? `Masuk sebagai ${role.name}` : `Sign In as ${role.name}`}
-                      </span>
-                      <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-                    </button>
+                      {acc.uname}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Role Info & 1-Click Instant Login */}
+            {selectedAccount && (
+              <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-xs">
+                <div className="truncate min-w-0">
+                  <div className="text-white font-semibold text-[11px] truncate">
+                    {selectedAccount.name}
+                  </div>
+                  <div className="text-slate-400 text-[10px] truncate">
+                    {selectedAccount.roleTitle} · <span className="text-amber-400/90">{selectedAccount.scope}</span>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleAutoFill(selectedAccount.uname, true)}
+                  disabled={loading}
+                  className="px-2.5 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-[11px] flex items-center space-x-1 shrink-0 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  title={`Auto-fill kredensial dan langsung masuk sebagai ${selectedAccount.name}`}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  <span>{isId ? 'Auto Fill & Masuk' : 'Auto Fill & Go'}</span>
+                </button>
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Tab 2: Standard Credentials Login */}
-        {screenMode === 'credentials' && (
-          <div className="p-6 max-w-md mx-auto w-full space-y-5">
-            {/* Auth Sub-mode Tabs */}
-            <div className="grid grid-cols-3 gap-1 p-1 bg-[#06090e] rounded-lg border border-slate-800">
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('password');
-                  setError(null);
+          {/* Autofill Toast / Notice */}
+          {autofillSuccess && (
+            <div className="py-1 px-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] flex items-center space-x-1.5">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+              <span className="truncate">{autofillSuccess}</span>
+            </div>
+          )}
+
+          {/* Auth Sub-mode Tabs */}
+          <div className="grid grid-cols-3 gap-1 p-1 bg-[#06090e] rounded-lg border border-slate-800">
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('password');
+                setError(null);
+              }}
+              className={`flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                authMode === 'password'
+                  ? 'bg-[#161c28] text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Password</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('pin');
+                setError(null);
+              }}
+              className={`flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                authMode === 'pin'
+                  ? 'bg-[#161c28] text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>PIN</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthMode('biometric');
+                setError(null);
+              }}
+              className={`flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                authMode === 'biometric'
+                  ? 'bg-[#161c28] text-[#d4f038] shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Fingerprint className="w-3.5 h-3.5" />
+              <span>{isId ? 'Sidik Jari' : 'Biometric'}</span>
+            </button>
+          </div>
+
+          {error && (
+            <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-start space-x-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmitCredentials} className="space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-300">
+                  {isId ? 'Username / Akun' : 'Username / Account'}
+                </label>
+                <span className="text-[10px] text-slate-500 font-mono">
+                  demo: pmo | pm | se | client | budi
+                </span>
+              </div>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  setAutofillSuccess(null);
                 }}
-                className={`flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                  authMode === 'password'
-                    ? 'bg-[#161c28] text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Lock className="w-3.5 h-3.5" />
-                <span>Password</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('pin');
-                  setError(null);
-                }}
-                className={`flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                  authMode === 'pin'
-                    ? 'bg-[#161c28] text-white shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <KeyRound className="w-3.5 h-3.5" />
-                <span>PIN</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setAuthMode('biometric');
-                  setError(null);
-                }}
-                className={`flex items-center justify-center space-x-1.5 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                  authMode === 'biometric'
-                    ? 'bg-[#161c28] text-[#d4f038] shadow-xs'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <Fingerprint className="w-3.5 h-3.5" />
-                <span>{isId ? 'Sidik Jari' : 'Biometric'}</span>
-              </button>
+                required={authMode !== 'biometric'}
+                autoComplete="username"
+                placeholder="pmo / pm / se / client / budi"
+                className="w-full px-3.5 py-2.5 bg-[#06090e] border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-[#d4f038] font-mono"
+              />
             </div>
 
-            {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-300 text-xs flex items-start space-x-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{error}</span>
+            {authMode === 'password' && (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-300">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPassword('DemoSecret123!');
+                      setAutofillSuccess(
+                        isId ? 'Sandi demo terisi: DemoSecret123!' : 'Demo password filled: DemoSecret123!'
+                      );
+                    }}
+                    className="text-[10px] text-[#d4f038] hover:underline font-mono cursor-pointer flex items-center space-x-1"
+                  >
+                    <Zap className="w-3 h-3 fill-[#d4f038]" />
+                    <span>{isId ? 'Isi Sandi Demo' : 'Fill Demo Password'}</span>
+                  </button>
+                </div>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setAutofillSuccess(null);
+                  }}
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  className="w-full px-3.5 py-2.5 bg-[#06090e] border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-[#d4f038]"
+                />
               </div>
             )}
 
-            <form onSubmit={handleSubmitCredentials} className="space-y-4">
+            {authMode === 'pin' && (
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  {isId ? 'Username / ID Personel' : 'Username / Personnel ID'}
+                  {isId ? 'PIN Lapangan (4–6 Digit)' : 'Field PIN (4–6 Digits)'}
                 </label>
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required={authMode !== 'biometric'}
-                  autoComplete="username"
-                  placeholder="admin / manager / engineer / inspector"
-                  className="w-full px-3.5 py-2.5 bg-[#06090e] border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-[#d4f038] font-mono"
+                  type="password"
+                  inputMode="numeric"
+                  pattern="\d{4,6}"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                  required
+                  placeholder="••••••"
+                  className="w-full px-3.5 py-2.5 bg-[#06090e] border border-slate-800 rounded-lg text-xs text-white tracking-[0.4em] font-mono placeholder-slate-600 focus:outline-none focus:border-[#d4f038]"
                 />
               </div>
+            )}
 
-              {authMode === 'password' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Password
-                  </label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    className="w-full px-3.5 py-2.5 bg-[#06090e] border border-slate-800 rounded-lg text-xs text-white placeholder-slate-600 focus:outline-none focus:border-[#d4f038]"
-                  />
+            {authMode === 'biometric' && (
+              <div className="p-4 rounded-xl bg-[#06090e] border border-slate-800 text-center space-y-2">
+                <div className="w-12 h-12 rounded-full bg-[#d4f038]/10 border border-[#d4f038]/30 flex items-center justify-center mx-auto">
+                  <Fingerprint className="w-6 h-6 text-[#d4f038]" />
                 </div>
-              )}
+                <p className="text-xs text-slate-300">
+                  {isId
+                    ? 'Gunakan sensor sidik jari atau passkey biometrik perangkat Anda.'
+                    : 'Use your registered device fingerprint or passkey sensor.'}
+                </p>
+              </div>
+            )}
 
-              {authMode === 'pin' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    {isId ? 'PIN Lapangan (4–6 Digit)' : 'Field PIN (4–6 Digits)'}
-                  </label>
-                  <input
-                    type="password"
-                    inputMode="numeric"
-                    pattern="\d{4,6}"
-                    maxLength={6}
-                    value={pin}
-                    onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-                    required
-                    placeholder="••••••"
-                    className="w-full px-3.5 py-2.5 bg-[#06090e] border border-slate-800 rounded-lg text-xs text-white tracking-[0.4em] font-mono placeholder-slate-600 focus:outline-none focus:border-[#d4f038]"
-                  />
-                </div>
-              )}
-
-              {authMode === 'biometric' && (
-                <div className="p-4 rounded-xl bg-[#06090e] border border-slate-800 text-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-[#d4f038]/10 border border-[#d4f038]/30 flex items-center justify-center mx-auto">
-                    <Fingerprint className="w-6 h-6 text-[#d4f038]" />
-                  </div>
-                  <p className="text-xs text-slate-300">
-                    {isId
-                      ? 'Gunakan sensor sidik jari atau passkey biometrik perangkat Anda.'
-                      : 'Use your registered device fingerprint or passkey sensor.'}
-                  </p>
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2.5 px-4 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] disabled:opacity-50 text-[#0b0e14] font-bold text-xs transition-colors flex items-center justify-center space-x-2 shadow-xs"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>
-                  {loading
-                    ? isId
-                      ? 'Memverifikasi...'
-                      : 'Verifying...'
-                    : authMode === 'biometric'
-                    ? isId
-                      ? 'Masuk dengan Sidik Jari'
-                      : 'Sign In with Biometric'
-                    : isId
-                    ? 'Masuk ke SiteLens'
-                    : 'Sign In to SiteLens'}
-                </span>
-              </button>
-            </form>
-
-            <div className="pt-2 text-center">
-              <button
-                type="button"
-                onClick={() => setScreenMode('demo_roles')}
-                className="text-xs text-[#d4f038] hover:underline"
-              >
-                {isId ? '← Kembali ke Pilihan Peran Demo' : '← Back to Demo Roles'}
-              </button>
-            </div>
-          </div>
-        )}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 px-4 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] disabled:opacity-50 text-[#0b0e14] font-bold text-xs transition-colors flex items-center justify-center space-x-2 shadow-xs cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>
+                {loading
+                  ? isId
+                    ? 'Memverifikasi...'
+                    : 'Verifying...'
+                  : authMode === 'biometric'
+                  ? isId
+                    ? 'Masuk dengan Sidik Jari'
+                    : 'Sign In with Biometric'
+                  : isId
+                  ? 'Masuk ke SiteLens'
+                  : 'Sign In to SiteLens'}
+              </span>
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );

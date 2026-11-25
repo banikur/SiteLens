@@ -5,6 +5,7 @@ import {
   integer,
   numeric,
   timestamp,
+  date,
   jsonb,
   uuid,
   primaryKey,
@@ -100,8 +101,23 @@ export const flowPresetSteps = pgTable('flow_preset_steps', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const masterProjects = pgTable('master_projects', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').notNull().unique(),
+  name: text('name').notNull(),
+  ownerClient: text('owner_client').notNull(),
+  description: text('description'),
+  status: text('status').$type<'active' | 'archived'>().notNull().default('active'),
+  startDate: date('start_date'),
+  endDate: date('end_date'),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
+  masterProjectId: uuid('master_project_id').references(() => masterProjects.id, { onDelete: 'restrict' }),
   name: text('name').notNull(),
   code: text('code').notNull().unique(),
   client: text('client').notNull(),

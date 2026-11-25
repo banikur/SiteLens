@@ -20,6 +20,8 @@ export interface AuthContextType {
   isLoadingPermissions: boolean;
   refreshPermissions: (projectId?: string) => Promise<void>;
   can: (permissionKey: string, scopeProjectId?: string) => boolean;
+  enabledModules: string[];
+  focusMode: string | null;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -179,6 +181,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     [globalPermissions, activeProjectPermissions, activeProjectId, isLoadingPermissions]
   );
 
+  const enabledModules = user?.enabledModules || [];
+  const focusMode = user?.focusMode || null;
+
   return (
     <AuthContext.Provider
       value={{
@@ -191,6 +196,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
         isLoadingPermissions,
         refreshPermissions,
         can,
+        enabledModules,
+        focusMode,
       }}
     >
       {children}

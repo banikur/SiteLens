@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   ArrowLeft,
   Plus,
@@ -6,6 +6,7 @@ import {
   Trash2,
   AlertTriangle,
   CheckCircle,
+  CheckCircle2,
   FileText,
   FolderTree,
   Sparkles,
@@ -21,6 +22,11 @@ import {
   CloudRain,
   RefreshCw,
   UserCheck,
+  Users,
+  UserPlus,
+  Building2,
+  Info,
+  Scale,
 } from 'lucide-react';
 import type { Project, User, WorkNode, SCurveSummary } from '../types';
 import { usePermission, PERMISSIONS } from '../hooks/usePermission';
@@ -31,17 +37,28 @@ import {
   apiDeleteWbsNode,
   apiApplyWbsPreset,
   apiGetProjectSCurve,
+  apiGetProjectAssignments,
+  apiAddProjectAssignment,
+  apiUpdateProjectAssignment,
+  apiDeleteProjectAssignment,
+  apiSearchUsers,
+  apiToggleWbsDetailing,
+  apiBatchUpdateWbsNodes,
 } from '../services/api';
 import { NodeWorkflowModal } from './NodeWorkflowModal';
 import { SCurveChart } from './SCurveChart';
 import { BottleneckRadar } from './BottleneckRadar';
 import { WeatherLogModal } from './WeatherLogModal';
 import { WbsSplitStudio } from './WbsSplitStudio';
+import { WbsCanvasStudio } from './WbsCanvasStudio';
 import {
   buildWbsTree,
   flattenWbsTree,
   validateWbsWeights,
   calculateRollupProgress,
+  distributeEvenlyWeights,
+  detectCycle,
+  calculateSiblingWeightSum,
   WbsTreeNode,
 } from '../utils/wbs';
 
@@ -62,10 +79,25 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   // Studio tabs & subviews
-  const [activeStudioTab, setActiveStudioTab] = useState<'wbs' | 'scurve' | 'radar'>('wbs');
-  const [wbsSubView, setWbsSubView] = useState<'split' | 'table'>('split');
+  const isFocusMode = (currentUser as any)?.focusMode === 'setup-flow';
+  const [activeStudioTab, setActiveStudioTab] = useState<'wbs' | 'team' | 'summary' | 'scurve' | 'radar'>('wbs');
+  const [wbsSubView, setWbsSubView] = useState<'canvas' | 'split' | 'table'>('canvas');
   const [scurveData, setScurveData] = useState<SCurveSummary | null>(null);
   const [weatherModalOpen, setWeatherModalOpen] = useState(false);
+
+  // Team Assignments state
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [assignmentSuccess, setAssignmentSuccess] = useState<string | null>(null);
+  const [addMemberModalOpen, setAddMemberModalOpen] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedRoleId, setSelectedRoleId] = useState('site_engineer');
+  const [editAssignment, setEditAssignment] = useState<any | null>(null);
+  const [editRoleId, setEditRoleId] = useState('');
+  const [assignmentSubmitting, setAssignmentSubmitting] = useState(false);
 
   // Modals state
   const [presetModalOpen, setPresetModalOpen] = useState(false);
@@ -112,6 +144,141 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
   const isDemoOrStaff = currentUser && currentUser.role !== 'Client / Vendor Viewer';
   const canEdit = hasWbsPerm || Boolean(isDemoOrStaff);
   const isViewer = !canEdit;
+  const canManageMembers = !isLoadingPerms && can(PERMISSIONS.PROJECT_MANAGE_MEMBERS, project.id);
+
+  const loadAssignments = useCallback(async () => {
+    try {
+      setLoadingAssignments(true);
+      setAssignmentError(null);
+      const res = await apiGetProjectAssignments(project.id);
+      setAssignments(res.assignments || []);
+    } catch (err: any) {
+      setAssignmentError(err?.message || 'Gagal memuat penugasan tim.');
+    } finally {
+      setLoadingAssignments(false);
+    }
+  }, [project.id]);
+
+  useEffect(() => {
+    if (activeStudioTab === 'team') {
+      loadAssignments();
+    }
+  }, [activeStudioTab, loadAssignments]);
+
+  useEffect(() => {
+    if (addMemberModalOpen) {
+      let isCurrent = true;
+      apiSearchUsers(userSearchQuery)
+        .then((res) => {
+          if (isCurrent) setSearchResults(res.users || []);
+        })
+        .catch(() => {});
+      return () => {
+        isCurrent = false;
+      };
+    }
+  }, [addMemberModalOpen, userSearchQuery]);
+
+  const handleAddAssignment = async () => {
+    if (!selectedUserId || !selectedRoleId) return;
+    try {
+      setAssignmentSubmitting(true);
+      setAssignmentError(null);
+      await apiAddProjectAssignment(project.id, {
+        userId: selectedUserId,
+        roleId: selectedRoleId,
+      });
+      setAssignmentSuccess('Anggota tim berhasil ditugaskan ke site ini.');
+      setAddMemberModalOpen(false);
+      setSelectedUserId('');
+      setUserSearchQuery('');
+      await loadAssignments();
+    } catch (err: any) {
+      setAssignmentError(err?.message || 'Gagal menambahkan anggota.');
+    } finally {
+      setAssignmentSubmitting(false);
+    }
+  };
+
+  const handleUpdateAssignment = async () => {
+    if (!editAssignment || !editRoleId) return;
+    try {
+      setAssignmentSubmitting(true);
+      setAssignmentError(null);
+      await apiUpdateProjectAssignment(project.id, editAssignment.id, {
+        roleId: editRoleId,
+      });
+      setAssignmentSuccess('Peran anggota berhasil diperbarui.');
+      setEditAssignment(null);
+      await loadAssignments();
+    } catch (err: any) {
+      setAssignmentError(err?.message || 'Gagal mengubah peran anggota.');
+    } finally {
+      setAssignmentSubmitting(false);
+    }
+  };
+
+  const handleDeleteAssignment = async (assignmentId: string, memberName: string) => {
+    if (!confirm(`Nonaktifkan penugasan untuk ${memberName}?`)) return;
+    try {
+      setAssignmentError(null);
+      await apiDeleteProjectAssignment(project.id, assignmentId);
+      setAssignmentSuccess('Penugasan anggota berhasil dinonaktifkan.');
+      await loadAssignments();
+    } catch (err: any) {
+      setAssignmentError(err?.message || 'Gagal menonaktifkan penugasan anggota.');
+    }
+  };
+
+  const handleReparentNode = async (childId: string, newParentId: string | null) => {
+    try {
+      if (detectCycle(nodes, childId, newParentId)) {
+        alert('Siklus terdeteksi: simpul tidak dapat menjadi anak dari turunannya sendiri.');
+        return;
+      }
+      await apiBatchUpdateWbsNodes(project.id, [{ id: childId, parentId: newParentId }]);
+      await loadWbsData();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memindahkan posisi pekerjaan.');
+    }
+  };
+
+  const handleBagiRata = async (parentId: string | null) => {
+    try {
+      const siblings = nodes.filter((n) => (n.parentId || null) === parentId);
+      if (siblings.length === 0) return;
+      const weights = distributeEvenlyWeights(siblings.length);
+      const updates = siblings.map((s, idx) => ({
+        id: s.id,
+        weightPercent: weights[idx],
+      }));
+      await apiBatchUpdateWbsNodes(project.id, updates);
+      await loadWbsData();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal membagi rata bobot.');
+    }
+  };
+
+  const handleToggleAllowDetailing = async (nodeId: string, allowDetailing: boolean) => {
+    try {
+      await apiToggleWbsDetailing(project.id, nodeId, allowDetailing);
+      await loadWbsData();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal mengubah izin detailing.');
+    }
+  };
+
+  const handleInlineUpdateNode = async (
+    nodeId: string,
+    updates: { name?: string; weightPercent?: number }
+  ) => {
+    try {
+      await apiBatchUpdateWbsNodes(project.id, [{ id: nodeId, ...updates }]);
+      await loadWbsData();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menyimpan perubahan.');
+    }
+  };
 
   const loadWbsData = async () => {
     try {
@@ -276,17 +443,6 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
     }
   };
 
-  const handleReparentNode = async (childId: string, newParentId: string | null) => {
-    try {
-      await apiUpdateWbsNode(project.id, childId, { parentId: newParentId });
-      setActionSuccess('Hirarki node WBS berhasil dipindahkan dari kanvas.');
-      await loadWbsData();
-      setTimeout(() => setActionSuccess(null), 3500);
-    } catch (err: any) {
-      alert(err?.message || 'Gagal memindahkan parent node.');
-    }
-  };
-
   const handleDeleteNode = async (node: WorkNode) => {
     try {
       await apiDeleteWbsNode(project.id, node.id);
@@ -356,32 +512,62 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
 
             <button
               type="button"
-              onClick={() => {
-                setActiveStudioTab('scurve');
-                loadSCurveData();
-              }}
+              onClick={() => setActiveStudioTab('team')}
               className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
-                activeStudioTab === 'scurve'
+                activeStudioTab === 'team'
                   ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <TrendingUp className="w-3.5 h-3.5" />
-              <span>2. Kurva S</span>
+              <Users className="w-3.5 h-3.5" />
+              <span>2. Tim Proyek</span>
             </button>
 
             <button
               type="button"
-              onClick={() => setActiveStudioTab('radar')}
+              onClick={() => setActiveStudioTab('summary')}
               className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
-                activeStudioTab === 'radar'
+                activeStudioTab === 'summary'
                   ? 'bg-slate-900 text-white shadow-2xs'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
-              <Clock className="w-3.5 h-3.5" />
-              <span>3. Radar SLA</span>
+              <Building2 className="w-3.5 h-3.5" />
+              <span>3. Ringkasan Site</span>
             </button>
+
+            {!isFocusMode && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveStudioTab('scurve');
+                    loadSCurveData();
+                  }}
+                  className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
+                    activeStudioTab === 'scurve'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>4. Kurva S</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveStudioTab('radar')}
+                  className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
+                    activeStudioTab === 'radar'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>5. Radar SLA</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -415,34 +601,34 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
             </div>
           )}
 
-          {/* Format Switcher (Split vs Table) */}
+          {/* Format Switcher (Canvas-First vs Outline) */}
           {activeStudioTab === 'wbs' && (
             <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
+              <button
+                type="button"
+                onClick={() => setWbsSubView('canvas')}
+                className={`px-2 py-0.5 rounded-md font-semibold transition-colors flex items-center space-x-1 text-xs ${
+                  wbsSubView === 'canvas'
+                    ? 'bg-white text-slate-900 shadow-2xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="Tampilan Kanvas Pohon Interaktif (Canvas-First)"
+              >
+                <Layers className="w-3 h-3 text-emerald-600" />
+                <span>Kanvas</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setWbsSubView('split')}
                 className={`px-2 py-0.5 rounded-md font-semibold transition-colors flex items-center space-x-1 text-xs ${
                   wbsSubView === 'split'
-                    ? 'bg-white text-slate-900 shadow-2xs'
+                    ? 'bg-white text-slate-900 shadow-2xs font-bold'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
-                title="Tampilan Split-View Compact"
+                title="Tampilan Daftar Hierarki / Outline"
               >
-                <Layers className="w-3 h-3 text-amber-600" />
-                <span>Split</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setWbsSubView('table')}
-                className={`px-2 py-0.5 rounded-md font-semibold transition-colors flex items-center space-x-1 text-xs ${
-                  wbsSubView === 'table'
-                    ? 'bg-white text-slate-900 shadow-2xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                title="Tampilan Tabel Matriks"
-              >
-                <FolderTree className="w-3 h-3" />
-                <span>Tabel</span>
+                <FolderTree className="w-3 h-3 text-blue-600" />
+                <span>Outline</span>
               </button>
             </div>
           )}
@@ -505,6 +691,23 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
         {/* Tab 1: WBS & Bobot Struktur */}
         {activeStudioTab === 'wbs' && (
           <>
+            {wbsSubView === 'canvas' && (
+              <WbsCanvasStudio
+                project={project}
+                nodes={nodes}
+                currentUser={currentUser}
+                canEdit={canEdit}
+                onRefreshWbs={loadWbsData}
+                onAddNode={handleOpenAddModal}
+                onEditNode={handleOpenEditModal}
+                onDeleteNode={(n) => setDeleteConfirmNode(n)}
+                onReparentNode={handleReparentNode}
+                onBagiRata={handleBagiRata}
+                onToggleAllowDetailing={handleToggleAllowDetailing}
+                onInlineUpdateNode={handleInlineUpdateNode}
+              />
+            )}
+
             {/* SubView 1: Split-View (Compact & Live Node Action Studio) */}
             {wbsSubView === 'split' && (
               <WbsSplitStudio
@@ -801,6 +1004,198 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               </div>
             )}
           </>
+        )}
+
+        {/* Tab: Tim Proyek & Penugasan Peran */}
+        {activeStudioTab === 'team' && (
+          <div className="h-full overflow-y-auto bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+                  <Users className="w-4 h-4 text-blue-600" />
+                  <span>Penugasan Tim Site ({assignments.length} Anggota)</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Kelola anggota dan hak akses peran yang ditugaskan khusus pada site ini.
+                </p>
+              </div>
+
+              {canManageMembers && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddMemberModalOpen(true);
+                    setAssignmentError(null);
+                    setAssignmentSuccess(null);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] text-xs font-bold transition-all shadow-xs flex items-center space-x-1.5 self-start cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>+ Tugaskan Anggota</span>
+                </button>
+              )}
+            </div>
+
+            {assignmentError && (
+              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start space-x-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block">Peringatan:</span>
+                  <span>{assignmentError}</span>
+                </div>
+              </div>
+            )}
+
+            {assignmentSuccess && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center space-x-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{assignmentSuccess}</span>
+              </div>
+            )}
+
+            {loadingAssignments ? (
+              <div className="py-12 text-center text-slate-400 text-xs">
+                Memuat daftar penugasan tim...
+              </div>
+            ) : assignments.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 text-xs space-y-2">
+                <Users className="w-8 h-8 mx-auto text-slate-300" />
+                <p className="font-semibold text-slate-600">Belum ada anggota tim ditugaskan di site ini.</p>
+              </div>
+            ) : (
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold">
+                    <tr>
+                      <th className="py-2.5 px-3">Anggota</th>
+                      <th className="py-2.5 px-3">Peran / Role</th>
+                      <th className="py-2.5 px-3">Sumber</th>
+                      <th className="py-2.5 px-3">Tanggal Ditugaskan</th>
+                      <th className="py-2.5 px-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-sans">
+                    {assignments.map((m) => {
+                      return (
+                        <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-2.5 px-3">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-7 h-7 rounded-full bg-slate-800 text-[#d4f038] flex items-center justify-center font-bold text-xs shrink-0">
+                                {m.name ? m.name.charAt(0).toUpperCase() : 'U'}
+                              </div>
+                              <div className="truncate">
+                                <span className="font-bold text-slate-900 block truncate">{m.name}</span>
+                                <span className="text-[10px] text-slate-400 block font-mono truncate">
+                                  {m.email || m.username}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                m.roleId === 'head_office_pmo'
+                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
+                                  : m.roleId === 'project_manager'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : m.roleId === 'site_engineer'
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}
+                            >
+                              {m.roleName || m.roleId}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3">
+                            <span className="font-mono text-[10px] text-slate-500 uppercase">
+                              {m.source || 'manual'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px]">
+                            {m.createdAt ? String(m.createdAt).slice(0, 10) : '-'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            {canManageMembers ? (
+                              <div className="flex items-center justify-end space-x-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditAssignment(m);
+                                    setEditRoleId(m.roleId);
+                                  }}
+                                  className="px-2 py-0.5 rounded text-[10px] font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 transition-colors"
+                                >
+                                  Ubah Role
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAssignment(m.id, m.name)}
+                                  className="px-2 py-0.5 rounded text-[10px] font-semibold text-rose-600 hover:text-rose-800 hover:bg-rose-50 border border-rose-200 transition-colors"
+                                >
+                                  Nonaktifkan
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-[10px] text-slate-400">Read-only</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab: Ringkasan Site */}
+        {activeStudioTab === 'summary' && (
+          <div className="h-full overflow-y-auto bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-6">
+            <div className="border-b border-slate-200 pb-4">
+              <div className="flex items-center space-x-2">
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-[#d4f038]">
+                  {project.code}
+                </span>
+                <span
+                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded border ${
+                    project.status === 'active'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}
+                >
+                  {project.status || 'active'}
+                </span>
+              </div>
+              <h2 className="text-lg font-bold text-slate-900 mt-1">{project.name}</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Klien: {project.client}</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase">Lokasi Proyek</span>
+                <p className="text-xs font-bold text-slate-900">{project.location || 'Site Lapangan'}</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase">Lead Manager</span>
+                <p className="text-xs font-bold text-slate-900">{project.leadManager || '-'}</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                <span className="text-[11px] text-slate-500 font-semibold uppercase">Total Bobot Induk</span>
+                <p className="text-xs font-mono font-bold text-emerald-600">{weightValidation.rootTotal.toFixed(2)}%</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">Informasi Rincian Pekerjaan</h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Site ini memiliki <span className="font-bold text-slate-900">{nodes.length} paket pekerjaan</span>.
+                Gunakan tab <span className="font-semibold text-slate-900">Rincian Pekerjaan</span> untuk menyusun hierarki pekerjaan dalam kanvas interaktif atau outline tabel.
+              </p>
+            </div>
+          </div>
         )}
 
         {/* Tab 2: Kurva S Mingguan & Deviasi */}
@@ -1250,6 +1645,174 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
         isOpen={weatherModalOpen}
         onClose={() => setWeatherModalOpen(false)}
       />
+
+      {/* Add Member Assignment Modal */}
+      {addMemberModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden text-xs">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center space-x-2">
+                <Users className="w-4 h-4 text-slate-700" />
+                <h3 className="font-bold text-slate-900 text-sm">Tugaskan Anggota ke Site</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAddMemberModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {assignmentError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{assignmentError}</span>
+                </div>
+              )}
+
+              {/* User search */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Cari Pengguna (Nama / Email)</label>
+                <input
+                  type="text"
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  placeholder="Ketik nama atau email..."
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-slate-800 focus:outline-hidden"
+                />
+              </div>
+
+              {/* User search results list */}
+              <div className="border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-100">
+                {searchResults.length === 0 ? (
+                  <div className="p-4 text-center text-slate-400 text-xs">
+                    {userSearchQuery ? 'Tidak ada pengguna ditemukan.' : 'Ketik untuk mencari pengguna...'}
+                  </div>
+                ) : (
+                  searchResults.map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => setSelectedUserId(u.id)}
+                      className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-50 transition-colors ${
+                        selectedUserId === u.id ? 'bg-amber-50 font-bold border-l-2 border-amber-500' : ''
+                      }`}
+                    >
+                      <div>
+                        <span className="block text-slate-900">{u.name}</span>
+                        <span className="block text-[10px] text-slate-500 font-mono">{u.email || u.name}</span>
+                      </div>
+                      {selectedUserId === u.id && (
+                        <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+
+              {/* Role selection */}
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Peran Penugasan (Role)</label>
+                <select
+                  value={selectedRoleId}
+                  onChange={(e) => setSelectedRoleId(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-slate-800 focus:outline-hidden"
+                >
+                  <option value="project_manager">Project Manager (PM) - Kontrol penuh site & approval</option>
+                  <option value="site_engineer">Site Engineer (SE) - Pengajuan rincian & klaim progres</option>
+                  <option value="client_viewer">Client Viewer - Pemilik proyek (Read-only)</option>
+                  <option value="head_office_pmo">Head Office PMO - Pengarah mutu & izin detailing</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setAddMemberModalOpen(false)}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleAddAssignment}
+                  disabled={!selectedUserId || assignmentSubmitting}
+                  className="px-4 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold shadow-xs transition-colors disabled:opacity-50"
+                >
+                  {assignmentSubmitting ? 'Menyimpan...' : 'Tugaskan Anggota'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Role Assignment Modal */}
+      {editAssignment && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-[#06090e]/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full shadow-2xl border border-slate-200 overflow-hidden text-xs">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <h3 className="font-bold text-slate-900 text-sm">Ubah Peran Anggota</h3>
+              <button
+                type="button"
+                onClick={() => setEditAssignment(null)}
+                className="p-1 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {assignmentError && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center space-x-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                  <span>{assignmentError}</span>
+                </div>
+              )}
+
+              <div>
+                <span className="text-[11px] text-slate-500 uppercase font-semibold">Anggota</span>
+                <p className="font-bold text-slate-900 text-sm">{editAssignment.name}</p>
+                <p className="text-[10px] text-slate-500 font-mono">{editAssignment.email}</p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Peran Baru</label>
+                <select
+                  value={editRoleId}
+                  onChange={(e) => setEditRoleId(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white focus:ring-1 focus:ring-slate-800 focus:outline-hidden"
+                >
+                  <option value="project_manager">Project Manager (PM)</option>
+                  <option value="site_engineer">Site Engineer (SE)</option>
+                  <option value="client_viewer">Client Viewer</option>
+                  <option value="head_office_pmo">Head Office PMO</option>
+                </select>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditAssignment(null)}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUpdateAssignment}
+                  disabled={assignmentSubmitting}
+                  className="px-4 py-2 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold shadow-xs transition-colors disabled:opacity-50"
+                >
+                  {assignmentSubmitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

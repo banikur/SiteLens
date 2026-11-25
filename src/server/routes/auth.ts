@@ -235,10 +235,30 @@ authRouter.get('/me', async (req: Request, res: Response) => {
 
   const perms = await resolveUserPermissions(req.authUser.id);
 
+  const isFocusMode = process.env.FOCUS_MODE === 'setup-flow';
+  const enabledModules = isFocusMode
+    ? ['master_projects', 'projects', 'team', 'wbs']
+    : [
+        'dashboard',
+        'master_projects',
+        'projects',
+        'team',
+        'wbs',
+        'builder',
+        'templates',
+        'inspections',
+        'actions',
+        'analytics',
+        'compliance',
+        'settings',
+      ];
+
   res.json({
     authenticated: true,
     user: { ...req.authUser, passkeysCount },
     globalPermissions: Array.from(perms.orgPermissions),
+    focusMode: isFocusMode ? 'setup-flow' : null,
+    enabledModules,
   });
 });
 

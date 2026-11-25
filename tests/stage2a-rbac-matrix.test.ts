@@ -423,6 +423,16 @@ test('Tahap 2a: RBAC Matrix, Route Registry Reflection & Isolation Verification'
       // Tahap 3b: WBS allow_detailing & Batch Detailing
       'POST /api/projects/:projectId/wbs/nodes/:parentId/details-batch',
       'POST /api/projects/:projectId/wbs/nodes/:parentId/approve-details',
+      // Focus Setup Flow (Fase B3)
+      'POST /api/master-projects',
+      'PATCH /api/master-projects/:id',
+      'PATCH /api/master-projects/:id/archive',
+      'POST /api/master-projects/:id/sites',
+      'POST /api/projects/:projectId/assignments',
+      'PUT /api/projects/:projectId/assignments/:assignmentId',
+      'DELETE /api/projects/:projectId/assignments/:assignmentId',
+      'PATCH /api/projects/:projectId/wbs/nodes/:nodeId/detailing',
+      'PUT /api/projects/:projectId/wbs/nodes-batch',
     ]);
 
     // Golden check 1: All 23 catalogue routes MUST exist in discovered Express registry

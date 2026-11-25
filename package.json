@@ -13,7 +13,8 @@
     "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:seed": "tsx src/server/db/seed.ts"
+    "db:seed": "tsx src/server/db/seed.ts",
+    "db:seed:demo": "tsx src/server/db/seed-demo.ts"
   },
   "dependencies": {
     "@google/genai": "^3.2.0",
