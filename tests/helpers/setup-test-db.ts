@@ -100,6 +100,13 @@ export async function ensureTestDatabaseSchema() {
       ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "unit" text;
     EXCEPTION WHEN duplicate_column THEN null;
     END $$;
+
+    DO $$ BEGIN
+      ALTER TABLE "corrective_actions" ADD COLUMN IF NOT EXISTS "node_id" uuid REFERENCES "work_nodes"("id") ON DELETE SET NULL;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
+    DROP TABLE IF EXISTS "punchlist_items" CASCADE;
   `);
 
   if (needsInit) {
@@ -272,8 +279,9 @@ export async function ensureTestDatabaseSchema() {
 
       CREATE TABLE "corrective_actions" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        "node_id" uuid,
         "inspection_id" uuid REFERENCES "inspections"("id") ON DELETE CASCADE,
-        "inspection_title" text NOT NULL,
+        "inspection_title" text DEFAULT 'Direct Finding' NOT NULL,
         "project_id" uuid NOT NULL REFERENCES "projects"("id") ON DELETE RESTRICT,
         "project_name" text NOT NULL,
         "site_zone" text NOT NULL,
@@ -420,18 +428,7 @@ export async function ensureTestDatabaseSchema() {
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
 
-      CREATE TABLE "punchlist_items" (
-        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        "node_id" uuid NOT NULL REFERENCES "work_nodes"("id") ON DELETE CASCADE,
-        "stage_id" uuid NOT NULL REFERENCES "work_stages"("id") ON DELETE CASCADE,
-        "attempt_id" uuid REFERENCES "inspection_attempts"("id") ON DELETE SET NULL,
-        "issue_description" text NOT NULL,
-        "severity" text DEFAULT 'medium' NOT NULL,
-        "creator_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
-        "assignee_id" uuid REFERENCES "users"("id") ON DELETE SET NULL,
-        "status" text DEFAULT 'open' NOT NULL,
-        "created_at" timestamp with time zone DEFAULT now() NOT NULL
-      );
+      ALTER TABLE "corrective_actions" ADD CONSTRAINT "fk_ca_node_id" FOREIGN KEY ("node_id") REFERENCES "work_nodes"("id") ON DELETE SET NULL;
 
       CREATE TABLE "planned_curve_overrides" (
         "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),

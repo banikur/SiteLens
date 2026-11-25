@@ -29,7 +29,6 @@ import {
   workWorkflows,
   workStages,
   inspectionAttempts,
-  punchlistItems,
 } from '../src/server/db/schema.ts';
 import { attachSessionUser } from '../src/server/auth/middleware.ts';
 import { authRouter } from '../src/server/routes/auth.ts';

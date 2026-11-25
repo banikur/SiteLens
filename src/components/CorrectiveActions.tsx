@@ -4,12 +4,13 @@ import {
   Search,
   X,
 } from 'lucide-react';
-import { CorrectiveAction, ActionSeverity, ActionStatus, Project } from '../types';
+import { CorrectiveAction, ActionSeverity, ActionStatus, Project, WorkNode } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 
 interface CorrectiveActionsProps {
   actions: CorrectiveAction[];
   projects: Project[];
+  workNodes?: WorkNode[];
   onUpdateStatus: (id: string, status: ActionStatus, notes?: string) => void;
   onAddAction: (action: CorrectiveAction) => void;
 }
@@ -17,6 +18,7 @@ interface CorrectiveActionsProps {
 export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
   actions,
   projects,
+  workNodes = [],
   onUpdateStatus,
   onAddAction,
 }) => {
@@ -30,6 +32,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
   const [newIssue, setNewIssue] = useState('');
   const [newSeverity, setNewSeverity] = useState<ActionSeverity>('high');
   const [newProjectId, setNewProjectId] = useState<string>(projects[0]?.id || '');
+  const [newNodeId, setNewNodeId] = useState<string>('');
   const [newZone] = useState<string>('Perimeter Berm & Hoarding');
   const [newAssignee, setNewAssignee] = useState('Mechanic Crew Lead');
   const [newDueDate, setNewDueDate] = useState(
@@ -59,14 +62,16 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
       return;
     }
     const proj = projects.find((p) => p.id === newProjectId) || projects[0];
+    const targetNode = workNodes.find((n) => n.id === newNodeId);
 
     const action: CorrectiveAction = {
-      id: `act-${Math.floor(100 + Math.random() * 900)}`,
-      inspectionId: 'manual-log',
-      inspectionTitle: 'Ad-hoc Site Hazard Notification',
+      id: crypto.randomUUID(),
+      nodeId: newNodeId || null,
+      inspectionId: null,
+      inspectionTitle: targetNode ? `WBS: ${targetNode.wbsCode} ${targetNode.name}` : 'Ad-hoc Site Hazard Notification',
       projectId: proj.id,
       projectName: proj.name,
-      siteZone: newZone,
+      siteZone: targetNode?.name || newZone,
       fieldLabel: newTitle,
       issueDescription: newIssue,
       severity: newSeverity,
@@ -74,7 +79,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
       assignedToRole: 'Lead Contractor',
       dueDate: newDueDate,
       status: 'OPEN',
-      createdAt: new Date().toLocaleDateString(),
+      createdAt: new Date().toISOString(),
     };
 
     onAddAction(action);
@@ -82,6 +87,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
     setNewModalOpen(false);
     setNewTitle('');
     setNewIssue('');
+    setNewNodeId('');
   };
 
   const openCount = actions.filter((a) => a.status === 'OPEN').length;
@@ -189,9 +195,16 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-1 mb-1">
-                      <span className="font-mono text-[11px] font-bold text-slate-500">
-                        #{act.id}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono text-[11px] font-bold text-slate-500">
+                          #{act.id.slice(0, 8)}
+                        </span>
+                        {act.nodeId && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            WBS Gated (99%)
+                          </span>
+                        )}
+                      </div>
                       <span
                         className={`text-[10px] font-bold uppercase px-1.5 py-0.2 rounded ${
                           act.severity === 'critical' || act.severity === 'high'
@@ -247,6 +260,11 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
                     <span className="font-mono font-bold text-xs text-slate-400">
                       #{activeAction.id}
                     </span>
+                    {activeAction.nodeId && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 border border-purple-200">
+                        WBS Gated (99% Lockout)
+                      </span>
+                    )}
                     <span
                       className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                         activeAction.severity === 'critical' || activeAction.severity === 'high'
@@ -426,6 +444,29 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
                   placeholder={t.actions.defectDescPlaceholder}
                   className="w-full border border-slate-300 rounded-lg p-2.5 text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Tautkan ke Simpul WBS (99% Progress Lockout Gate)
+                </label>
+                <select
+                  value={newNodeId}
+                  onChange={(e) => setNewNodeId(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs bg-white text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  <option value="">Bukan Simpul WBS (Temuan Operasional Proyek Umum)</option>
+                  {workNodes
+                    .filter((n) => !newProjectId || n.projectId === newProjectId)
+                    .map((n) => (
+                      <option key={n.id} value={n.id}>
+                        [{n.wbsCode}] {n.name}
+                      </option>
+                    ))}
+                </select>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Temuan Critical/High yang ditautkan ke simpul WBS akan mengunci progres fisik simpul tersebut maksimal di 99% sampai temuan diselesaikan.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

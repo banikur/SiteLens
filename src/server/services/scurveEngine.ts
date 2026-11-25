@@ -35,6 +35,15 @@ export interface SSOTNodeData {
   updatedAt?: Date | string | null;
 }
 
+export interface SSOTCapaData {
+  id?: string;
+  nodeId?: string | null;
+  severity: string;
+  status: string;
+  createdAt: Date | string;
+  resolvedAt?: Date | string | null;
+}
+
 export interface SSOTSCurveParams {
   projectId: string;
   projectName: string;
@@ -47,6 +56,7 @@ export interface SSOTSCurveParams {
     overridePlannedCumulative: string | number;
   }>;
   hasPunchlistOpenMap?: Map<string, boolean>;
+  capaItems?: SSOTCapaData[];
   asOfDate?: Date;
 }
 
@@ -125,6 +135,7 @@ export function calculateSSOTSCurveData(params: SSOTSCurveParams): SCurveSummary
     workflows = [],
     overrides = [],
     hasPunchlistOpenMap = new Map(),
+    capaItems = [],
     asOfDate = new Date(),
   } = params;
 
@@ -230,9 +241,38 @@ export function calculateSSOTSCurveData(params: SSOTSCurveParams): SCurveSummary
           }
         }
 
-        // Zero-Tolerance Punchlist Gate (99% Lockout on Open Critical/High Defect)
-        const hasOpenPunchlist = hasPunchlistOpenMap.get(node.id);
-        if (hasOpenPunchlist && leafVerifiedPercent >= 100) {
+        // Zero-Tolerance CAPA Gate (99% Lockout on Open Critical/High Defect)
+        let isLockedByCapa = Boolean(hasPunchlistOpenMap.get(node.id));
+
+        if (capaItems && capaItems.length > 0) {
+          const weekEndTs = w.endDate.getTime();
+          const hasActiveCapaInWeek = capaItems.some((capa) => {
+            if (!capa.nodeId || capa.nodeId !== node.id) return false;
+            const sev = (capa.severity || '').toLowerCase();
+            if (sev !== 'critical' && sev !== 'high') return false;
+
+            const createdTs = new Date(capa.createdAt).getTime();
+            if (createdTs > weekEndTs) return false;
+
+            if (capa.resolvedAt) {
+              const resolvedTs = new Date(capa.resolvedAt).getTime();
+              if (resolvedTs <= weekEndTs) return false;
+            }
+
+            const st = (capa.status || '').toUpperCase();
+            if (['CLOSED', 'CANCELLED', 'REJECTED', 'EFFECTIVENESS_MONITORING'].includes(st)) {
+              if (!capa.resolvedAt) return false;
+            }
+
+            return true;
+          });
+
+          if (hasActiveCapaInWeek) {
+            isLockedByCapa = true;
+          }
+        }
+
+        if (isLockedByCapa && leafVerifiedPercent >= 100) {
           leafVerifiedPercent = 99;
         }
 

@@ -14,7 +14,6 @@ import {
   workStages,
   inspectionAttempts,
   evidenceAttachments,
-  punchlistItems,
   plannedCurveOverrides,
   dailyWeatherLogs,
   projectMembers,
@@ -2075,15 +2074,28 @@ apiRouter.get(
       .where(eq(plannedCurveOverrides.projectId, targetProject.id))
       .orderBy(plannedCurveOverrides.weekIndex);
 
-    // Fetch open punchlist items for Zero-Tolerance lockout
-    const allPunchlists = await db
-      .select({ nodeId: punchlistItems.nodeId, status: punchlistItems.status })
-      .from(punchlistItems);
+    // Fetch CAPA items linked to nodes for Zero-Tolerance 99% lockout
+    const projectCapa = await db
+      .select({
+        id: correctiveActions.id,
+        nodeId: correctiveActions.nodeId,
+        severity: correctiveActions.severity,
+        status: correctiveActions.status,
+        createdAt: correctiveActions.createdAt,
+        resolvedAt: correctiveActions.resolvedAt,
+      })
+      .from(correctiveActions)
+      .where(eq(correctiveActions.projectId, targetProject.id));
 
-    const openPunchlistMap = new Map<string, boolean>();
-    for (const pl of allPunchlists) {
-      if (pl.status !== 'verified_closed') {
-        openPunchlistMap.set(pl.nodeId, true);
+    const openLockoutMap = new Map<string, boolean>();
+    for (const c of projectCapa) {
+      if (
+        c.nodeId &&
+        (c.severity === 'critical' || c.severity === 'high') &&
+        !['CLOSED', 'CANCELLED', 'REJECTED', 'EFFECTIVENESS_MONITORING'].includes(c.status) &&
+        !c.resolvedAt
+      ) {
+        openLockoutMap.set(c.nodeId, true);
       }
     }
 
@@ -2137,7 +2149,8 @@ apiRouter.get(
       stages: projectStages,
       workflows: projectWorkflows,
       overrides,
-      hasPunchlistOpenMap: openPunchlistMap,
+      hasPunchlistOpenMap: openLockoutMap,
+      capaItems: projectCapa,
       asOfDate: new Date(),
     });
 
@@ -2665,6 +2678,7 @@ apiRouter.get('/inspections', async (req: Request, res: Response) => {
   const isGlobalAdmin = Boolean(req.authUser?.hasOrgScope || req.authUser?.hasBreakGlass);
 
   const queryProjectId = req.query.projectId ? String(req.query.projectId) : null;
+
   if (queryProjectId) {
     if (!assertProjectAccess(req.authUser, queryProjectId, res, false)) {
       return;
@@ -3002,7 +3016,25 @@ apiRouter.get('/actions', async (req: Request, res: Response) => {
 
   const isGlobalAdmin = Boolean(req.authUser?.hasOrgScope || req.authUser?.hasBreakGlass);
 
+  const queryNodeId = req.query.nodeId ? String(req.query.nodeId) : null;
   const queryProjectId = req.query.projectId ? String(req.query.projectId) : null;
+
+  if (queryNodeId) {
+    const filtered = await db
+      .select()
+      .from(correctiveActions)
+      .where(eq(correctiveActions.nodeId, queryNodeId as any))
+      .orderBy(desc(correctiveActions.createdAt));
+    res.json({
+      actions: filtered.map((a) => ({
+        ...a,
+        createdAt: a.createdAt.toISOString(),
+        resolvedAt: a.resolvedAt?.toISOString(),
+      })),
+    });
+    return;
+  }
+
   if (queryProjectId) {
     if (!assertProjectAccess(req.authUser, queryProjectId, res, false)) {
       return;
@@ -3053,6 +3085,23 @@ apiRouter.post('/actions', requirePermission(PERMISSIONS.CAPA_CREATE), async (re
 
   let actionProjectId: string = a.projectId;
   let actionProjectName: string = a.projectName;
+  let targetNode: any = null;
+
+  if (a.nodeId) {
+    const [existingNode] = await db
+      .select()
+      .from(workNodes)
+      .where(eq(workNodes.id, resolveUuid(a.nodeId)))
+      .limit(1);
+
+    if (existingNode) {
+      targetNode = existingNode;
+      if (!actionProjectId) {
+        actionProjectId = existingNode.projectId;
+      }
+    }
+  }
+
   if (a.inspectionId) {
     const [existingInspection] = await db
       .select({
@@ -3060,17 +3109,17 @@ apiRouter.post('/actions', requirePermission(PERMISSIONS.CAPA_CREATE), async (re
         projectName: inspections.projectName,
       })
       .from(inspections)
-      .where(eq(inspections.id, a.inspectionId))
+      .where(eq(inspections.id, resolveUuid(a.inspectionId)))
       .limit(1);
     if (existingInspection) {
       actionProjectId = existingInspection.projectId;
       actionProjectName = existingInspection.projectName;
     }
-  } else if (a.projectId) {
+  } else if (actionProjectId) {
     const [existingProj] = await db
       .select({ id: projects.id, name: projects.name })
       .from(projects)
-      .where(eq(projects.id, a.projectId))
+      .where(eq(projects.id, actionProjectId as any))
       .limit(1);
     if (existingProj) {
       actionProjectId = existingProj.id;
@@ -3079,7 +3128,7 @@ apiRouter.post('/actions', requirePermission(PERMISSIONS.CAPA_CREATE), async (re
   }
 
   if (!actionProjectId) {
-    res.status(400).json({ error: 'projectId or valid inspectionId is required.' });
+    res.status(400).json({ error: 'projectId, nodeId, or valid inspectionId is required.' });
     return;
   }
 
@@ -3091,18 +3140,21 @@ apiRouter.post('/actions', requirePermission(PERMISSIONS.CAPA_CREATE), async (re
     .insert(correctiveActions)
     .values({
       id,
-      inspectionId: a.inspectionId,
-      inspectionTitle: a.inspectionTitle,
+      nodeId: targetNode?.id || (a.nodeId ? resolveUuid(a.nodeId) : null),
+      inspectionId: a.inspectionId ? resolveUuid(a.inspectionId) : null,
+      inspectionTitle:
+        a.inspectionTitle ||
+        (targetNode ? `WBS: ${targetNode.wbsCode} ${targetNode.name}` : 'Direct Finding'),
       projectId: actionProjectId,
-      projectName: actionProjectName,
-      siteZone: a.siteZone,
+      projectName: actionProjectName || 'Project',
+      siteZone: a.siteZone || targetNode?.name || 'General Zone',
       fieldLabel: a.fieldLabel,
       issueDescription: a.issueDescription,
       severity: a.severity || 'medium',
       assigneeId: a.assigneeId || null,
       assignedToName: a.assignedToName || 'Unassigned',
       assignedToRole: a.assignedToRole || 'Unassigned',
-      dueDate: a.dueDate,
+      dueDate: a.dueDate || new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0],
       status: a.status || 'OPEN',
       resolutionNotes: a.resolutionNotes || null,
       evidencePhotoUrl: a.evidencePhotoUrl || null,

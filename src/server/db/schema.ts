@@ -188,10 +188,10 @@ export const inspections = pgTable('inspections', {
 
 export const correctiveActions = pgTable('corrective_actions', {
   id: uuid('id').primaryKey().defaultRandom(),
+  nodeId: uuid('node_id').references(() => workNodes.id, { onDelete: 'set null' }),
   inspectionId: uuid('inspection_id')
-    .notNull()
     .references(() => inspections.id, { onDelete: 'cascade' }),
-  inspectionTitle: text('inspection_title').notNull(),
+  inspectionTitle: text('inspection_title').notNull().default('Direct Finding'),
   projectId: uuid('project_id')
     .notNull()
     .references(() => projects.id, { onDelete: 'restrict' }),
@@ -361,31 +361,6 @@ export const evidenceAttachments = pgTable('evidence_attachments', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-export const punchlistItems = pgTable('punchlist_items', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  nodeId: uuid('node_id')
-    .notNull()
-    .references(() => workNodes.id, { onDelete: 'cascade' }),
-  stageId: uuid('stage_id')
-    .notNull()
-    .references(() => workStages.id, { onDelete: 'cascade' }),
-  attemptId: uuid('attempt_id')
-    .references(() => inspectionAttempts.id, { onDelete: 'set null' }),
-  issueDescription: text('issue_description').notNull(),
-  severity: text('severity').$type<ActionSeverity>().notNull().default('medium'),
-  creatorId: uuid('creator_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'restrict' }),
-  assigneeId: uuid('assignee_id')
-    .references(() => users.id, { onDelete: 'set null' }),
-  status: text('status').$type<'open' | 'in_progress' | 'rectified' | 'verified_closed'>().notNull().default('open'),
-  rectifiedAt: timestamp('rectified_at', { withTimezone: true }),
-  rectificationPhotoUrl: text('rectification_photo_url'),
-  verifiedClosedBy: uuid('verified_closed_by')
-    .references(() => users.id, { onDelete: 'set null' }),
-  verifiedClosedAt: timestamp('verified_closed_at', { withTimezone: true }),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
 
 export const plannedCurveOverrides = pgTable('planned_curve_overrides', {
   id: uuid('id').primaryKey().defaultRandom(),

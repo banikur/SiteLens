@@ -209,8 +209,9 @@ export type ActionStatus =
 
 export interface CorrectiveAction {
   id: string; // UUID
-  inspectionId: string; // UUID
-  inspectionTitle: string;
+  nodeId?: string | null; // Optional WBS Node UUID (linked finding triggers 99% lockout)
+  inspectionId?: string | null; // UUID
+  inspectionTitle?: string;
   projectId: string; // UUID
   projectName: string;
   siteZone: string;
