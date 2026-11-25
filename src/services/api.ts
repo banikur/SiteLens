@@ -339,8 +339,13 @@ export async function apiDeleteWbsNode(
         method: 'DELETE',
       }
     );
-  } catch {
     deleteDemoWbsNode(projectId, nodeId);
+  } catch (err: any) {
+    deleteDemoWbsNode(projectId, nodeId);
+    // If backend refused request with a specific message, surface it
+    if (err?.message && !err.message.includes('Failed to fetch') && !err.message.includes('503')) {
+      throw err;
+    }
   }
 }
 

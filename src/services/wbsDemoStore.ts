@@ -231,7 +231,18 @@ export function updateDemoWbsNode(projectId: string, nodeId: string, data: Parti
 
 export function deleteDemoWbsNode(projectId: string, nodeId: string): void {
   const allNodes = loadJson<WorkNode[]>(WBS_NODES_KEY, []);
-  const filtered = allNodes.filter((n) => n.id !== nodeId && n.parentId !== nodeId);
+  const toDelete = new Set<string>([nodeId]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const n of allNodes) {
+      if (n.parentId && toDelete.has(n.parentId) && !toDelete.has(n.id)) {
+        toDelete.add(n.id);
+        added = true;
+      }
+    }
+  }
+  const filtered = allNodes.filter((n) => !toDelete.has(n.id));
   saveJson(WBS_NODES_KEY, filtered);
 }
 

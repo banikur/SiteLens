@@ -1058,7 +1058,7 @@ apiRouter.delete(
   '/projects/:projectId/wbs/nodes/:nodeId',
   requireAuth,
   requireProjectAccess('projectId'),
-  requirePermission(PERMISSIONS.WBS_EDIT_STRUCTURE),
+  requirePermission([PERMISSIONS.WBS_EDIT_STRUCTURE, PERMISSIONS.WBS_EDIT_DETAIL]),
   async (req: Request, res: Response) => {
     const db = getDb();
     if (!db || !req.authUser) {
@@ -1069,7 +1069,7 @@ apiRouter.delete(
     const projectScopeId = String(req.params.projectId || '');
     const nodeScopeId = String(req.params.nodeId || '');
     const [existingNode] = await db
-      .select({ id: workNodes.id, name: workNodes.name, wbsCode: workNodes.wbsCode })
+      .select({ id: workNodes.id, name: workNodes.name, wbsCode: workNodes.wbsCode, parentId: workNodes.parentId })
       .from(workNodes)
       .where(and(eq(workNodes.id, nodeScopeId as any), eq(workNodes.projectId, projectScopeId as any)))
       .limit(1);
@@ -1079,14 +1079,47 @@ apiRouter.delete(
       return;
     }
 
-    await db.delete(workNodes).where(eq(workNodes.id, existingNode.id));
+    // Role check: users with only wbs.edit_detail can only delete sub-items (parentId !== null)
+    const userPerms = await resolveUserPermissions(req.authUser.id, projectScopeId);
+    const hasStructure =
+      userPerms.orgPermissions.has(PERMISSIONS.WBS_EDIT_STRUCTURE) ||
+      userPerms.projectPermissions.has(PERMISSIONS.WBS_EDIT_STRUCTURE);
+
+    if (!hasStructure && !existingNode.parentId) {
+      res.status(403).json({
+        error: 'Hanya Head Office / PMO dengan izin wbs.edit_structure yang dapat menghapus Node Tingkat Induk (Root).',
+      });
+      return;
+    }
+
+    // Recursively collect all descendant child node IDs to ensure clean cascade delete
+    const allProjectNodes = await db
+      .select({ id: workNodes.id, parentId: workNodes.parentId })
+      .from(workNodes)
+      .where(eq(workNodes.projectId, projectScopeId as any));
+
+    const toDeleteIds = new Set<string>([existingNode.id]);
+    let added = true;
+    while (added) {
+      added = false;
+      for (const n of allProjectNodes) {
+        if (n.parentId && toDeleteIds.has(n.parentId) && !toDeleteIds.has(n.id)) {
+          toDeleteIds.add(n.id);
+          added = true;
+        }
+      }
+    }
+
+    await db.delete(workNodes).where(inArray(workNodes.id, Array.from(toDeleteIds) as any));
+    await recalculateAndSaveNodeRollups(db, projectScopeId);
 
     await logAudit(req.authUser.id, req.authUser.name, 'DELETE_WBS_NODE', 'work_node', existingNode.id, {
       wbsCode: existingNode.wbsCode,
       name: existingNode.name,
+      deletedCount: toDeleteIds.size,
     });
 
-    res.json({ success: true, deletedId: existingNode.id });
+    res.json({ success: true, deletedId: existingNode.id, deletedCount: toDeleteIds.size });
   }
 );
 

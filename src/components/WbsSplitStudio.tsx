@@ -3,6 +3,9 @@ import {
   FolderTree,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
+  ChevronsDown,
+  ChevronsUp,
   Plus,
   Edit2,
   Trash2,
@@ -128,9 +131,11 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   const [inlineSaveSuccess, setInlineSaveSuccess] = useState(false);
   const [approvingDetailsLoading, setApprovingDetailsLoading] = useState(false);
 
-  // Drag and drop reparenting states
+  // Drag and drop reparenting & reordering states
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null);
+  const [dropPosition, setDropPosition] = useState<'before' | 'inside' | 'after' | null>(null);
+  const [activeDragHandleId, setActiveDragHandleId] = useState<string | null>(null);
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
   const [reparentingLoading, setReparentingLoading] = useState(false);
 
@@ -148,6 +153,8 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
     if (!draggedNodeId || draggedNodeId === targetParentId) {
       setDraggedNodeId(null);
       setDragOverNodeId(null);
+      setDropPosition(null);
+      setActiveDragHandleId(null);
       return;
     }
 
@@ -159,6 +166,8 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       // Already child of target
       setDraggedNodeId(null);
       setDragOverNodeId(null);
+      setDropPosition(null);
+      setActiveDragHandleId(null);
       return;
     }
 
@@ -166,13 +175,15 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       alert(`Tidak dapat memindahkan '${dragged.name}' ke dalam anaknya sendiri ('${targetParent.name}'). Siklus hierarki dilarang.`);
       setDraggedNodeId(null);
       setDragOverNodeId(null);
+      setDropPosition(null);
+      setActiveDragHandleId(null);
       return;
     }
 
     try {
       setReparentingLoading(true);
       await apiUpdateWbsNode(project.id, draggedNodeId, { parentId: targetParentId });
-      setWorkflowSuccess(`Hierarki berhasil diubah: '${dragged.name}' kini berada di bawah '${targetParent.name}'.`);
+      setWorkflowSuccess(`Hierarki berhasil diubah: '${dragged.name}' kini menjadi sub-item di bawah '${targetParent.name}'.`);
       await onRefreshWbs();
     } catch (err: any) {
       alert(err?.message || 'Gagal memindahkan posisi node.');
@@ -180,6 +191,81 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       setReparentingLoading(false);
       setDraggedNodeId(null);
       setDragOverNodeId(null);
+      setDropPosition(null);
+      setActiveDragHandleId(null);
+    }
+  };
+
+  const handleDropReorder = async (targetNodeId: string, position: 'before' | 'after') => {
+    if (!draggedNodeId || draggedNodeId === targetNodeId) {
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+      setDropPosition(null);
+      setActiveDragHandleId(null);
+      return;
+    }
+
+    const dragged = nodes.find((n) => n.id === draggedNodeId);
+    const target = nodes.find((n) => n.id === targetNodeId);
+    if (!dragged || !target) return;
+
+    if (checkIsDescendant(draggedNodeId, target.id)) {
+      alert(`Tidak dapat memindahkan '${dragged.name}' karena target adalah anak/keturunannya.`);
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+      setDropPosition(null);
+      setActiveDragHandleId(null);
+      return;
+    }
+
+    try {
+      setReparentingLoading(true);
+      const targetParentId = target.parentId ?? null;
+      const targetOrder = Number(target.sortOrder) || 0;
+      const newOrder = position === 'before' ? targetOrder - 1 : targetOrder + 1;
+
+      await apiUpdateWbsNode(project.id, draggedNodeId, {
+        parentId: targetParentId,
+        sortOrder: newOrder,
+      });
+
+      setWorkflowSuccess(`Urutan diperbarui: '${dragged.name}' dipindahkan ke ${position === 'before' ? 'sebelum' : 'setelah'} '${target.name}'.`);
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal mengubah urutan node.');
+    } finally {
+      setReparentingLoading(false);
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+      setDropPosition(null);
+      setIsDragOverRoot(false);
+      setActiveDragHandleId(null);
+    }
+  };
+
+  const handleMoveNodeOrder = async (node: WorkNode, direction: 'up' | 'down') => {
+    const siblings = nodes
+      .filter((n) => (n.parentId || null) === (node.parentId || null))
+      .sort((a, b) => (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0));
+
+    const idx = siblings.findIndex((s) => s.id === node.id);
+    if (idx < 0) return;
+    if (direction === 'up' && idx === 0) return;
+    if (direction === 'down' && idx === siblings.length - 1) return;
+
+    const swapTarget = direction === 'up' ? siblings[idx - 1] : siblings[idx + 1];
+    const currentOrder = Number(node.sortOrder) || idx;
+    const targetOrder = Number(swapTarget.sortOrder) || (direction === 'up' ? idx - 1 : idx + 1);
+
+    try {
+      setReparentingLoading(true);
+      await apiUpdateWbsNode(project.id, node.id, { sortOrder: targetOrder });
+      await apiUpdateWbsNode(project.id, swapTarget.id, { sortOrder: currentOrder });
+      await onRefreshWbs();
+    } catch (err: any) {
+      alert(err?.message || 'Gagal memindahkan urutan.');
+    } finally {
+      setReparentingLoading(false);
     }
   };
 
@@ -192,7 +278,9 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       // Already root
       setDraggedNodeId(null);
       setDragOverNodeId(null);
+      setDropPosition(null);
       setIsDragOverRoot(false);
+      setActiveDragHandleId(null);
       return;
     }
 
@@ -207,8 +295,24 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       setReparentingLoading(false);
       setDraggedNodeId(null);
       setDragOverNodeId(null);
+      setDropPosition(null);
       setIsDragOverRoot(false);
+      setActiveDragHandleId(null);
     }
+  };
+
+  const handleCollapseAll = () => {
+    const parentIds = new Set<string>();
+    for (const n of nodes) {
+      if (nodes.some((child) => child.parentId === n.id)) {
+        parentIds.add(n.id);
+      }
+    }
+    setCollapsedNodes(parentIds);
+  };
+
+  const handleExpandAll = () => {
+    setCollapsedNodes(new Set());
   };
 
   const canExecute = !isLoadingPerms && can(PERMISSIONS.STAGE_EXECUTE, project.id);
@@ -220,12 +324,17 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   const flatNodes = useMemo(() => flattenWbsTree(treeNodes), [treeNodes]);
   const weightValidation = useMemo(() => validateWbsWeights(nodes), [nodes]);
 
-  // Default selection to first node if none selected
+  // Keep selection valid when nodes are added, edited, or deleted
   useEffect(() => {
-    if (flatNodes.length > 0 && !selectedNodeId) {
-      setSelectedNodeId(flatNodes[0].id);
+    if (nodes.length > 0) {
+      if (!selectedNodeId || !nodes.some((n) => n.id === selectedNodeId)) {
+        const first = flatNodes[0]?.id || nodes[0]?.id;
+        setSelectedNodeId(first);
+      }
+    } else {
+      setSelectedNodeId(null);
     }
-  }, [flatNodes, selectedNodeId]);
+  }, [nodes, flatNodes, selectedNodeId]);
 
   const selectedNode = useMemo(() => {
     return nodes.find((n) => n.id === selectedNodeId) || (flatNodes.length > 0 ? flatNodes[0] : null);
@@ -483,6 +592,27 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
     );
   }, [flatNodes, searchQuery]);
 
+  // Filter out nodes whose ancestor is collapsed (unless searching)
+  const visibleFlatNodes = useMemo(() => {
+    if (searchQuery.trim()) return filteredFlatNodes;
+    if (collapsedNodes.size === 0) return filteredFlatNodes;
+
+    const hiddenParentIds = new Set<string>();
+    const visible: WbsTreeNode[] = [];
+
+    for (const node of filteredFlatNodes) {
+      if (node.parentId && hiddenParentIds.has(node.parentId)) {
+        hiddenParentIds.add(node.id);
+        continue;
+      }
+      if (collapsedNodes.has(node.id)) {
+        hiddenParentIds.add(node.id);
+      }
+      visible.push(node);
+    }
+    return visible;
+  }, [filteredFlatNodes, collapsedNodes, searchQuery]);
+
   // Compute node ancestors for breadcrumb
   const breadcrumbPath = useMemo(() => {
     if (!selectedNode) return [];
@@ -512,8 +642,26 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
             <div className="flex items-center space-x-2">
               <FolderTree className="w-4 h-4 text-slate-700" />
               <h3 className="text-xs font-bold text-slate-900 tracking-wide">
-                Struktur WBS ({nodes.length})
+                Rincian Pekerjaan ({nodes.length})
               </h3>
+              <div className="flex items-center space-x-0.5 pl-1">
+                <button
+                  type="button"
+                  onClick={handleExpandAll}
+                  className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-800 transition-colors"
+                  title="Buka Semua Rincian (Expand All)"
+                >
+                  <ChevronsDown className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCollapseAll}
+                  className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-800 transition-colors"
+                  title="Tutup Semua Rincian (Collapse All)"
+                >
+                  <ChevronsUp className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
             <div className="flex items-center space-x-1">
               {canEdit && (
@@ -531,7 +679,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                     type="button"
                     onClick={() => onAddNode('')}
                     className="px-2 py-0.5 text-[10px] font-bold rounded bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] shadow-2xs transition-colors flex items-center space-x-1"
-                    title="Tambah Node Tingkat Induk (Root)"
+                    title="Tambah Item Tingkat Induk (Root)"
                   >
                     <Plus className="w-3 h-3" />
                     <span>+ Induk</span>
@@ -575,27 +723,27 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                   : 'border-slate-300 bg-slate-50 text-slate-600 hover:border-slate-400'
               }`}
             >
-              <span>📦 Jatuhkan di sini untuk jadikan Node Tingkat Induk (Root)</span>
+              <span>📦 Jatuhkan di sini untuk jadikan Item Tingkat Induk (Root)</span>
             </div>
           )}
 
-          {filteredFlatNodes.length === 0 ? (
+          {visibleFlatNodes.length === 0 ? (
             <div className="py-16 text-center text-slate-400 space-y-2">
               <FolderTree className="w-8 h-8 mx-auto text-slate-300" />
               <p className="text-xs font-semibold text-slate-600">
-                {searchQuery ? 'Tidak ada node cocok.' : 'Belum ada struktur WBS.'}
+                {searchQuery ? 'Tidak ada rincian pekerjaan cocok.' : 'Belum ada rincian pekerjaan.'}
               </p>
               {canEdit && (
                 <button
                   onClick={() => onAddNode('')}
                   className="px-3 py-1.5 rounded-lg bg-[#d4f038] text-[#0b0e14] font-bold text-xs"
                 >
-                  + Buat Node Baru
+                  + Buat Item Baru
                 </button>
               )}
             </div>
           ) : (
-            filteredFlatNodes.map((node) => {
+            visibleFlatNodes.map((node) => {
               const hasChildren = node.children && node.children.length > 0;
               const isCollapsed = collapsedNodes.has(node.id);
               const isSelected = selectedNode?.id === node.id;
@@ -606,26 +754,65 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
               return (
                 <div
                   key={node.id}
+                  draggable={canEdit && activeDragHandleId === node.id}
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('text/plain', node.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    setDraggedNodeId(node.id);
+                  }}
+                  onDragEnd={() => {
+                    setDraggedNodeId(null);
+                    setDragOverNodeId(null);
+                    setDropPosition(null);
+                    setIsDragOverRoot(false);
+                    setActiveDragHandleId(null);
+                  }}
                   onDragOver={(e) => {
                     if (draggedNodeId && draggedNodeId !== node.id) {
                       e.preventDefault();
                       e.dataTransfer.dropEffect = 'move';
+
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const offsetY = e.clientY - rect.top;
+                      const height = rect.height;
+
+                      let pos: 'before' | 'inside' | 'after' = 'inside';
+                      if (offsetY < height * 0.28) {
+                        pos = 'before';
+                      } else if (offsetY > height * 0.72) {
+                        pos = 'after';
+                      } else {
+                        pos = 'inside';
+                      }
+
                       setDragOverNodeId(node.id);
+                      setDropPosition(pos);
                     }
                   }}
-                  onDragLeave={() => {
-                    if (dragOverNodeId === node.id) {
-                      setDragOverNodeId(null);
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                      if (dragOverNodeId === node.id) {
+                        setDragOverNodeId(null);
+                        setDropPosition(null);
+                      }
                     }
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    handleDropOnNode(node.id);
+                    if (dropPosition === 'inside') {
+                      handleDropOnNode(node.id);
+                    } else if (dropPosition === 'before' || dropPosition === 'after') {
+                      handleDropReorder(node.id, dropPosition);
+                    }
                   }}
                   onClick={() => setSelectedNodeId(node.id)}
                   className={`group px-2 py-1.5 rounded-lg cursor-pointer transition-all flex items-center justify-between gap-2 relative ${
-                    isDragOver
+                    isDragOver && dropPosition === 'inside'
                       ? 'border-2 border-amber-500 bg-amber-100/90 shadow-md ring-2 ring-amber-300 scale-[1.01]'
+                      : isDragOver && dropPosition === 'before'
+                      ? 'border-t-2 border-t-blue-600 bg-blue-50/80 border-x border-b border-transparent'
+                      : isDragOver && dropPosition === 'after'
+                      ? 'border-b-2 border-b-blue-600 bg-blue-50/80 border-x border-t border-transparent'
                       : isCurrentlyDragged
                       ? 'opacity-35 border-dashed border-slate-400 bg-slate-100'
                       : isSelected
@@ -634,26 +821,14 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                   }`}
                   style={{ marginLeft: `${node.level * 14}px` }}
                 >
-                  <div className="flex items-center space-x-1.5 overflow-hidden min-w-0">
-                    {/* 6-Dot Drag Handle Icon - ONLY dragging here starts drag & drop */}
+                  <div className={`flex items-center space-x-1.5 overflow-hidden min-w-0 ${draggedNodeId ? 'pointer-events-none' : ''}`}>
+                    {/* 6-Dot Drag Handle Icon - ONLY grabbing here activates row drag */}
                     {canEdit && (
                       <div
-                        draggable={canEdit}
-                        onDragStart={(e) => {
-                          e.stopPropagation();
-                          e.dataTransfer.setData('text/plain', node.id);
-                          e.dataTransfer.effectAllowed = 'move';
-                          setDraggedNodeId(node.id);
-                        }}
-                        onDragEnd={(e) => {
-                          e.stopPropagation();
-                          setDraggedNodeId(null);
-                          setDragOverNodeId(null);
-                          setIsDragOverRoot(false);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 p-0.5 rounded-sm shrink-0 transition-colors"
-                        title="Tarik handle 6-titik untuk memindahkan hierarki (Drag & Drop)"
+                        onMouseDown={() => setActiveDragHandleId(node.id)}
+                        onMouseUp={() => setActiveDragHandleId(null)}
+                        className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 p-0.5 rounded-sm shrink-0 transition-colors pointer-events-auto"
+                        title="Tarik handle 6-titik ini untuk memindahkan hierarki atau urutan (Drag & Drop)"
                       >
                         <GripVertical className="w-3.5 h-3.5" />
                       </div>
@@ -667,12 +842,13 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                           e.stopPropagation();
                           toggleCollapse(node.id);
                         }}
-                        className="p-0.5 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 shrink-0"
+                        className="p-0.5 rounded text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 shrink-0 pointer-events-auto"
+                        title={isCollapsed ? 'Buka sub-pekerjaan' : 'Tutup sub-pekerjaan'}
                       >
                         {isCollapsed ? (
-                          <ChevronRight className="w-3.5 h-3.5" />
+                          <ChevronRight className="w-3.5 h-3.5 text-amber-600 font-bold" />
                         ) : (
-                          <ChevronDown className="w-3.5 h-3.5" />
+                          <ChevronDown className="w-3.5 h-3.5 text-slate-600" />
                         )}
                       </button>
                     ) : (
@@ -718,15 +894,25 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                     )}
 
                     {/* Drop indication badge */}
-                    {isDragOver && (
+                    {isDragOver && dropPosition === 'inside' && (
                       <span className="ml-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 text-[9px] font-mono font-bold shrink-0 shadow-2xs">
                         ↪ Jadikan Sub-Pekerjaan
+                      </span>
+                    )}
+                    {isDragOver && dropPosition === 'before' && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[9px] font-mono font-bold shrink-0 shadow-2xs">
+                        ↑ Sisipkan di Atas
+                      </span>
+                    )}
+                    {isDragOver && dropPosition === 'after' && (
+                      <span className="ml-1 px-1.5 py-0.5 rounded bg-blue-600 text-white text-[9px] font-mono font-bold shrink-0 shadow-2xs">
+                        ↓ Sisipkan di Bawah
                       </span>
                     )}
                   </div>
 
                   {/* Right Meta in Row */}
-                  <div className="flex items-center space-x-2 shrink-0">
+                  <div className={`flex items-center space-x-2 shrink-0 ${draggedNodeId ? 'pointer-events-none' : ''}`}>
                     {/* Weight % */}
                     <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-1 rounded">
                       {Number(node.weightPercent).toFixed(1)}%
@@ -746,7 +932,29 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
 
                     {/* Hover Action Buttons */}
                     {canEdit && (
-                      <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveNodeOrder(node, 'up');
+                          }}
+                          className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-800 transition-colors"
+                          title="Geser posisi ke atas"
+                        >
+                          <ChevronUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMoveNodeOrder(node, 'down');
+                          }}
+                          className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-800 transition-colors"
+                          title="Geser posisi ke bawah"
+                        >
+                          <ChevronDown className="w-3 h-3" />
+                        </button>
                         <button
                           type="button"
                           onClick={(e) => {

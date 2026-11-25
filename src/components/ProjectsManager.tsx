@@ -475,10 +475,10 @@ export const ProjectsManager: React.FC<ProjectsManagerProps> = ({
                               type="button"
                               onClick={() => setSelectedProjectForStudio(prj)}
                               className="px-2.5 py-1 rounded-md bg-[#0b0e14] hover:bg-[#1b2230] text-[#d4f038] border border-slate-800 text-[11px] font-bold transition-colors flex items-center space-x-1 cursor-pointer shadow-2xs"
-                              title="Buka Studio Setup WBS, Bobot & Workflow"
+                              title="Buka Rincian Pekerjaan, Jadwal & Tahapan Mutu"
                             >
                               <FolderTree className="w-3 h-3 text-[#d4f038]" />
-                              <span>Setup WBS</span>
+                              <span>Rincian Pekerjaan</span>
                             </button>
                             <button
                               type="button"

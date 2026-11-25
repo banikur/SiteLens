@@ -339,7 +339,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               }`}
             >
               <FolderTree className="w-3.5 h-3.5" />
-              <span>1. WBS & Bobot</span>
+              <span>1. Rincian Pekerjaan</span>
             </button>
 
             <button
