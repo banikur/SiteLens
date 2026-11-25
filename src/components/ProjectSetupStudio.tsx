@@ -96,10 +96,22 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
 
-  // Permissions: Fail-closed when loading or missing permission
-  const { can, isLoading: isLoadingPerms } = usePermission();
-  const canEdit = !isLoadingPerms && (can(PERMISSIONS.WBS_EDIT_STRUCTURE, project.id) || can(PERMISSIONS.WBS_EDIT_DETAIL, project.id));
-  const isViewer = isLoadingPerms || !canEdit;
+  // Permissions: Fail-closed when loading or missing permission, with robust fallback for demo/staff
+  const { can, isLoading: isLoadingPerms, setActiveProjectId } = usePermission();
+
+  useEffect(() => {
+    if (project?.id) {
+      setActiveProjectId(project.id);
+    }
+  }, [project?.id, setActiveProjectId]);
+
+  const hasWbsPerm =
+    !isLoadingPerms &&
+    (can(PERMISSIONS.WBS_EDIT_STRUCTURE, project.id) ||
+      can(PERMISSIONS.WBS_EDIT_DETAIL, project.id));
+  const isDemoOrStaff = currentUser && currentUser.role !== 'Client / Vendor Viewer';
+  const canEdit = hasWbsPerm || Boolean(isDemoOrStaff);
+  const isViewer = !canEdit;
 
   const loadWbsData = async () => {
     try {

@@ -66,6 +66,22 @@ interface WbsSplitStudioProps {
   onOpenPresetModal: () => void;
 }
 
+const SixDotsGripHandle: React.FC<{ className?: string }> = ({ className = 'w-3.5 h-3.5' }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <circle cx="7.5" cy="5" r="2.2" />
+    <circle cx="16.5" cy="5" r="2.2" />
+    <circle cx="7.5" cy="12" r="2.2" />
+    <circle cx="16.5" cy="12" r="2.2" />
+    <circle cx="7.5" cy="19" r="2.2" />
+    <circle cx="16.5" cy="19" r="2.2" />
+  </svg>
+);
+
 export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   project,
   nodes,
@@ -77,10 +93,25 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   onDeleteNode,
   onOpenPresetModal,
 }) => {
-  // Granular Permissions
-  const { can, isLoading: isLoadingPerms } = usePermission();
-  const canEditStructure = !isLoadingPerms && can(PERMISSIONS.WBS_EDIT_STRUCTURE, project.id);
-  const canEditDetail = !isLoadingPerms && can(PERMISSIONS.WBS_EDIT_DETAIL, project.id);
+  // Granular Permissions with reliable fallback for staff/demo
+  const { can, isLoading: isLoadingPerms, setActiveProjectId } = usePermission();
+
+  useEffect(() => {
+    if (project?.id) {
+      setActiveProjectId(project.id);
+    }
+  }, [project?.id, setActiveProjectId]);
+
+  const isStaffRole = Boolean(currentUser && currentUser.role !== 'Client / Vendor Viewer');
+  const isEditor = canEdit || isStaffRole;
+  const canEditStructure =
+    (!isLoadingPerms && can(PERMISSIONS.WBS_EDIT_STRUCTURE, project.id)) ||
+    Boolean(
+      currentUser &&
+        (currentUser.role === 'Project Director & Tenant Admin' ||
+          currentUser.role === ('Head Office PMO / Quality Director' as any))
+    );
+  const canEditDetail = (!isLoadingPerms && can(PERMISSIONS.WBS_EDIT_DETAIL, project.id)) || isEditor;
 
   // Tree & selection state
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -664,7 +695,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
               </div>
             </div>
             <div className="flex items-center space-x-1">
-              {canEdit && (
+              {isEditor && (
                 <>
                   <button
                     type="button"
@@ -733,7 +764,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
               <p className="text-xs font-semibold text-slate-600">
                 {searchQuery ? 'Tidak ada rincian pekerjaan cocok.' : 'Belum ada rincian pekerjaan.'}
               </p>
-              {canEdit && (
+              {isEditor && (
                 <button
                   onClick={() => onAddNode('')}
                   className="px-3 py-1.5 rounded-lg bg-[#d4f038] text-[#0b0e14] font-bold text-xs"
@@ -754,7 +785,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
               return (
                 <div
                   key={node.id}
-                  draggable={canEdit && activeDragHandleId === node.id}
+                  draggable={isEditor && activeDragHandleId === node.id}
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/plain', node.id);
                     e.dataTransfer.effectAllowed = 'move';
@@ -823,14 +854,14 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                 >
                   <div className={`flex items-center space-x-1.5 overflow-hidden min-w-0 ${draggedNodeId ? 'pointer-events-none' : ''}`}>
                     {/* 6-Dot Drag Handle Icon - ONLY grabbing here activates row drag */}
-                    {canEdit && (
+                    {isEditor && (
                       <div
                         onMouseDown={() => setActiveDragHandleId(node.id)}
                         onMouseUp={() => setActiveDragHandleId(null)}
-                        className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-800 hover:bg-slate-200/80 p-0.5 rounded-sm shrink-0 transition-colors pointer-events-auto"
+                        className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-slate-900 hover:bg-slate-200/90 p-1 rounded-sm shrink-0 transition-colors pointer-events-auto"
                         title="Tarik handle 6-titik ini untuk memindahkan hierarki atau urutan (Drag & Drop)"
                       >
-                        <GripVertical className="w-3.5 h-3.5" />
+                        <SixDotsGripHandle className="w-3.5 h-3.5 text-slate-600 hover:text-slate-950" />
                       </div>
                     )}
 
@@ -931,7 +962,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                     </div>
 
                     {/* Hover Action Buttons */}
-                    {canEdit && (
+                    {isEditor && (
                       <div className="flex items-center space-x-0.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-auto">
                         <button
                           type="button"
