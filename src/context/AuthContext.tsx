@@ -4,6 +4,11 @@ import {
   fetchCurrentUserWithPermissions,
   type AuthenticatedUser,
 } from '../services/authClient';
+import {
+  savePermissionSnapshot,
+  getCachedPermissionSnapshot,
+  isSnapshotValid,
+} from '../services/authOffline';
 
 export interface AuthContextType {
   user: AuthenticatedUser | null;
@@ -46,16 +51,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
       if (res) {
         setUser(res.user);
         setGlobalPermissions(res.globalPermissions);
+        // Persist snapshot to IndexedDB for offline resilience
+        savePermissionSnapshot(res.user.id, res.globalPermissions).catch((e) =>
+          console.warn('[AuthContext] Failed to cache offline permission snapshot:', e)
+        );
       } else {
         setGlobalPermissions([]);
       }
     } catch (err) {
-      console.warn('[AuthContext] Failed to load global permissions:', err);
+      console.warn('[AuthContext] Failed to load global permissions from network:', err);
+      // Fallback: check 24-hour TTL offline permission snapshot in IndexedDB
+      const currentUserId = user?.id || initialUser?.id;
+      if (currentUserId) {
+        try {
+          const snapshot = await getCachedPermissionSnapshot(currentUserId);
+          if (snapshot && isSnapshotValid(snapshot)) {
+            console.info(
+              `[AuthContext] Using valid offline permission snapshot (expires at ${snapshot.expiresAt})`
+            );
+            setGlobalPermissions(snapshot.globalPermissions);
+            if (activeProjectId && snapshot.projectPermissions[activeProjectId]) {
+              setActiveProjectPermissions(snapshot.projectPermissions[activeProjectId]);
+            }
+            return;
+          } else if (snapshot) {
+            console.warn('[AuthContext] Offline permission snapshot expired (>24h). Denying access.');
+          }
+        } catch (snapErr) {
+          console.warn('[AuthContext] Error reading offline permission snapshot:', snapErr);
+        }
+      }
       setGlobalPermissions([]);
     } finally {
       setIsLoadingPermissions(false);
     }
-  }, []);
+  }, [user?.id, initialUser?.id, activeProjectId]);
 
   // Load project-specific permissions whenever activeProjectId changes
   const loadProjectPermissions = useCallback(async (projectId: string | null) => {
@@ -67,13 +97,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
       setIsLoadingPermissions(true);
       const perms = await apiGetMyProjectPermissions(projectId);
       setActiveProjectPermissions(perms);
+      // Cache project permissions into offline snapshot
+      const currentUserId = user?.id || initialUser?.id;
+      if (currentUserId) {
+        savePermissionSnapshot(currentUserId, globalPermissions, {
+          projectId,
+          permissions: perms,
+        }).catch((e) =>
+          console.warn('[AuthContext] Failed to update project offline permission snapshot:', e)
+        );
+      }
     } catch (err) {
-      console.warn(`[AuthContext] Failed to load permissions for project ${projectId}:`, err);
+      console.warn(`[AuthContext] Failed to load permissions for project ${projectId} from network:`, err);
+      // Fallback: read cached project permissions from IndexedDB snapshot
+      const currentUserId = user?.id || initialUser?.id;
+      if (currentUserId) {
+        try {
+          const snapshot = await getCachedPermissionSnapshot(currentUserId);
+          if (snapshot && isSnapshotValid(snapshot) && snapshot.projectPermissions[projectId]) {
+            console.info(`[AuthContext] Using cached offline permissions for project ${projectId}`);
+            setActiveProjectPermissions(snapshot.projectPermissions[projectId]);
+            return;
+          }
+        } catch (snapErr) {
+          console.warn('[AuthContext] Error reading project permissions snapshot:', snapErr);
+        }
+      }
       setActiveProjectPermissions([]);
     } finally {
       setIsLoadingPermissions(false);
     }
-  }, []);
+  }, [user?.id, initialUser?.id, globalPermissions]);
 
   useEffect(() => {
     loadGlobalPermissions();

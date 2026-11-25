@@ -1,4 +1,4 @@
-import { openDB, type DBSchema } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type {
   ChecklistTemplate,
   CorrectiveAction,
@@ -12,7 +12,7 @@ import {
   type UploadedEvidence,
 } from './api';
 
-interface PendingInspectionItem {
+export interface PendingInspectionItem {
   id: string;
   clientMutationId: string;
   record: InspectionRecord;
@@ -20,13 +20,24 @@ interface PendingInspectionItem {
   createdAt: string;
 }
 
-interface PendingPhotoItem {
+export interface PendingPhotoItem {
   id: string;
   blob: Blob;
   filename: string;
 }
 
-interface SiteLensOfflineDB extends DBSchema {
+export interface RejectedDraftItem {
+  id: string;
+  clientMutationId: string;
+  record: InspectionRecord;
+  failedItemsCount: number;
+  createdAt: string;
+  rejectedAt: string;
+  rejectionReason: string;
+  statusCode?: number;
+}
+
+export interface SiteLensOfflineDB extends DBSchema {
   cache: {
     key: string;
     value: {
@@ -44,13 +55,58 @@ interface SiteLensOfflineDB extends DBSchema {
     key: string;
     value: PendingInspectionItem;
   };
+  rejected_drafts: {
+    key: string;
+    value: RejectedDraftItem;
+  };
 }
 
-const DB_NAME = 'sitelens_offline_v1';
-const OFFLINE_PHOTO_PREFIX = 'offline-photo://';
+export const DB_NAME = 'sitelens_offline_v1';
+export const DB_VERSION = 2;
+export const OFFLINE_PHOTO_PREFIX = 'offline-photo://';
 
-function getOfflineDb() {
-  return openDB<SiteLensOfflineDB>(DB_NAME, 1, {
+export interface OfflineQueueApiHandlers {
+  uploadPhoto: (blob: Blob, filename: string) => Promise<UploadedEvidence>;
+  submitInspection: (record: InspectionRecord) => Promise<InspectionRecord>;
+  saveAction: (action: CorrectiveAction) => Promise<CorrectiveAction>;
+}
+
+let defaultApiHandlers: OfflineQueueApiHandlers = {
+  uploadPhoto: uploadEvidencePhotoDetailed,
+  submitInspection: apiSubmitInspection,
+  saveAction: apiSaveAction,
+};
+
+let activeApiHandlers: OfflineQueueApiHandlers = { ...defaultApiHandlers };
+
+/**
+ * Allows overriding API handlers for tests or specialized environments.
+ */
+export function setOfflineQueueApiHandlers(handlers: Partial<OfflineQueueApiHandlers> | null): void {
+  if (!handlers) {
+    activeApiHandlers = { ...defaultApiHandlers };
+  } else {
+    activeApiHandlers = {
+      ...activeApiHandlers,
+      ...handlers,
+    };
+  }
+}
+
+let customDbInstance: IDBPDatabase<SiteLensOfflineDB> | null = null;
+
+/**
+ * Allows injection of a custom DB instance (useful for unit tests and environments without global indexedDB).
+ */
+export function setCustomOfflineDb(db: IDBPDatabase<SiteLensOfflineDB> | null): void {
+  customDbInstance = db;
+}
+
+export function getOfflineDb(): Promise<IDBPDatabase<SiteLensOfflineDB>> {
+  if (customDbInstance) {
+    return Promise.resolve(customDbInstance);
+  }
+  return openDB<SiteLensOfflineDB>(DB_NAME, DB_VERSION, {
     upgrade(db) {
       if (!db.objectStoreNames.contains('cache')) {
         db.createObjectStore('cache', { keyPath: 'key' });
@@ -60,6 +116,9 @@ function getOfflineDb() {
       }
       if (!db.objectStoreNames.contains('pending_inspections')) {
         db.createObjectStore('pending_inspections', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('rejected_drafts')) {
+        db.createObjectStore('rejected_drafts', { keyPath: 'id' });
       }
     },
   });
@@ -97,6 +156,11 @@ export async function queueOfflinePhoto(blob: Blob, filename: string): Promise<s
   return `${OFFLINE_PHOTO_PREFIX}${id}`;
 }
 
+export async function getPendingPhotos(): Promise<PendingPhotoItem[]> {
+  const db = await getOfflineDb();
+  return db.getAll('pending_photos');
+}
+
 export async function queueOfflineInspection(
   record: InspectionRecord,
   failedItemsCount: number
@@ -117,13 +181,60 @@ export async function queueOfflineInspection(
   return enrichedRecord;
 }
 
+export async function getPendingInspections(): Promise<PendingInspectionItem[]> {
+  const db = await getOfflineDb();
+  return db.getAll('pending_inspections');
+}
+
 export async function getPendingSyncCount(): Promise<number> {
   const db = await getOfflineDb();
   return db.count('pending_inspections');
 }
 
+/**
+ * Manages rejected / orphaned drafts (due to 401/403 permission revocation)
+ */
+export async function getRejectedDrafts(): Promise<RejectedDraftItem[]> {
+  const db = await getOfflineDb();
+  return db.getAll('rejected_drafts');
+}
+
+export async function retryRejectedDraft(id: string): Promise<boolean> {
+  const db = await getOfflineDb();
+  const item = await db.get('rejected_drafts', id);
+  if (!item) return false;
+
+  await db.put('pending_inspections', {
+    id: item.id,
+    clientMutationId: item.clientMutationId,
+    record: item.record,
+    failedItemsCount: item.failedItemsCount,
+    createdAt: item.createdAt,
+  });
+  await db.delete('rejected_drafts', id);
+  return true;
+}
+
+export async function deleteRejectedDraft(id: string): Promise<void> {
+  const db = await getOfflineDb();
+  await db.delete('rejected_drafts', id);
+}
+
+export async function exportRejectedDraftsAsJson(): Promise<string> {
+  const drafts = await getRejectedDrafts();
+  return JSON.stringify(drafts, null, 2);
+}
+
+/**
+ * Synchronizes offline inspections and photos with the server.
+ * Guarantees:
+ * 1. Zero Photo Data Loss: pending photos are NEVER deleted until server submission succeeds.
+ * 2. UUID v4 standard for corrective actions.
+ * 3. 401/403 Isolation: drafts rejected due to revoked permissions are moved to 'rejected_drafts'
+ *    without blocking subsequent items in the queue.
+ */
 export async function syncOfflineQueue(): Promise<{ synced: number; failed: number }> {
-  if (!navigator.onLine) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     return { synced: 0, failed: 0 };
   }
 
@@ -133,6 +244,8 @@ export async function syncOfflineQueue(): Promise<{ synced: number; failed: numb
   let failed = 0;
 
   for (const item of pending) {
+    const uploadedPhotoIds: string[] = [];
+
     try {
       const urlMap = new Map<string, string>();
       const integrityMap = new Map<string, UploadedEvidence['integrity']>();
@@ -148,11 +261,11 @@ export async function syncOfflineQueue(): Promise<{ synced: number; failed: numb
           if (!uploadedUrl) {
             const stored = await db.get('pending_photos', photoId);
             if (stored) {
-              const uploaded = await uploadEvidencePhotoDetailed(stored.blob, stored.filename);
+              const uploaded = await activeApiHandlers.uploadPhoto(stored.blob, stored.filename);
               uploadedUrl = uploaded.url;
               urlMap.set(photoId, uploadedUrl);
               integrityMap.set(photoId, uploaded.integrity);
-              await db.delete('pending_photos', photoId);
+              uploadedPhotoIds.push(photoId); // Record ID for deferred deletion upon successful submit
             }
           }
           if (uploadedUrl) {
@@ -193,11 +306,11 @@ export async function syncOfflineQueue(): Promise<{ synced: number; failed: numb
         evidencePhotos: updatedPhotos,
       };
 
-      const savedRecord = await apiSubmitInspection(payload);
+      const savedRecord = await activeApiHandlers.submitInspection(payload);
 
       if (item.failedItemsCount > 0) {
         const newAction: CorrectiveAction = {
-          id: `act-${Math.floor(100 + Math.random() * 900)}`,
+          id: crypto.randomUUID(), // Standard UUID v4
           inspectionId: savedRecord.id,
           inspectionTitle: savedRecord.templateTitle,
           projectId: savedRecord.projectId,
@@ -215,17 +328,53 @@ export async function syncOfflineQueue(): Promise<{ synced: number; failed: numb
           createdAt: new Date().toISOString(),
           evidencePhotoUrl: savedRecord.evidencePhotos[0]?.url,
         };
-        await apiSaveAction(newAction);
+        await activeApiHandlers.saveAction(newAction);
+      }
+
+      // 2. Submission succeeded 100%: now safe to delete uploaded photos from pending_photos
+      for (const photoId of uploadedPhotoIds) {
+        await db.delete('pending_photos', photoId);
       }
 
       await db.delete('pending_inspections', item.id);
       synced += 1;
-    } catch (err) {
-      console.error('Failed to sync offline inspection:', item.id, err);
+    } catch (err: any) {
+      const statusCode =
+        err?.status ??
+        err?.statusCode ??
+        err?.response?.status ??
+        (err?.message?.includes('401') ? 401 : err?.message?.includes('403') ? 403 : undefined);
+
+      const isAuthError =
+        statusCode === 401 ||
+        statusCode === 403 ||
+        /401|403|unauthorized|forbidden/i.test(err?.message || '');
+
+      if (isAuthError) {
+        console.warn(
+          `[offlineQueue] Inspection ${item.id} rejected with auth error (${statusCode}). Isolating to rejected_drafts.`
+        );
+        const rejectedItem: RejectedDraftItem = {
+          id: item.id,
+          clientMutationId: item.clientMutationId,
+          record: item.record,
+          failedItemsCount: item.failedItemsCount,
+          createdAt: item.createdAt,
+          rejectedAt: new Date().toISOString(),
+          rejectionReason:
+            err?.message ||
+            (statusCode === 403 ? 'Forbidden: Permission revoked' : 'Unauthorized: Session expired'),
+          statusCode: statusCode,
+        };
+        await db.put('rejected_drafts', rejectedItem);
+        await db.delete('pending_inspections', item.id);
+      } else {
+        console.error('Failed to sync offline inspection:', item.id, err);
+      }
+
       failed += 1;
     }
   }
 
   return { synced, failed };
 }
-

@@ -8,6 +8,7 @@ import type {
   User,
 } from '../types';
 import { generateDefaultStages, canProceedToStage, validateFourEyes } from '../utils/workflow';
+import { saveOfflineWbsAttempt } from './wbsOfflineStore';
 
 const WBS_NODES_KEY = 'sitelens_demo_wbs_nodes_v1';
 const WBS_WORKFLOWS_KEY = 'sitelens_demo_wbs_workflows_v1';
@@ -446,6 +447,7 @@ export function submitDemoStageAttempt(
   allStages[stageIndex] = updatedStage;
   saveJson(WBS_STAGES_KEY, allStages);
   saveJson(WBS_ATTEMPTS_KEY, [newAttempt, ...allAttempts]);
+  saveOfflineWbsAttempt(newAttempt).catch(() => {});
 
   return {
     attempt: newAttempt,
@@ -498,6 +500,7 @@ export function reviewDemoStageAttempt(
 
   saveJson(WBS_STAGES_KEY, allStages);
   saveJson(WBS_ATTEMPTS_KEY, updatedAttempts);
+  saveOfflineWbsAttempt(updatedAttempt).catch(() => {});
 
   // If approved, increment verified progress on the associated node
   const allWorkflows = loadJson<WorkWorkflow[]>(WBS_WORKFLOWS_KEY, []);
