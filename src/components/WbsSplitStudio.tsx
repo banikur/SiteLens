@@ -46,6 +46,9 @@ import {
   apiAddWbsStage,
   apiUpdateWbsStage,
   apiDeleteWbsStage,
+  apiGetNodeProgressLogs,
+  apiDeleteNodeProgressLog,
+  type WbsProgressLog,
 } from '../services/api';
 import {
   buildWbsTree,
@@ -168,6 +171,11 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   const [approvingDetailsLoading, setApprovingDetailsLoading] = useState(false);
   const [claimProgressDraft, setClaimProgressDraft] = useState<number>(0);
   const [savingProgressClaim, setSavingProgressClaim] = useState(false);
+  const [progressLogs, setProgressLogs] = useState<WbsProgressLog[]>([]);
+  const [loadingProgressLogs, setLoadingProgressLogs] = useState(false);
+  const [claimModalOpen, setClaimModalOpen] = useState(false);
+  const [claimModalDate, setClaimModalDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [claimModalNotes, setClaimModalNotes] = useState('');
   const [togglingStrict, setTogglingStrict] = useState(false);
   const [newStageName, setNewStageName] = useState('');
   const [newStageType, setNewStageType] = useState<'work' | 'hold' | 'review'>('work');
@@ -411,19 +419,49 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
     }
   };
 
-  const handleSaveClaimProgress = async () => {
+  const loadProgressLogs = async (nodeId: string) => {
+    try {
+      setLoadingProgressLogs(true);
+      const res = await apiGetNodeProgressLogs(project.id, nodeId);
+      setProgressLogs(res.logs || []);
+    } catch {
+      setProgressLogs([]);
+    } finally {
+      setLoadingProgressLogs(false);
+    }
+  };
+
+  const handleSaveClaimProgress = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!selectedNode) return;
     try {
       setSavingProgressClaim(true);
       await apiUpdateWbsNode(project.id, selectedNode.id, {
         claimedProgressPercent: claimProgressDraft,
+        progressDate: claimModalDate || new Date().toISOString().slice(0, 10),
+        progressNotes: claimModalNotes.trim() || null,
       });
-      setWorkflowSuccess(`Klaim progres '${selectedNode.name}' disimpan (${claimProgressDraft}%).`);
-      await onRefreshWbs();
+      setClaimModalOpen(false);
+      setClaimModalNotes('');
+      setWorkflowSuccess(
+        `Log progres '${selectedNode.name}' (${claimProgressDraft}% pada ${claimModalDate}) berhasil dicatat.`
+      );
+      await Promise.all([loadProgressLogs(selectedNode.id), onRefreshWbs()]);
     } catch (err: any) {
-      alert(err?.message || 'Gagal menyimpan klaim progres.');
+      alert(err?.message || 'Gagal menyimpan log klaim progres.');
     } finally {
       setSavingProgressClaim(false);
+    }
+  };
+
+  const handleDeleteProgressLog = async (logId: string) => {
+    if (!selectedNode) return;
+    if (!confirm('Hapus catatan log progres ini?')) return;
+    try {
+      await apiDeleteNodeProgressLog(project.id, selectedNode.id, logId);
+      await Promise.all([loadProgressLogs(selectedNode.id), onRefreshWbs()]);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menghapus log progres.');
     }
   };
 
@@ -551,8 +589,9 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       setWorkflowSuccess(null);
       setWorkflowError(null);
 
-      // Load workflow for selected node
+      // Load workflow & direct progress logs for selected node
       loadWorkflow(selectedNode.id);
+      loadProgressLogs(selectedNode.id);
     }
   }, [selectedNode?.id]);
 
@@ -1426,10 +1465,14 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       <button
                         type="button"
                         disabled={savingProgressClaim}
-                        onClick={() => void handleSaveClaimProgress()}
+                        onClick={() => {
+                          setClaimModalDate(new Date().toISOString().slice(0, 10));
+                          setClaimModalNotes('');
+                          setClaimModalOpen(true);
+                        }}
                         className="px-2.5 py-1 rounded-md bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold text-[11px] shadow-2xs cursor-pointer disabled:opacity-50"
                       >
-                        {savingProgressClaim ? 'Menyimpan...' : 'Simpan Progres'}
+                        {savingProgressClaim ? 'Menyimpan...' : 'Catat Progres'}
                       </button>
                     </div>
                   )
@@ -1961,6 +2004,72 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       })}
                     </div>
                   )}
+
+                  {/* Riwayat Log Progres Langsung (Direct Progress Logs) */}
+                  {!selectedNode.requiresChecklist && (
+                    <div className="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-800">
+                          Riwayat Log Progres Langsung ({progressLogs.length})
+                        </span>
+                        {isEditor && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setClaimModalDate(new Date().toISOString().slice(0, 10));
+                              setClaimModalNotes('');
+                              setClaimModalOpen(true);
+                            }}
+                            className="text-[11px] font-semibold text-blue-700 hover:underline cursor-pointer"
+                          >
+                            + Catat Log Tanggal Baru
+                          </button>
+                        )}
+                      </div>
+                      {loadingProgressLogs ? (
+                        <div className="text-[11px] text-slate-400 py-2">Memuat riwayat progres...</div>
+                      ) : progressLogs.length === 0 ? (
+                        <div className="text-[11px] text-slate-400 py-1">
+                          Belum ada log progres bertanggal. Klik &quot;Catat Progres&quot; untuk mencatat progres sesuai tanggal lapangan agar Kurva S tidak menumpuk di satu hari.
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-slate-200/80 border border-slate-200 rounded-lg bg-white overflow-hidden">
+                          {progressLogs.map((log) => (
+                            <div key={log.id} className="px-3 py-2 flex items-center justify-between gap-3 text-xs">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center space-x-2">
+                                  <span className="font-mono text-[11px] font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                                    {String(log.recordedDate).slice(0, 10)}
+                                  </span>
+                                  <span className="font-bold text-emerald-700 tabular-nums">
+                                    {log.progressPercent}%
+                                  </span>
+                                  {log.recordedByName && (
+                                    <span className="text-[10px] text-slate-400 truncate">
+                                      oleh {log.recordedByName}
+                                    </span>
+                                  )}
+                                </div>
+                                {log.notes && (
+                                  <p className="text-[11px] text-slate-600 mt-0.5 truncate">{log.notes}</p>
+                                )}
+                              </div>
+                              {isEditor && (
+                                <button
+                                  type="button"
+                                  onClick={() => void handleDeleteProgressLog(log.id)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer shrink-0"
+                                  title="Hapus log progres"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2186,6 +2295,110 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
             stage={targetSigStage}
           />
         </>
+      )}
+
+      {/* Pop-up Modal Catat Log Progres Langsung */}
+      {claimModalOpen && selectedNode && (
+        <div className="fixed inset-0 z-50 bg-[#06090e]/75 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveClaimProgress}
+            className="bg-white rounded-xl border border-slate-200 shadow-2xl max-w-md w-full overflow-hidden text-xs"
+          >
+            <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm">Catat Progres Langsung</h3>
+                <p className="text-[11px] text-slate-500 truncate max-w-xs">
+                  {selectedNode.wbsCode} — {selectedNode.name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setClaimModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Tanggal Progres Lapangan
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={claimModalDate}
+                  onChange={(e) => setClaimModalDate(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-slate-900 focus:outline-hidden"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Kurva S akan membaca progres ini pada minggu sesuai tanggal yang dipilih.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Kumulatif Progres (%)
+                </label>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={claimProgressDraft}
+                    onChange={(e) => setClaimProgressDraft(Number(e.target.value))}
+                    className="flex-1 accent-slate-900 cursor-pointer"
+                  />
+                  <div className="flex items-center space-x-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      required
+                      value={claimProgressDraft}
+                      onChange={(e) =>
+                        setClaimProgressDraft(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
+                      }
+                      className="w-16 px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-bold text-right tabular-nums"
+                    />
+                    <span className="text-slate-500 font-semibold">%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Catatan / Keterangan Lapangan (Opsional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={claimModalNotes}
+                  onChange={(e) => setClaimModalNotes(e.target.value)}
+                  placeholder="Mis. Pengecoran kolom zona A selesai 25%"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-slate-900 focus:outline-hidden"
+                />
+              </div>
+            </div>
+
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setClaimModalOpen(false)}
+                className="px-3.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-100 cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={savingProgressClaim}
+                className="px-4 py-1.5 rounded-lg bg-[#d4f038] hover:bg-[#c4e820] text-[#0b0e14] font-bold shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                {savingProgressClaim ? 'Menyimpan...' : 'Simpan Log Progres'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
     </div>
   );

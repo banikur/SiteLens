@@ -319,10 +319,22 @@ export async function apiCreateWbsNode(
   }
 }
 
+export interface WbsProgressLog {
+  id: string;
+  projectId: string;
+  nodeId: string;
+  recordedDate: string;
+  progressPercent: number;
+  notes?: string | null;
+  recordedBy?: string | null;
+  recordedByName?: string | null;
+  createdAt: string;
+}
+
 export async function apiUpdateWbsNode(
   projectId: string,
   nodeId: string,
-  nodeData: Partial<WorkNode>
+  nodeData: Partial<WorkNode> & { progressDate?: string; progressNotes?: string | null }
 ): Promise<WorkNode> {
   try {
     const res = await apiJson<{ node: WorkNode }>(
@@ -333,9 +345,30 @@ export async function apiUpdateWbsNode(
       }
     );
     return res.node;
-  } catch {
+  } catch (err) {
+    if (err instanceof ApiHttpError) throw err;
     return updateDemoWbsNode(projectId, nodeId, nodeData);
   }
+}
+
+export async function apiGetNodeProgressLogs(
+  projectId: string,
+  nodeId: string
+): Promise<{ logs: WbsProgressLog[] }> {
+  return await apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/progress-logs`
+  );
+}
+
+export async function apiDeleteNodeProgressLog(
+  projectId: string,
+  nodeId: string,
+  logId: string
+): Promise<{ success: boolean }> {
+  return await apiJson(
+    `/api/projects/${encodeURIComponent(projectId)}/wbs/nodes/${encodeURIComponent(nodeId)}/progress-logs/${encodeURIComponent(logId)}`,
+    { method: 'DELETE' }
+  );
 }
 
 export async function apiDeleteWbsNode(

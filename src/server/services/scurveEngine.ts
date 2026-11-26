@@ -21,6 +21,14 @@ export interface SSOTWorkflowData {
   nodeId: string;
 }
 
+export interface SSOTProgressLogData {
+  id: string;
+  nodeId: string;
+  recordedDate: Date | string;
+  progressPercent: number;
+  createdAt?: Date | string | null;
+}
+
 export interface SSOTNodeData {
   id: string;
   parentId: string | null;
@@ -31,6 +39,7 @@ export interface SSOTNodeData {
   plannedEndDate?: Date | string | null;
   claimedProgressPercent?: number;
   verifiedProgressPercent?: number;
+  requiresChecklist?: boolean;
   detailingStatus?: 'active' | 'pending_pm_approval' | 'rejected' | string;
   updatedAt?: Date | string | null;
 }
@@ -57,6 +66,7 @@ export interface SSOTSCurveParams {
   }>;
   hasPunchlistOpenMap?: Map<string, boolean>;
   capaItems?: SSOTCapaData[];
+  progressLogs?: SSOTProgressLogData[];
   asOfDate?: Date;
 }
 
@@ -136,8 +146,28 @@ export function calculateSSOTSCurveData(params: SSOTSCurveParams): SCurveSummary
     overrides = [],
     hasPunchlistOpenMap = new Map(),
     capaItems = [],
+    progressLogs = [],
     asOfDate = new Date(),
   } = params;
+
+  // Group direct progress logs by nodeId (sorted ascending by recordedDate, then createdAt)
+  const nodeLogsMap = new Map<string, SSOTProgressLogData[]>();
+  for (const log of progressLogs) {
+    const list = nodeLogsMap.get(log.nodeId) || [];
+    list.push(log);
+    nodeLogsMap.set(log.nodeId, list);
+  }
+  for (const [nid, list] of nodeLogsMap.entries()) {
+    list.sort((a, b) => {
+      const da = new Date(`${String(a.recordedDate).slice(0, 10)}T00:00:00Z`).getTime();
+      const db = new Date(`${String(b.recordedDate).slice(0, 10)}T00:00:00Z`).getTime();
+      if (da !== db) return da - db;
+      const ca = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const cb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return ca - cb;
+    });
+    nodeLogsMap.set(nid, list);
+  }
 
   // Build override map: weekIndex -> overridePlannedCumulative
   const overrideMap = new Map<number, number>();
@@ -233,11 +263,28 @@ export function calculateSSOTSCurveData(params: SSOTSCurveParams): SCurveSummary
 
           leafClaimedPercent = (submittedStagesBeforeWeekEnd.length / leafStages.length) * 100;
         } else {
-          // Standalone task node without workflow stages: check updatedAt against week endDate
-          const nodeUpdatedTime = node.updatedAt ? new Date(node.updatedAt).getTime() : 0;
-          if (nodeUpdatedTime <= w.endDate.getTime()) {
-            leafVerifiedPercent = Number(node.verifiedProgressPercent) || 0;
-            leafClaimedPercent = Number(node.claimedProgressPercent) || 0;
+          // Standalone task node without workflow stages:
+          // Prefer historical direct progress logs per date so S-Curve shows real progression across weeks
+          const logsForNode = nodeLogsMap.get(node.id);
+          if (logsForNode && logsForNode.length > 0) {
+            const weekEndTime = w.endDate.getTime();
+            const logsUpToWeek = logsForNode.filter((l) => {
+              const logTs = new Date(`${String(l.recordedDate).slice(0, 10)}T23:59:59.999Z`).getTime();
+              return logTs <= weekEndTime;
+            });
+            if (logsUpToWeek.length > 0) {
+              const latestLog = logsUpToWeek[logsUpToWeek.length - 1];
+              const pct = Number(latestLog.progressPercent) || 0;
+              leafClaimedPercent = pct;
+              leafVerifiedPercent = node.requiresChecklist ? 0 : pct;
+            }
+          } else {
+            // Fallback for legacy standalone nodes without progress logs
+            const nodeUpdatedTime = node.updatedAt ? new Date(node.updatedAt).getTime() : 0;
+            if (nodeUpdatedTime <= w.endDate.getTime()) {
+              leafVerifiedPercent = Number(node.verifiedProgressPercent) || 0;
+              leafClaimedPercent = Number(node.claimedProgressPercent) || 0;
+            }
           }
         }
 

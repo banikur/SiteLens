@@ -473,5 +473,21 @@ export const roleAssignments = pgTable(
   ]
 );
 
+export const wbsProgressLogs = pgTable('wbs_progress_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  nodeId: uuid('node_id')
+    .notNull()
+    .references(() => workNodes.id, { onDelete: 'cascade' }),
+  recordedDate: date('recorded_date').notNull(),
+  progressPercent: integer('progress_percent').notNull(),
+  notes: text('notes'),
+  recordedBy: uuid('recorded_by').references(() => users.id, { onDelete: 'set null' }),
+  recordedByName: text('recorded_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 
 

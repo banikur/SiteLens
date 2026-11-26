@@ -24,6 +24,7 @@ import {
   rolePermissions,
   flowPresets,
   flowPresetSteps,
+  wbsProgressLogs,
 } from '../db/schema.ts';
 import { hashSecret } from '../auth/crypto.ts';
 import {
@@ -2011,6 +2012,22 @@ apiRouter.put(
       .where(eq(workNodes.id, existingNode.id))
       .returning();
 
+    if (body.claimedProgressPercent !== undefined) {
+      const recordedDateStr =
+        typeof body.progressDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.progressDate.trim())
+          ? body.progressDate.trim()
+          : new Date().toISOString().slice(0, 10);
+      await db.insert(wbsProgressLogs).values({
+        projectId: projectScopeId as any,
+        nodeId: updatedNode.id,
+        recordedDate: recordedDateStr,
+        progressPercent: Math.round(Number(body.claimedProgressPercent)),
+        notes: body.progressNotes ? String(body.progressNotes).trim() : null,
+        recordedBy: req.authUser.id as any,
+        recordedByName: req.authUser.name,
+      });
+    }
+
     await recalculateAndSaveNodeRollups(db, projectScopeId);
 
     await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_WBS_NODE', 'work_node', updatedNode.id, {
@@ -2021,6 +2038,99 @@ apiRouter.put(
     });
 
     res.json({ node: updatedNode });
+  }
+);
+
+apiRouter.get(
+  '/projects/:projectId/wbs/nodes/:nodeId/progress-logs',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+    const projectScopeId = String(req.params.projectId || '');
+    const nodeScopeId = String(req.params.nodeId || '');
+    const logs = await db
+      .select()
+      .from(wbsProgressLogs)
+      .where(
+        and(
+          eq(wbsProgressLogs.projectId, projectScopeId as any),
+          eq(wbsProgressLogs.nodeId, nodeScopeId as any)
+        )
+      )
+      .orderBy(desc(wbsProgressLogs.recordedDate), desc(wbsProgressLogs.createdAt));
+
+    res.json({ logs });
+  }
+);
+
+apiRouter.delete(
+  '/projects/:projectId/wbs/nodes/:nodeId/progress-logs/:logId',
+  requireAuth,
+  requireProjectAccess('projectId'),
+  requirePermission([PERMISSIONS.WBS_EDIT_STRUCTURE, PERMISSIONS.WBS_EDIT_DETAIL]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+    const projectScopeId = String(req.params.projectId || '');
+    const nodeScopeId = String(req.params.nodeId || '');
+    const logId = String(req.params.logId || '');
+
+    const [deleted] = await db
+      .delete(wbsProgressLogs)
+      .where(
+        and(
+          eq(wbsProgressLogs.id, logId as any),
+          eq(wbsProgressLogs.projectId, projectScopeId as any),
+          eq(wbsProgressLogs.nodeId, nodeScopeId as any)
+        )
+      )
+      .returning();
+
+    if (!deleted) {
+      res.status(404).json({ error: 'Log progres tidak ditemukan.' });
+      return;
+    }
+
+    const remaining = await db
+      .select()
+      .from(wbsProgressLogs)
+      .where(
+        and(
+          eq(wbsProgressLogs.projectId, projectScopeId as any),
+          eq(wbsProgressLogs.nodeId, nodeScopeId as any)
+        )
+      )
+      .orderBy(desc(wbsProgressLogs.recordedDate), desc(wbsProgressLogs.createdAt))
+      .limit(1);
+
+    const [nodeRow] = await db
+      .select()
+      .from(workNodes)
+      .where(eq(workNodes.id, nodeScopeId as any))
+      .limit(1);
+
+    if (nodeRow) {
+      const latestPct = remaining[0]?.progressPercent ?? 0;
+      await db
+        .update(workNodes)
+        .set({
+          claimedProgressPercent: latestPct,
+          verifiedProgressPercent: nodeRow.requiresChecklist ? nodeRow.verifiedProgressPercent : latestPct,
+          updatedAt: new Date(),
+        })
+        .where(eq(workNodes.id, nodeRow.id));
+      await recalculateAndSaveNodeRollups(db, projectScopeId);
+    }
+
+    res.json({ success: true });
   }
 );
 
@@ -3579,6 +3689,17 @@ apiRouter.get(
       }
     }
 
+    const projectProgressLogs = await db
+      .select({
+        id: wbsProgressLogs.id,
+        nodeId: wbsProgressLogs.nodeId,
+        recordedDate: wbsProgressLogs.recordedDate,
+        progressPercent: wbsProgressLogs.progressPercent,
+        createdAt: wbsProgressLogs.createdAt,
+      })
+      .from(wbsProgressLogs)
+      .where(eq(wbsProgressLogs.projectId, targetProject.id));
+
     const scurve = calculateSSOTSCurveData({
       projectId: targetProject.id,
       projectName: targetProject.name,
@@ -3589,6 +3710,7 @@ apiRouter.get(
       overrides,
       hasPunchlistOpenMap: openLockoutMap,
       capaItems: projectCapa,
+      progressLogs: projectProgressLogs,
       asOfDate: new Date(),
     });
 

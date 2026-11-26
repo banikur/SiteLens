@@ -87,6 +87,12 @@ export const MUTATION_ROUTES: MutationRouteSpec[] = [
     requiredPermissions: [PERMISSIONS.WBS_EDIT_STRUCTURE],
   },
   {
+    name: 'DELETE /projects/:projectId/wbs/nodes/:nodeId/progress-logs/:logId',
+    method: 'DELETE',
+    path: `/api/projects/${PRJ_A_ID}/wbs/nodes/${NODE_A_ID}/progress-logs/00000000-0000-4000-8000-000000000099`,
+    requiredPermissions: [PERMISSIONS.WBS_EDIT_STRUCTURE, PERMISSIONS.WBS_EDIT_DETAIL],
+  },
+  {
     name: 'POST /projects/:projectId/wbs/apply-preset',
     method: 'POST',
     path: `/api/projects/${PRJ_PRESET_ID}/wbs/apply-preset`,
