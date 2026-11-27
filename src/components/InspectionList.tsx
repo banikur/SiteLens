@@ -12,6 +12,7 @@ import { InspectionRecord, Project, InspectionStatus } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { exportFilledInspectionPdf } from '../utils/pdfGenerator';
 import { getStoredTemplates } from '../services/storage';
+import { escapeCsvCell } from '../utils/sanitize';
 
 interface InspectionListProps {
   inspections: InspectionRecord[];
@@ -60,16 +61,16 @@ export const InspectionList: React.FC<InspectionListProps> = ({
     ];
 
     const rows = filtered.map((i) => [
-      i.id,
-      `"${i.templateTitle.replace(/"/g, '""')}"`,
-      i.category,
-      `"${i.projectName.replace(/"/g, '""')}"`,
-      `"${i.siteZone.replace(/"/g, '""')}"`,
-      `"${i.inspectorName}"`,
-      i.inspectorRole,
-      `${i.scorePercent}%`,
-      i.status,
-      i.submittedAt || i.createdAt,
+      escapeCsvCell(i.id),
+      escapeCsvCell(i.templateTitle),
+      escapeCsvCell(i.category),
+      escapeCsvCell(i.projectName),
+      escapeCsvCell(i.siteZone),
+      escapeCsvCell(i.inspectorName),
+      escapeCsvCell(i.inspectorRole),
+      escapeCsvCell(`${i.scorePercent}%`),
+      escapeCsvCell(i.status),
+      escapeCsvCell(i.submittedAt || i.createdAt),
     ]);
 
     const csvContent =

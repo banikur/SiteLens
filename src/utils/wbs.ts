@@ -267,3 +267,127 @@ export function isNodeInAllowedDetailingSubtree(
 
   return false;
 }
+
+export interface CpmNodeResult {
+  earlyStart: number;
+  earlyFinish: number;
+  lateStart: number;
+  lateFinish: number;
+  totalFloat: number;
+  isCritical: boolean;
+}
+
+/**
+ * Critical Path Method (CPM) engine for WBS nodes with Finish-to-Start dependencies.
+ * Detects dependency cycles via Kahn's topological sort and computes forward/backward passes.
+ */
+export function computeWbsCriticalPath(nodes: WorkNode[]): {
+  hasCycle: boolean;
+  cycleNodeIds: string[];
+  criticalNodeIds: Set<string>;
+  scheduleMap: Record<string, CpmNodeResult>;
+} {
+  const nodeMap = new Map<string, WorkNode>();
+  const durationMap = new Map<string, number>();
+  const inDegree = new Map<string, number>();
+  const dependents = new Map<string, Array<{ targetId: string; lagDays: number }>>();
+  const predsMap = new Map<string, Array<{ sourceId: string; lagDays: number }>>();
+
+  for (const n of nodes) {
+    nodeMap.set(n.id, n);
+    inDegree.set(n.id, 0);
+    dependents.set(n.id, []);
+    predsMap.set(n.id, []);
+
+    if (n.isMilestone) {
+      durationMap.set(n.id, 0);
+    } else if (n.plannedStartDate && n.plannedEndDate) {
+      const days = Math.ceil(
+        (new Date(n.plannedEndDate).getTime() - new Date(n.plannedStartDate).getTime()) / 86400000
+      );
+      durationMap.set(n.id, Math.max(1, days));
+    } else {
+      durationMap.set(n.id, 1);
+    }
+  }
+
+  for (const n of nodes) {
+    for (const pred of n.predecessorIds || []) {
+      if (!nodeMap.has(pred.nodeId) || pred.nodeId === n.id) {
+        if (pred.nodeId === n.id) {
+          return { hasCycle: true, cycleNodeIds: [n.id], criticalNodeIds: new Set(), scheduleMap: {} };
+        }
+        continue;
+      }
+      const lag = Number(pred.lagDays) || 0;
+      dependents.get(pred.nodeId)!.push({ targetId: n.id, lagDays: lag });
+      predsMap.get(n.id)!.push({ sourceId: pred.nodeId, lagDays: lag });
+      inDegree.set(n.id, (inDegree.get(n.id) || 0) + 1);
+    }
+  }
+
+  const queue: string[] = [];
+  for (const [id, deg] of inDegree.entries()) {
+    if (deg === 0) queue.push(id);
+  }
+
+  const topoOrder: string[] = [];
+  while (queue.length > 0) {
+    const id = queue.shift()!;
+    topoOrder.push(id);
+    for (const edge of dependents.get(id) || []) {
+      const nextDeg = (inDegree.get(edge.targetId) || 0) - 1;
+      inDegree.set(edge.targetId, nextDeg);
+      if (nextDeg === 0) queue.push(edge.targetId);
+    }
+  }
+
+  if (topoOrder.length !== nodes.length) {
+    const cycleNodeIds = nodes.filter((n) => !topoOrder.includes(n.id)).map((n) => n.id);
+    return { hasCycle: true, cycleNodeIds, criticalNodeIds: new Set(), scheduleMap: {} };
+  }
+
+  const es = new Map<string, number>();
+  const ef = new Map<string, number>();
+  for (const id of topoOrder) {
+    let start = 0;
+    for (const pred of predsMap.get(id) || []) {
+      start = Math.max(start, (ef.get(pred.sourceId) || 0) + pred.lagDays);
+    }
+    const dur = durationMap.get(id) || 0;
+    es.set(id, start);
+    ef.set(id, start + dur);
+  }
+
+  const projectEnd = Math.max(0, ...Array.from(ef.values()));
+  const ls = new Map<string, number>();
+  const lf = new Map<string, number>();
+  for (let i = topoOrder.length - 1; i >= 0; i--) {
+    const id = topoOrder[i];
+    const outs = dependents.get(id) || [];
+    let finish = projectEnd;
+    if (outs.length > 0) {
+      finish = Math.min(...outs.map((o) => (ls.get(o.targetId) ?? projectEnd) - o.lagDays));
+    }
+    const dur = durationMap.get(id) || 0;
+    lf.set(id, finish);
+    ls.set(id, finish - dur);
+  }
+
+  const scheduleMap: Record<string, CpmNodeResult> = {};
+  const criticalNodeIds = new Set<string>();
+  const hasAnyDeps = nodes.some((n) => (n.predecessorIds?.length || 0) > 0);
+
+  for (const id of topoOrder) {
+    const earlyStart = es.get(id) || 0;
+    const earlyFinish = ef.get(id) || 0;
+    const lateStart = ls.get(id) || 0;
+    const lateFinish = lf.get(id) || 0;
+    const totalFloat = lateStart - earlyStart;
+    const isCritical = hasAnyDeps && totalFloat <= 0;
+    if (isCritical) criticalNodeIds.add(id);
+    scheduleMap[id] = { earlyStart, earlyFinish, lateStart, lateFinish, totalFloat, isCritical };
+  }
+
+  return { hasCycle: false, cycleNodeIds: [], criticalNodeIds, scheduleMap };
+}

@@ -13,6 +13,7 @@ import { apiRouter } from './src/server/routes/api.ts';
 import { uploadsRouter } from './src/server/routes/uploads.ts';
 import { notificationsRouter } from './src/server/routes/notifications.ts';
 import { tenantRouter } from './src/server/routes/tenant.ts';
+import { projectControlRouter } from './src/server/routes/projectControl.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -130,6 +131,7 @@ async function startServer() {
   app.use('/api/uploads', uploadsRouter);
   app.use('/api/notifications', notificationsRouter);
   app.use('/api/tenant', tenantRouter);
+  app.use('/api', projectControlRouter);
   app.use('/api', apiRouter);
 
   app.get('/api/health', async (_req, res) => {

@@ -321,6 +321,10 @@ export const workNodes = pgTable('work_nodes', {
   detailingStatus: text('detailing_status').$type<'active' | 'pending_pm_approval' | 'rejected'>().notNull().default('active'),
   volume: numeric('volume', { precision: 12, scale: 2 }),
   unit: text('unit'),
+  isMilestone: boolean('is_milestone').notNull().default(false),
+  isUnplanned: boolean('is_unplanned').notNull().default(false),
+  predecessorIds: jsonb('predecessor_ids').$type<Array<{ nodeId: string; lagDays?: number }>>().notNull().default([]),
+  provisionalStatus: text('provisional_status').$type<'confirmed' | 'pending_vo'>().notNull().default('confirmed'),
   sortOrder: integer('sort_order').notNull().default(0),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -500,6 +504,76 @@ export const wbsProgressLogs = pgTable('wbs_progress_logs', {
   notes: text('notes'),
   recordedBy: uuid('recorded_by').references(() => users.id, { onDelete: 'set null' }),
   recordedByName: text('recorded_by_name'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ---------------- PROJECT DESK ADAPTATIONS: CALENDAR, BASELINES, VARIATION ORDERS ----------------
+
+export const nationalHolidays = pgTable('national_holidays', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  holidayDate: text('holiday_date').notNull().unique(), // YYYY-MM-DD
+  name: text('name').notNull(),
+  year: integer('year').notNull(),
+  isNational: boolean('is_national').notNull().default(true),
+  source: text('source').notNull().default('tanggalans.com'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const projectCalendars = pgTable('project_calendars', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .unique()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  workStartHour: text('work_start_hour').notNull().default('08:00'),
+  workEndHour: text('work_end_hour').notNull().default('17:00'),
+  saturdayMode: text('saturday_mode').$type<'non_working' | 'half_day' | 'full_working'>().notNull().default('non_working'),
+  sundayMode: text('sunday_mode').$type<'non_working' | 'half_day' | 'full_working'>().notNull().default('non_working'),
+  holidayOverrides: jsonb('holiday_overrides').$type<Record<string, 'working' | 'non_working'>>().notNull().default({}),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const baselineSnapshots = pgTable('baseline_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  version: integer('version').notNull().default(1),
+  label: text('label').notNull(),
+  curvePoints: jsonb('curve_points').$type<Array<{ weekIndex: number; targetCumulative: number }>>().notNull().default([]),
+  createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const variationOrders = pgTable('variation_orders', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id')
+    .notNull()
+    .references(() => projects.id, { onDelete: 'cascade' }),
+  voNumber: text('vo_number').notNull(),
+  title: text('title').notNull(),
+  description: text('description').notNull(),
+  voType: text('vo_type').$type<'scope_addition' | 'scope_reduction' | 'schedule_revision' | 'weight_rebalance'>().notNull().default('scope_addition'),
+  status: text('status').$type<'draft' | 'pending_approval' | 'approved' | 'rejected'>().notNull().default('pending_approval'),
+  allowWorkBeforeApproval: boolean('allow_work_before_approval').notNull().default(true),
+  targetNodeId: uuid('target_node_id').references(() => workNodes.id, { onDelete: 'set null' }),
+  proposedChanges: jsonb('proposed_changes')
+    .$type<{
+      weightDelta?: number;
+      newWeightPercent?: number;
+      plannedStartDate?: string;
+      plannedEndDate?: string;
+      newNodeName?: string;
+      parentId?: string | null;
+    }>()
+    .notNull()
+    .default({}),
+  requestedBy: uuid('requested_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  approvedBy: uuid('approved_by').references(() => users.id, { onDelete: 'set null' }),
+  decidedAt: timestamp('decided_at', { withTimezone: true }),
+  decisionNotes: text('decision_notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

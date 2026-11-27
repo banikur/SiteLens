@@ -991,6 +991,90 @@ export async function apiUpdateCompanySettings(
   });
 }
 
+// ---------------- CALENDAR, HOLIDAYS, BASELINES & VARIATION ORDERS ----------------
+
+export async function apiGetHolidays(year: number): Promise<{ year: number; holidays: import('../types').NationalHoliday[] }> {
+  return apiJson<{ year: number; holidays: import('../types').NationalHoliday[] }>(`/api/holidays?year=${year}`).catch(() => ({ year, holidays: [] }));
+}
+
+export async function apiSyncHolidays(year: number): Promise<{ year: number; holidays: import('../types').NationalHoliday[]; count: number }> {
+  return apiJson<{ year: number; holidays: import('../types').NationalHoliday[]; count: number }>('/api/holidays/sync', {
+    method: 'POST',
+    body: JSON.stringify({ year }),
+  });
+}
+
+export async function apiGetProjectCalendar(projectId: string): Promise<{ calendar: import('../types').ProjectCalendar }> {
+  return apiJson<{ calendar: import('../types').ProjectCalendar }>(`/api/projects/${encodeURIComponent(projectId)}/calendar`).catch(() => ({
+    calendar: {
+      projectId,
+      workStartHour: '08:00',
+      workEndHour: '17:00',
+      saturdayMode: 'non_working' as const,
+      sundayMode: 'non_working' as const,
+      holidayOverrides: {},
+    },
+  }));
+}
+
+export async function apiUpdateProjectCalendar(
+  projectId: string,
+  calendar: Partial<import('../types').ProjectCalendar>
+): Promise<{ calendar: import('../types').ProjectCalendar }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/calendar`, {
+    method: 'PUT',
+    body: JSON.stringify(calendar),
+  });
+}
+
+export async function apiGetBaselines(projectId: string): Promise<{ baselines: import('../types').BaselineSnapshot[] }> {
+  return apiJson<{ baselines: import('../types').BaselineSnapshot[] }>(`/api/projects/${encodeURIComponent(projectId)}/baselines`).catch(() => ({ baselines: [] }));
+}
+
+export async function apiCreateBaseline(
+  projectId: string,
+  label: string,
+  curvePoints: Array<{ weekIndex: number; targetCumulative: number }>
+): Promise<{ baseline: import('../types').BaselineSnapshot }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/baselines`, {
+    method: 'POST',
+    body: JSON.stringify({ label, curvePoints }),
+  });
+}
+
+export async function apiGetVariationOrders(projectId: string): Promise<{ variationOrders: import('../types').VariationOrder[] }> {
+  return apiJson<{ variationOrders: import('../types').VariationOrder[] }>(`/api/projects/${encodeURIComponent(projectId)}/variation-orders`).catch(() => ({ variationOrders: [] }));
+}
+
+export async function apiCreateVariationOrder(
+  projectId: string,
+  payload: {
+    title: string;
+    description: string;
+    voType?: 'scope_addition' | 'scope_reduction' | 'schedule_revision' | 'weight_rebalance';
+    allowWorkBeforeApproval?: boolean;
+    targetNodeId?: string | null;
+    proposedChanges?: Record<string, any>;
+  }
+): Promise<{ variationOrder: import('../types').VariationOrder }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/variation-orders`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function apiDecideVariationOrder(
+  projectId: string,
+  voId: string,
+  decision: 'approved' | 'rejected',
+  decisionNotes?: string
+): Promise<{ variationOrder: import('../types').VariationOrder }> {
+  return apiJson(`/api/projects/${encodeURIComponent(projectId)}/variation-orders/${encodeURIComponent(voId)}/decide`, {
+    method: 'POST',
+    body: JSON.stringify({ decision, decisionNotes }),
+  });
+}
+
 
 
 

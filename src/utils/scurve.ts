@@ -7,6 +7,7 @@ import type {
   DailyWeatherLog,
   WorkStage,
   InspectionAttempt,
+  ProjectCalendar,
 } from '../types';
 
 /**
@@ -228,6 +229,13 @@ export function calculateSCurveData(params: {
 
   const currentPoint = points[Math.min(currentWeekIndex - 1, points.length - 1)] || points[0];
   const currentVariance = currentPoint?.variance || 0;
+  const currentPlannedPercent = currentPoint?.targetCumulative || 0;
+  const currentVerifiedPercent = currentPoint?.verifiedCumulative || 0;
+  const scheduleVariance = Math.round((currentVerifiedPercent - currentPlannedPercent) * 100) / 100;
+  const schedulePerformanceIndex =
+    currentPlannedPercent > 0
+      ? Math.round((currentVerifiedPercent / currentPlannedPercent) * 100) / 100
+      : 1;
   const status: 'ahead' | 'on_track' | 'delayed' =
     currentVariance > 1 ? 'ahead' : currentVariance < -2 ? 'delayed' : 'on_track';
 
@@ -236,10 +244,13 @@ export function calculateSCurveData(params: {
     projectName,
     totalWeeks: weeks.length,
     currentWeekIndex,
-    currentPlannedPercent: currentPoint?.targetCumulative || 0,
+    todayWeekIndex: currentWeekIndex,
+    currentPlannedPercent,
     currentClaimedPercent: currentPoint?.claimedCumulative || 0,
-    currentVerifiedPercent: currentPoint?.verifiedCumulative || 0,
+    currentVerifiedPercent,
     currentVariance,
+    scheduleVariance,
+    schedulePerformanceIndex,
     status,
     totalHoldPoints: 0,
     activeHoldPoints: 0,
@@ -247,32 +258,125 @@ export function calculateSCurveData(params: {
   };
 }
 
+function parseHourMinute(hhmm: string, fallbackMinutes: number): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return fallbackMinutes;
+  return h * 60 + m;
+}
+
+function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Classifies a date as workday, weekend, or holiday based on project calendar & national holidays.
+ * Used for overtime/attendance tagging without altering S-Curve physical progress weights.
+ */
+export function classifyActivityDayType(
+  dateInput: Date | string,
+  calendar?: Pick<ProjectCalendar, 'saturdayMode' | 'sundayMode' | 'holidayOverrides'>,
+  holidayDates?: Set<string>
+): 'workday' | 'weekend' | 'holiday' {
+  const d = new Date(dateInput);
+  const key = toLocalDateKey(d);
+  const override = calendar?.holidayOverrides?.[key];
+  if (override === 'working') return 'workday';
+  if (override === 'non_working' || holidayDates?.has(key)) return 'holiday';
+  const dow = d.getDay();
+  if (dow === 6 || dow === 0) return 'weekend';
+  return 'workday';
+}
+
+/**
+ * Computes effective SLA working hours between two timestamps using project working hours,
+ * Saturday/Sunday mode, and national holidays (default 08:00-17:00 Mon-Fri).
+ */
+export function calculateWorkingHoursBetween(
+  startInput: Date | string,
+  endInput: Date | string,
+  calendar?: Pick<ProjectCalendar, 'workStartHour' | 'workEndHour' | 'saturdayMode' | 'sundayMode' | 'holidayOverrides'>,
+  holidayDates?: Set<string>
+): number {
+  const start = new Date(startInput);
+  const end = new Date(endInput);
+  if (end.getTime() <= start.getTime()) return 0;
+
+  const startMin = parseHourMinute(calendar?.workStartHour || '08:00', 8 * 60);
+  const endMin = parseHourMinute(calendar?.workEndHour || '17:00', 17 * 60);
+  if (endMin <= startMin) return 0;
+
+  let totalMs = 0;
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+
+  const endDay = new Date(end);
+  endDay.setHours(0, 0, 0, 0);
+
+  while (cursor.getTime() <= endDay.getTime()) {
+    const key = toLocalDateKey(cursor);
+    const dow = cursor.getDay();
+    const override = calendar?.holidayOverrides?.[key];
+
+    let dayFraction = 1;
+    if (override === 'non_working' || (override !== 'working' && holidayDates?.has(key))) {
+      dayFraction = 0;
+    } else if (override !== 'working') {
+      const mode = dow === 6 ? (calendar?.saturdayMode || 'non_working') : dow === 0 ? (calendar?.sundayMode || 'non_working') : 'full_working';
+      if (mode === 'non_working') dayFraction = 0;
+      else if (mode === 'half_day') dayFraction = 0.5;
+    }
+
+    if (dayFraction > 0) {
+      const windowEndMin = startMin + Math.round((endMin - startMin) * dayFraction);
+      const dayStartMs = new Date(cursor).setHours(Math.floor(startMin / 60), startMin % 60, 0, 0);
+      const dayEndMs = new Date(cursor).setHours(Math.floor(windowEndMin / 60), windowEndMin % 60, 0, 0);
+      const overlapStart = Math.max(start.getTime(), dayStartMs);
+      const overlapEnd = Math.min(end.getTime(), dayEndMs);
+      if (overlapEnd > overlapStart) {
+        totalMs += overlapEnd - overlapStart;
+      }
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return Math.round((totalMs / (1000 * 60 * 60)) * 10) / 10;
+}
+
 /**
  * Calculates Bottleneck Radar SLA Aging metrics:
- * Δt = t_now - t_submitted
- * - normal: <24h
- * - warning: 24h - 48h
- * - critical: >48h
+ * - Supports project working calendar & national holidays when provided
+ * - Selective pause when stageStatus === 'rejected' (waiting on requester revision)
  */
 export function calculateBottleneckAging(
   pendingStages: Array<{
     stage: WorkStage;
+    nodeId?: string;
     wbsCode: string;
     nodeName: string;
     attempt: InspectionAttempt;
     submitterName: string;
   }>,
-  now = new Date()
+  now = new Date(),
+  options?: {
+    calendar?: Pick<ProjectCalendar, 'workStartHour' | 'workEndHour' | 'saturdayMode' | 'sundayMode' | 'holidayOverrides'>;
+    holidayDates?: Set<string>;
+    criticalNodeIds?: Set<string>;
+  }
 ): BottleneckItem[] {
   const result: BottleneckItem[] = [];
 
   for (const item of pendingStages) {
-    // Blueprint Tahap 2c: SLA aging is measured from requestedAt if available, otherwise submittedAt
     const baselineDate = item.attempt.requestedAt || item.attempt.submittedAt;
-    const submittedTime = new Date(baselineDate).getTime();
-    const nowTime = now.getTime();
-    const diffMs = Math.max(0, nowTime - submittedTime);
-    const waitingHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
+    const isPaused = item.stage.status === 'rejected' || item.attempt.status === 'rejected';
+    const effectiveEnd = isPaused && item.attempt.decidedAt ? new Date(item.attempt.decidedAt) : now;
+
+    const waitingHours = options?.calendar
+      ? calculateWorkingHoursBetween(baselineDate, effectiveEnd, options.calendar, options.holidayDates)
+      : Math.round((Math.max(0, effectiveEnd.getTime() - new Date(baselineDate).getTime()) / (1000 * 60 * 60)) * 10) / 10;
 
     let status: 'normal' | 'warning' | 'critical' = 'normal';
     if (waitingHours > 48) {
@@ -282,6 +386,8 @@ export function calculateBottleneckAging(
     }
 
     const scheduleImpactDays = waitingHours > 24 ? Math.round(((waitingHours - 24) / 24) * 10) / 10 : 0;
+    const dayType = classifyActivityDayType(baselineDate, options?.calendar, options?.holidayDates);
+    const isCriticalPath = item.nodeId ? Boolean(options?.criticalNodeIds?.has(item.nodeId)) : false;
 
     result.push({
       stageId: item.stage.id,
@@ -296,13 +402,17 @@ export function calculateBottleneckAging(
       stageStatus: item.stage.status,
       approvalRole: item.stage.approvalRole || 'QA/QC Lead / Owner Inspector',
       waitingHours,
+      isPaused,
+      isCriticalPath,
+      dayType,
       status,
       scheduleImpactDays,
     });
   }
 
-  // Sort: critical bottlenecks first, then descending by waitingHours
   return result.sort((a, b) => {
+    if (a.isCriticalPath && !b.isCriticalPath) return -1;
+    if (b.isCriticalPath && !a.isCriticalPath) return 1;
     if (a.status === 'critical' && b.status !== 'critical') return -1;
     if (b.status === 'critical' && a.status !== 'critical') return 1;
     return b.waitingHours - a.waitingHours;

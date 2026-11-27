@@ -44,6 +44,7 @@ import { tenantRouter } from '../src/server/routes/tenant.ts';
 import { notificationsRouter } from '../src/server/routes/notifications.ts';
 import { uploadsRouter } from '../src/server/routes/uploads.ts';
 import { authRouter } from '../src/server/routes/auth.ts';
+import { projectControlRouter } from '../src/server/routes/projectControl.ts';
 
 // Modular fixtures
 import {
@@ -67,6 +68,7 @@ function createTestApp() {
   app.use('/api/uploads', uploadsRouter);
   app.use('/api/notifications', notificationsRouter);
   app.use('/api/tenant', tenantRouter);
+  app.use('/api', projectControlRouter);
   app.use('/api', apiRouter);
 
   // Registered as in server.ts
@@ -439,6 +441,12 @@ test('Tahap 2a: RBAC Matrix, Route Registry Reflection & Isolation Verification'
       'PUT /api/projects/:projectId/wbs/stages/:stageId',
       'DELETE /api/projects/:projectId/wbs/stages/:stageId',
       'PUT /api/company-settings',
+      // Project Desk Adaptations (Calendar, Baselines, Variation Orders)
+      'POST /api/holidays/sync',
+      'PUT /api/projects/:projectId/calendar',
+      'POST /api/projects/:projectId/baselines',
+      'POST /api/projects/:projectId/variation-orders',
+      'POST /api/projects/:projectId/variation-orders/:voId/decide',
     ]);
 
     // Golden check 1: All 23 catalogue routes MUST exist in discovered Express registry

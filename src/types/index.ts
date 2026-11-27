@@ -380,6 +380,10 @@ export interface WorkNode {
   sortOrder: number;
   volume?: number | string | null;
   unit?: string | null;
+  isMilestone?: boolean;
+  isUnplanned?: boolean;
+  predecessorIds?: Array<{ nodeId: string; lagDays?: number }>;
+  provisionalStatus?: 'confirmed' | 'pending_vo';
   canvasX?: number | null;
   canvasY?: number | null;
   assignedEngineerId?: string | null;
@@ -534,6 +538,9 @@ export interface SCurveSummary {
   currentClaimedPercent: number;
   currentVerifiedPercent: number;
   currentVariance: number;
+  scheduleVariance?: number; // SV = EV - PV
+  schedulePerformanceIndex?: number; // SPI = EV / PV
+  todayWeekIndex?: number;
   status: 'ahead' | 'on_track' | 'delayed';
   totalHoldPoints: number;
   activeHoldPoints: number;
@@ -553,8 +560,67 @@ export interface BottleneckItem {
   stageStatus?: StageStatus;
   approvalRole: UserRole;
   waitingHours: number;
+  isPaused?: boolean;
+  isCriticalPath?: boolean;
+  dayType?: 'workday' | 'weekend' | 'holiday';
   status: 'normal' | 'warning' | 'critical';
   scheduleImpactDays: number;
+}
+
+export type WeekendWorkMode = 'non_working' | 'half_day' | 'full_working';
+
+export interface NationalHoliday {
+  id: string;
+  holidayDate: string; // YYYY-MM-DD
+  name: string;
+  year: number;
+  isNational: boolean;
+  source: string;
+}
+
+export interface ProjectCalendar {
+  id?: string;
+  projectId: string;
+  workStartHour: string;
+  workEndHour: string;
+  saturdayMode: WeekendWorkMode;
+  sundayMode: WeekendWorkMode;
+  holidayOverrides: Record<string, 'working' | 'non_working'>;
+}
+
+export interface BaselineSnapshot {
+  id: string;
+  projectId: string;
+  version: number;
+  label: string;
+  curvePoints: Array<{ weekIndex: number; targetCumulative: number }>;
+  createdBy?: string | null;
+  createdAt: string;
+}
+
+export interface VariationOrder {
+  id: string;
+  projectId: string;
+  voNumber: string;
+  title: string;
+  description: string;
+  voType: 'scope_addition' | 'scope_reduction' | 'schedule_revision' | 'weight_rebalance';
+  status: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+  allowWorkBeforeApproval: boolean;
+  targetNodeId?: string | null;
+  proposedChanges: {
+    weightDelta?: number;
+    newWeightPercent?: number;
+    plannedStartDate?: string;
+    plannedEndDate?: string;
+    newNodeName?: string;
+    parentId?: string | null;
+  };
+  requestedBy: string;
+  approvedBy?: string | null;
+  decidedAt?: string | null;
+  decisionNotes?: string | null;
+  createdAt: string;
 }
 
 export interface CompanySettings {

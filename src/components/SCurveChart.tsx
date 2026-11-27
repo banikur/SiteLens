@@ -391,7 +391,11 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
             </span>
           </div>
           <span className="text-[10px] text-slate-400 block mt-0.5">
-            Terhadap kurva target
+            SV: {(scurve.scheduleVariance ?? scurve.currentVariance) >= 0 ? '+' : ''}
+            {(scurve.scheduleVariance ?? scurve.currentVariance).toFixed(2)}% · SPI:{' '}
+            <strong className="font-mono text-slate-700">
+              {(scurve.schedulePerformanceIndex ?? 1).toFixed(2)}
+            </strong>
           </span>
         </div>
       </div>
@@ -465,7 +469,7 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
               {/* Vertical Week Guidelines */}
               {points.map((p, idx) => {
                 const x = getX(idx);
-                const isCurrent = p.weekIndex === scurve.currentWeekIndex;
+                const isCurrent = p.weekIndex === (scurve.todayWeekIndex || scurve.currentWeekIndex);
                 const isHovered = hoveredPointIndex === idx;
                 return (
                   <g key={p.weekIndex}>
@@ -474,10 +478,23 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                       y1={paddingY}
                       x2={x}
                       y2={svgHeight - paddingY}
-                      stroke={isHovered ? '#d4f038' : isCurrent ? '#0b0e14' : '#f1f5f9'}
-                      strokeWidth={isHovered ? '1.5' : isCurrent ? '1.5' : '1'}
-                      strokeDasharray={isHovered || isCurrent ? '2 2' : undefined}
+                      stroke={isCurrent ? '#e11d48' : isHovered ? '#d4f038' : '#f1f5f9'}
+                      strokeWidth={isCurrent ? '1.75' : isHovered ? '1.5' : '1'}
+                      strokeDasharray={isCurrent ? '4 2' : isHovered ? '2 2' : undefined}
                     />
+                    {isCurrent && (
+                      <text
+                        x={x}
+                        y={paddingY - 6}
+                        textAnchor="middle"
+                        fontSize="8"
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                        fill="#e11d48"
+                      >
+                        TODAY
+                      </text>
+                    )}
                     <text
                       x={x}
                       y={svgHeight - paddingY + 16}

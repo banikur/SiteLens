@@ -144,3 +144,16 @@ curl -k https://localhost/api/health
 2. **No Self-Closing:** Pelaksana perbaikan dilarang menutup status temuan tanpa verifikasi dari QA/QC independen.
 3. **Forensic Evidence Integrity:** Setiap lampiran foto bukti diverifikasi dengan hashing SHA-256 untuk memastikan keabsahan audit.
 4. **Audit Trail Mutasi:** Perubahan kritis pada struktur WBS, status inspeksi, dan penimpaan jadwal terekam pada tabel `audit_logs`.
+
+---
+
+## 🙏 Credits & Referensi
+
+Sebagian fitur pada SiteLens terinspirasi dan diadaptasi dari proyek sumber terbuka berikut:
+
+* **Project Desk** (v1.3.3) oleh **WIDIRU STUDIO** (Widi Raspito Utomo) — *Personal PMO Suite (PMBOK Guide 6th Edition)*.  
+  Inspirasi fitur: Critical Path Method (CPM) & deteksi siklus dependensi, penanda `"TODAY"` & metrik EVM (`SV`, `SPI`) pada Kurva-S, *baseline snapshots*, SLA *selective pause*, proteksi *CSV Formula Injection* (RFC-4180), dan alur kontrol perubahan (*Variation Order*).  
+  Repositori: [widiru83/project-desk-](https://github.com/widiru83/project-desk-) · Demo: [project-desk-demo](https://widiru83.github.io/project-desk-demo/)
+* **API Hari Libur Indonesia** oleh **radyakaze** — *Scraper hari libur nasional berbasis tanggalans.com*.  
+  Inspirasi fitur: Pola ekstraksi jadwal hari libur nasional Indonesia dari `tanggalans.com` untuk kalender kerja proyek.  
+  Repositori: [radyakaze/api-hari-libur](https://github.com/radyakaze/api-hari-libur)

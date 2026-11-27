@@ -172,6 +172,24 @@ export const BottleneckRadar: React.FC<BottleneckRadarProps> = ({
                       </span>
                       <h4 className="font-bold text-slate-900 text-xs">{item.stageName}</h4>
 
+                      {item.isCriticalPath && (
+                        <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-900 border border-purple-300 text-[10px] font-mono font-bold">
+                          CRITICAL PATH
+                        </span>
+                      )}
+
+                      {item.isPaused && (
+                        <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 border border-slate-300 text-[10px] font-mono font-bold">
+                          SLA PAUSED
+                        </span>
+                      )}
+
+                      {item.dayType && item.dayType !== 'workday' && (
+                        <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-mono font-bold">
+                          {item.dayType === 'holiday' ? 'HOLIDAY WORK' : 'WEEKEND WORK'}
+                        </span>
+                      )}
+
                       {item.stageType === 'hold' && (
                         <span className="px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800 text-[10px] font-mono font-bold">
                           HOLD POINT

@@ -99,8 +99,61 @@ export async function ensureTestDatabaseSchema() {
 
     DO $$ BEGIN
       ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "unit" text;
+      ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "is_milestone" boolean DEFAULT false NOT NULL;
+      ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "is_unplanned" boolean DEFAULT false NOT NULL;
+      ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "predecessor_ids" jsonb DEFAULT '[]'::jsonb NOT NULL;
+      ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "provisional_status" text DEFAULT 'confirmed' NOT NULL;
     EXCEPTION WHEN duplicate_column THEN null;
     END $$;
+
+    CREATE TABLE IF NOT EXISTS "national_holidays" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "holiday_date" text NOT NULL UNIQUE,
+      "name" text NOT NULL,
+      "year" integer NOT NULL,
+      "is_national" boolean DEFAULT true NOT NULL,
+      "source" text DEFAULT 'tanggalans.com' NOT NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "project_calendars" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "project_id" uuid NOT NULL UNIQUE REFERENCES "projects"("id") ON DELETE CASCADE,
+      "work_start_hour" text DEFAULT '08:00' NOT NULL,
+      "work_end_hour" text DEFAULT '17:00' NOT NULL,
+      "saturday_mode" text DEFAULT 'non_working' NOT NULL,
+      "sunday_mode" text DEFAULT 'non_working' NOT NULL,
+      "holiday_overrides" jsonb DEFAULT '{}'::jsonb NOT NULL,
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "baseline_snapshots" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "project_id" uuid NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
+      "version" integer DEFAULT 1 NOT NULL,
+      "label" text NOT NULL,
+      "curve_points" jsonb DEFAULT '[]'::jsonb NOT NULL,
+      "created_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS "variation_orders" (
+      "id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+      "project_id" uuid NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
+      "vo_number" text NOT NULL,
+      "title" text NOT NULL,
+      "description" text NOT NULL,
+      "vo_type" text DEFAULT 'scope_addition' NOT NULL,
+      "status" text DEFAULT 'pending_approval' NOT NULL,
+      "allow_work_before_approval" boolean DEFAULT true NOT NULL,
+      "target_node_id" uuid REFERENCES "work_nodes"("id") ON DELETE SET NULL,
+      "proposed_changes" jsonb DEFAULT '{}'::jsonb NOT NULL,
+      "requested_by" uuid NOT NULL REFERENCES "users"("id") ON DELETE RESTRICT,
+      "approved_by" uuid REFERENCES "users"("id") ON DELETE SET NULL,
+      "decided_at" timestamp with time zone,
+      "decision_notes" text,
+      "created_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
 
     DO $$ BEGIN
       ALTER TABLE "corrective_actions" ADD COLUMN IF NOT EXISTS "node_id" uuid REFERENCES "work_nodes"("id") ON DELETE SET NULL;

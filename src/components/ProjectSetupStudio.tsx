@@ -48,6 +48,7 @@ import {
 import { NodeWorkflowModal } from './NodeWorkflowModal';
 import { SCurveChart } from './SCurveChart';
 import { BottleneckRadar } from './BottleneckRadar';
+import { ProjectGovernancePanel } from './ProjectGovernancePanel';
 import { WeatherLogModal } from './WeatherLogModal';
 import { WbsSplitStudio } from './WbsSplitStudio';
 import {
@@ -79,7 +80,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
 
   // Studio tabs & subviews
   const isFocusMode = (currentUser as any)?.focusMode === 'setup-flow';
-  const [activeStudioTab, setActiveStudioTab] = useState<'wbs' | 'team' | 'summary' | 'scurve' | 'radar'>('wbs');
+  const [activeStudioTab, setActiveStudioTab] = useState<'wbs' | 'team' | 'summary' | 'scurve' | 'radar' | 'governance'>('wbs');
   const [wbsSubView, setWbsSubView] = useState<'split' | 'table'>('split');
   const [scurveData, setScurveData] = useState<SCurveSummary | null>(null);
   const [weatherModalOpen, setWeatherModalOpen] = useState(false);
@@ -564,6 +565,19 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                 >
                   <Clock className="w-3.5 h-3.5" />
                   <span>5. Radar SLA</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveStudioTab('governance')}
+                  className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center space-x-1.5 ${
+                    activeStudioTab === 'governance'
+                      ? 'bg-slate-900 text-white shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>6. Kalender & VO</span>
                 </button>
               </>
             )}
@@ -1179,6 +1193,18 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                 setSearchQuery(code);
                 setActiveStudioTab('wbs');
               }}
+            />
+          </div>
+        )}
+
+        {/* Tab 6: Kalender Kerja, Libur Nasional & Variation Orders */}
+        {activeStudioTab === 'governance' && (
+          <div className="h-full overflow-y-auto bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
+            <ProjectGovernancePanel
+              project={project}
+              nodes={flatNodes}
+              currentUser={currentUser}
+              onRefresh={loadWbsData}
             />
           </div>
         )}
