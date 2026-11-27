@@ -39,7 +39,11 @@ export const getStoredCompanySettings = (): CompanySettings => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.COMPANY_SETTINGS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify(DEFAULT_COMPANY_SETTINGS));
+      try {
+        localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify(DEFAULT_COMPANY_SETTINGS));
+      } catch {
+        // Ignore quota/private browsing errors
+      }
       return DEFAULT_COMPANY_SETTINGS;
     }
     return { ...DEFAULT_COMPANY_SETTINGS, ...JSON.parse(raw) };
@@ -55,7 +59,16 @@ export const saveStoredCompanySettings = (settings: Partial<CompanySettings>): C
     ...settings,
     updatedAt: new Date().toISOString(),
   };
-  localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify(updated));
+  try {
+    localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify(updated));
+  } catch {
+    // If localStorage quota is exceeded (e.g. large logo data URL), save metadata without logo
+    try {
+      localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify({ ...updated, companyLogo: '' }));
+    } catch {
+      // Ignore storage errors in restricted contexts
+    }
+  }
   return updated;
 };
 

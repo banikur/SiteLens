@@ -134,6 +134,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
 
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
   const [auditSearch, setAuditSearch] = useState('');
   const [auditPage, setAuditPage] = useState(1);
   const AUDIT_PAGE_SIZE = 15;
@@ -215,18 +216,22 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
         })
         .catch(() => {});
     }
+  }, [canManageRoles, canManageSettings]);
 
-    if (canViewAudit) {
-      fetch('/api/audit-logs', { credentials: 'include' })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d?.auditLogs) {
-            setAuditLogs(d.auditLogs);
-          }
-        })
-        .catch(() => {});
-    }
-  }, [canManageRoles, canManageSettings, canViewAudit]);
+  useEffect(() => {
+    if (!canViewAudit || activeTab !== 'audit') return;
+    const q = auditSearch.trim();
+    const url = `/api/audit-logs?page=${auditPage}&limit=${AUDIT_PAGE_SIZE}${q ? `&search=${encodeURIComponent(q)}` : ''}`;
+    fetch(url, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d?.auditLogs) {
+          setAuditLogs(d.auditLogs);
+          setAuditTotal(typeof d.total === 'number' ? d.total : d.auditLogs.length);
+        }
+      })
+      .catch(() => {});
+  }, [canViewAudit, activeTab, auditPage, auditSearch]);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -985,15 +990,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
                 <div className="flex-1 space-y-2 text-center sm:text-left">
                   <div className="text-[11px] text-slate-600">
                     {isId
-                      ? 'Format yang didukung: PNG (transparan disarankan), JPEG, WebP. Maksimal 2 MB.'
-                      : 'Supported formats: PNG (transparent recommended), JPEG, WebP. Max 2 MB.'}
+                      ? 'Format yang didukung: PNG (transparan disarankan), JPEG, JPG. Maksimal 2 MB.'
+                      : 'Supported formats: PNG (transparent recommended), JPEG, JPG. Max 2 MB.'}
                   </div>
                   <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
                     <input
                       type="file"
                       ref={fileInputRef}
                       onChange={handleLogoUpload}
-                      accept="image/png,image/jpeg,image/webp"
+                      accept="image/png,image/jpeg,image/jpg"
                       className="hidden"
                     />
                     <button
@@ -1273,21 +1278,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
 
           {/* Audit Logs Table */}
           {(() => {
-            const filtered = auditLogs.filter((log) => {
-              if (!auditSearch) return true;
-              const q = auditSearch.toLowerCase();
-              return (
-                (log.actorName && log.actorName.toLowerCase().includes(q)) ||
-                (log.action && log.action.toLowerCase().includes(q)) ||
-                (log.entityType && log.entityType.toLowerCase().includes(q)) ||
-                (log.entityId && log.entityId.toLowerCase().includes(q))
-              );
-            });
-
-            const totalPages = Math.max(1, Math.ceil(filtered.length / AUDIT_PAGE_SIZE));
-            const currentPage = Math.min(auditPage, totalPages);
-            const startIdx = (currentPage - 1) * AUDIT_PAGE_SIZE;
-            const pageLogs = filtered.slice(startIdx, startIdx + AUDIT_PAGE_SIZE);
+            const totalPages = Math.max(1, Math.ceil(auditTotal / AUDIT_PAGE_SIZE));
+            const startIdx = (auditPage - 1) * AUDIT_PAGE_SIZE;
+            const pageLogs = auditLogs;
 
             return (
               <>
@@ -1363,29 +1356,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
                 </div>
 
                 {/* Pagination Controls */}
-                {filtered.length > AUDIT_PAGE_SIZE && (
+                {auditTotal > AUDIT_PAGE_SIZE && (
                   <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between text-xs text-slate-600">
                     <div>
-                      Menampilkan <span className="font-bold">{startIdx + 1}</span> s/d{' '}
-                      <span className="font-bold">{Math.min(startIdx + AUDIT_PAGE_SIZE, filtered.length)}</span> dari{' '}
-                      <span className="font-bold">{filtered.length}</span> log
+                      Menampilkan <span className="font-bold">{auditTotal === 0 ? 0 : startIdx + 1}</span> s/d{' '}
+                      <span className="font-bold">{Math.min(startIdx + AUDIT_PAGE_SIZE, auditTotal)}</span> dari{' '}
+                      <span className="font-bold">{auditTotal}</span> log
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
                         type="button"
                         onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
-                        disabled={currentPage === 1}
+                        disabled={auditPage === 1}
                         className="p-1.5 rounded-lg border border-slate-300 hover:bg-white disabled:opacity-40 cursor-pointer"
                       >
                         <ChevronLeft className="w-4 h-4" />
                       </button>
                       <span className="font-bold text-slate-800">
-                        {currentPage} / {totalPages}
+                        {auditPage} / {totalPages}
                       </span>
                       <button
                         type="button"
                         onClick={() => setAuditPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={currentPage === totalPages}
+                        disabled={auditPage === totalPages}
                         className="p-1.5 rounded-lg border border-slate-300 hover:bg-white disabled:opacity-40 cursor-pointer"
                       >
                         <ChevronRight className="w-4 h-4" />

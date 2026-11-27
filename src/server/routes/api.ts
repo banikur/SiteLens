@@ -5018,6 +5018,19 @@ apiRouter.post('/users', requirePermission(PERMISSIONS.ADMIN_USERS), async (req:
   });
 });
 
+const DEFAULT_COMPANY_FALLBACK = {
+  id: 'default',
+  companyName: 'PT SITELENS KONSTRUKSI NUSANTARA',
+  companyAddress: 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta Selatan 12950',
+  companyPhone: '+62 21 5290 8800',
+  companyEmail: 'corsec@sitelens-construct.id',
+  companyWebsite: 'www.sitelens-construct.id',
+  companyLogo: '',
+  letterheadHeader: 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
+  letterheadSubheader: 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001:2015 / ISO 45001:2018 / SMK3 PP 50/2012)',
+  documentRegistrationNo: 'DOC-REF-SL/2026/01',
+};
+
 apiRouter.get(
   '/audit-logs',
   requirePermission(PERMISSIONS.ADMIN_AUDIT),
@@ -5031,29 +5044,39 @@ apiRouter.get(
     const page = Math.max(1, Number(req.query.page) || 1);
     const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
     const offset = (page - 1) * limit;
-    const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
+    const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
 
-    let rows = await db
-      .select()
-      .from(auditLogs)
-      .orderBy(desc(auditLogs.createdAt))
-      .limit(limit)
-      .offset(offset);
+    const whereClause = search
+      ? or(
+          ilike(auditLogs.actorName, `%${search}%`),
+          ilike(auditLogs.action, `%${search}%`),
+          ilike(auditLogs.entityType, `%${search}%`),
+          ilike(auditLogs.entityId, `%${search}%`)
+        )
+      : undefined;
 
-    if (search) {
-      rows = rows.filter((l) =>
-        (l.actorName && l.actorName.toLowerCase().includes(search)) ||
-        (l.action && l.action.toLowerCase().includes(search)) ||
-        (l.entityType && l.entityType.toLowerCase().includes(search)) ||
-        (l.entityId && l.entityId.toLowerCase().includes(search))
-      );
-    }
+    const [rows, countRes] = await Promise.all([
+      db
+        .select()
+        .from(auditLogs)
+        .where(whereClause)
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(auditLogs)
+        .where(whereClause),
+    ]);
+
+    const total = countRes[0]?.count ?? 0;
 
     res.json({
       auditLogs: rows.map((l) => ({
         ...l,
         createdAt: l.createdAt.toISOString(),
       })),
+      total,
       page,
       limit,
     });
@@ -5063,61 +5086,27 @@ apiRouter.get(
 apiRouter.get('/company-settings', async (_req: Request, res: Response) => {
   const db = getDb();
   if (!db) {
-    res.json({
-      settings: {
-        id: 'default',
-        companyName: 'PT SITELENS KONSTRUKSI NUSANTARA',
-        companyAddress: 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta Selatan 12950',
-        companyPhone: '+62 21 5290 8800',
-        companyEmail: 'corsec@sitelens-construct.id',
-        companyWebsite: 'www.sitelens-construct.id',
-        companyLogo: '',
-        letterheadHeader: 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
-        letterheadSubheader: 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001:2015 / ISO 45001:2018 / SMK3 PP 50/2012)',
-        documentRegistrationNo: 'DOC-REF-SL/2026/01',
-      },
-    });
+    res.json({ settings: DEFAULT_COMPANY_FALLBACK });
     return;
   }
 
   try {
-    const [row] = await db.select().from(companySettings).where(eq(companySettings.id, 'default')).limit(1);
+    let [row] = await db.select().from(companySettings).where(eq(companySettings.id, 'default')).limit(1);
     if (!row) {
       const [created] = await db
         .insert(companySettings)
-        .values({
-          id: 'default',
-          companyName: 'PT SITELENS KONSTRUKSI NUSANTARA',
-          companyAddress: 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta Selatan 12950',
-          companyPhone: '+62 21 5290 8800',
-          companyEmail: 'corsec@sitelens-construct.id',
-          companyWebsite: 'www.sitelens-construct.id',
-          companyLogo: '',
-          letterheadHeader: 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
-          letterheadSubheader: 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001:2015 / ISO 45001:2018 / SMK3 PP 50/2012)',
-          documentRegistrationNo: 'DOC-REF-SL/2026/01',
-        })
+        .values(DEFAULT_COMPANY_FALLBACK)
         .onConflictDoNothing()
         .returning();
-      res.json({ settings: created || row });
+      if (!created) {
+        [row] = await db.select().from(companySettings).where(eq(companySettings.id, 'default')).limit(1);
+      }
+      res.json({ settings: created || row || DEFAULT_COMPANY_FALLBACK });
       return;
     }
     res.json({ settings: row });
   } catch (err) {
-    res.json({
-      settings: {
-        id: 'default',
-        companyName: 'PT SITELENS KONSTRUKSI NUSANTARA',
-        companyAddress: 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta Selatan 12950',
-        companyPhone: '+62 21 5290 8800',
-        companyEmail: 'corsec@sitelens-construct.id',
-        companyWebsite: 'www.sitelens-construct.id',
-        companyLogo: '',
-        letterheadHeader: 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
-        letterheadSubheader: 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001:2015 / ISO 45001:2018 / SMK3 PP 50/2012)',
-        documentRegistrationNo: 'DOC-REF-SL/2026/01',
-      },
-    });
+    res.json({ settings: DEFAULT_COMPANY_FALLBACK });
   }
 });
 

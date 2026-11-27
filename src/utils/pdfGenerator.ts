@@ -148,7 +148,7 @@ export function renderCompanyLetterhead(
  * Generates and downloads a clean, professional Blank Checklist PDF (Blanko Kosong)
  * built directly with jsPDF + jspdf-autotable for manual on-site clipboard audits.
  */
-export function exportBlankChecklistPdf({ template, lang = 'id' }: GenerateTemplatePdfOptions) {
+export function exportBlankChecklistPdf({ template, lang = 'id', companySettings }: GenerateTemplatePdfOptions) {
   const isId = lang === 'id';
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -160,37 +160,18 @@ export function exportBlankChecklistPdf({ template, lang = 'id' }: GenerateTempl
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 14;
 
-  // Header Bar: Slate Navy
-  doc.setFillColor(15, 23, 42); // #0f172a
-  doc.rect(margin, 12, pageWidth - margin * 2, 2.5, 'F');
-
-  // Brand Name & Subtitle
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(15, 23, 42);
-  doc.text('SITELENS OPERATIONAL PROTOCOL', margin, 22);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Precision in every detail  |  Flow without interruption', margin, 27);
-
-  // Badge: Document Type
-  const badgeText = isId ? 'BLANKO KOSONG LAPANGAN' : 'BLANK FIELD PROTOCOL';
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  const badgeWidth = doc.getTextWidth(badgeText) + 8;
-  const badgeX = pageWidth - margin - badgeWidth;
-  doc.setFillColor(239, 246, 255); // #eff6ff
-  doc.setDrawColor(59, 130, 246); // #3b82f6
-  doc.roundedRect(badgeX, 17, badgeWidth, 7, 1.5, 1.5, 'FD');
-  doc.setTextColor(29, 78, 216); // #1d4ed8
-  doc.text(badgeText, badgeX + 4, 21.8);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(100, 116, 139);
-  doc.text(`DOC-REF: ${template.id}  |  v${template.version}`, pageWidth - margin, 28, { align: 'right' });
+  const headerBottomY = renderCompanyLetterhead(doc, {
+    documentTitle: isId ? `PROTOKOL INSPEKSI: ${template.title}` : `INSPECTION PROTOCOL: ${template.title}`,
+    documentTypeBadge: isId ? 'BLANKO KOSONG LAPANGAN' : 'BLANK FIELD PROTOCOL',
+    badgeStyle: {
+      bg: [239, 246, 255],
+      border: [59, 130, 246],
+      text: [29, 78, 216],
+    },
+    docRef: `${template.id} v${template.version}`,
+    lang,
+    companySettings,
+  });
 
   // Metadata Table
   const metaRows = [
@@ -229,7 +210,7 @@ export function exportBlankChecklistPdf({ template, lang = 'id' }: GenerateTempl
   ];
 
   autoTable(doc, {
-    startY: 32,
+    startY: headerBottomY + 1,
     margin: { left: margin, right: margin },
     body: metaRows,
     theme: 'grid',
@@ -434,7 +415,8 @@ export function exportBlankChecklistPdf({ template, lang = 'id' }: GenerateTempl
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.setTextColor(148, 163, 184);
-    doc.text(`SiteLens Precision Operations  |  Blank Checklist Sheet  |  Generated ${new Date().toLocaleDateString()}`, margin, pageHeight - 6);
+    const compName = companySettings?.companyName || getStoredCompanySettings().companyName || 'SiteLens Operations';
+    doc.text(`${compName}  |  Blank Checklist Sheet  |  Generated ${new Date().toLocaleDateString()}`, margin, pageHeight - 6);
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 6, { align: 'right' });
   }
 
@@ -451,6 +433,7 @@ export function exportFilledInspectionPdf({
   inspection,
   template,
   lang = 'id',
+  companySettings,
 }: GenerateInspectionPdfOptions) {
   const isId = lang === 'id';
   const doc = new jsPDF({
@@ -465,22 +448,6 @@ export function exportFilledInspectionPdf({
 
   const executionDate = inspection.submittedAt || inspection.createdAt;
 
-  // Header Bar: Slate Navy
-  doc.setFillColor(15, 23, 42); // #0f172a
-  doc.rect(margin, 12, pageWidth - margin * 2, 2.5, 'F');
-
-  // Brand Name & Subtitle
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(15, 23, 42);
-  doc.text('SITELENS CERTIFIED AUDIT REPORT', margin, 22);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(100, 116, 139);
-  doc.text('Official Site Operations & Quality Compliance Certificate', margin, 27);
-
-  // Status Badge Colors
   const isApproved = inspection.status === 'approved';
   const isRejected = inspection.status === 'rejected';
   const badgeBg: [number, number, number] = isApproved
@@ -499,21 +466,22 @@ export function exportFilledInspectionPdf({
       ? [185, 28, 28]
       : [180, 83, 9];
 
-  const statusLabel = inspection.status.toUpperCase().replace('_', ' ');
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8.5);
-  const badgeWidth = doc.getTextWidth(statusLabel) + 10;
-  const badgeX = pageWidth - margin - badgeWidth;
-  doc.setFillColor(badgeBg[0], badgeBg[1], badgeBg[2]);
-  doc.setDrawColor(badgeBorder[0], badgeBorder[1], badgeBorder[2]);
-  doc.roundedRect(badgeX, 17, badgeWidth, 7, 1.5, 1.5, 'FD');
-  doc.setTextColor(badgeTextCol[0], badgeTextCol[1], badgeTextCol[2]);
-  doc.text(statusLabel, badgeX + 5, 21.8);
+  const statusLabel = isId
+    ? (isApproved ? 'DISETUJUI (APPROVED)' : isRejected ? 'DITOLAK (REJECTED)' : 'MENUNGGU VERIFIKASI')
+    : inspection.status.toUpperCase().replace('_', ' ');
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`RECORD #${inspection.id}`, pageWidth - margin, 28, { align: 'right' });
+  const headerBottomY = renderCompanyLetterhead(doc, {
+    documentTitle: isId ? 'LAPORAN HASIL INSPEKSI RESMI' : 'CERTIFIED INSPECTION REPORT',
+    documentTypeBadge: statusLabel,
+    badgeStyle: {
+      bg: badgeBg,
+      border: badgeBorder,
+      text: badgeTextCol,
+    },
+    docRef: inspection.id,
+    lang,
+    companySettings,
+  });
 
   // Metadata Table
   const metaRows = [
@@ -555,7 +523,7 @@ export function exportFilledInspectionPdf({
   }
 
   autoTable(doc, {
-    startY: 32,
+    startY: headerBottomY + 1,
     margin: { left: margin, right: margin },
     body: metaRows,
     theme: 'grid',
@@ -858,7 +826,8 @@ export function exportFilledInspectionPdf({
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
     doc.setTextColor(148, 163, 184);
-    doc.text(`SiteLens Precision Operations  |  Certified Audit Record #${inspection.id}  |  Printed ${new Date().toLocaleDateString()}`, margin, pageHeight - 6);
+    const compName = companySettings?.companyName || getStoredCompanySettings().companyName || 'SiteLens Operations';
+    doc.text(`${compName}  |  Certified Audit Record #${inspection.id}  |  Printed ${new Date().toLocaleDateString()}`, margin, pageHeight - 6);
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 6, { align: 'right' });
   }
 
