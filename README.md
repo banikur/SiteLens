@@ -35,7 +35,10 @@ Berdasarkan audit menyeluruh pada codebase (November 2026), berikut adalah statu
 | **PWA Offline Checklist & Foto** | **AKTIF (PARSIAL)** | Form inspeksi lama tersimpan di IndexedDB (`idbService.ts`) dengan SHA-256 photo hash. **Catatan:** Pengajuan attempt WBS saat ini masih menggunakan RAM lokal (`wbsDemoStore`) dan perlu dimigrasikan ke IndexedDB. |
 | **Integrasi CAPA/Temuan ke WBS** | **DALAM TRANSISI** | Tabel `corrective_actions` aktif namun belum memiliki relasi FK `node_id`. Logika pengunci S-Curve 99% saat ini membaca tabel `punchlist_items` yang sedang dalam tahap konsolidasi. |
 | **Keanggotaan Per-Proyek (`project_members`)** | **DALAM TRANSISI** | Tabel relasi multi-user per-proyek sudah ada di skema (`schema.ts:227`), namun otorisasi aktif masih membaca peran global `users.role`. Transisi ke *scoped project membership* sedang berjalan. |
-| **Ekspor Laporan Resmi** | **PARSIAL** | Ekspor laporan mingguan PDF aktif via `jspdf` (`WeeklyReportModal.tsx:32`) & ekspor CSV daftar inspeksi. Ekspor/impor struktur file Excel (`.xlsx`) WBS belum diimplementasikan. |
+| **Pengaturan Global & Kop Surat PDF** | **AKTIF (PRODUKSI)** | Pengaturan identitas korporat (`company_settings`), unggah logo perusahaan resmi (PNG/JPEG/JPG), pratinjau kop surat live, dan integrasi otomatis kop surat pada seluruh ekspor PDF (`exportBlankChecklistPdf` & `exportFilledInspectionPdf`). |
+| **Manajemen Tim Organisasi Global** | **AKTIF (PRODUKSI)** | Menu permanen navigasi sidebar (`TeamManagement.tsx`), standardisasi role konstruksi sipil & EPC, kontrol status akun aktif/nonaktif, opsi reset sandi, dan pembatasan switch user aman. |
+| **Log Audit Keamanan & Server Pagination** | **AKTIF (PRODUKSI)** | Pencatatan mutasi keamanan terpadu (`audit_logs`), filtering pencarian SQL (`ilike`), dan pagination server-side berbasis database di tab Audit Pengaturan. |
+| **Ekspor Laporan Resmi** | **AKTIF (PRODUKSI)** | Ekspor blanko checklist kosong lapangan, ekspor laporan hasil inspeksi bersertifikat (dilengkapi tanda tangan & foto bukti) dengan kop surat resmi korporat, ekspor laporan mingguan PDF, dan ekspor CSV. |
 | **BAPP Generator & 2D Drawing Defect Pinning** | **BELUM ADA** | Direncanakan pada roadmap fase lanjutan pasca-konsolidasi database. |
 
 ---
@@ -79,7 +82,7 @@ SiteLens menerapkan pemisahan tugas (*separation of duties*) untuk menjamin inte
    └── Weather & EOT Logger
        │
        ▼ (Connection Pool)
-[PostgreSQL Database] (19 Entitas Drizzle ORM)
+[PostgreSQL Database] (20 Entitas Drizzle ORM, termasuk company_settings)
 ```
 
 ---
