@@ -121,6 +121,20 @@ export async function ensureTestDatabaseSchema() {
       "updated_at" timestamp with time zone DEFAULT now() NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS "company_settings" (
+      "id" text PRIMARY KEY NOT NULL,
+      "company_name" text DEFAULT 'SiteLens Construction Nusantara' NOT NULL,
+      "company_address" text DEFAULT 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta 12950',
+      "company_phone" text DEFAULT '+62 21 5290 8800',
+      "company_email" text DEFAULT 'corsec@sitelens-construct.id',
+      "company_website" text DEFAULT 'www.sitelens-construct.id',
+      "company_logo" text DEFAULT '',
+      "letterhead_header" text DEFAULT 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
+      "letterhead_subheader" text DEFAULT 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001 / ISO 45001 / SMK3 PP 50/2012)',
+      "document_registration_no" text DEFAULT 'DOC-REF-SL/2026/01',
+      "updated_at" timestamp with time zone DEFAULT now() NOT NULL
+    );
+
     DO $$ BEGIN
       ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "master_project_id" uuid REFERENCES "master_projects"("id") ON DELETE RESTRICT;
     EXCEPTION WHEN duplicate_column THEN null;

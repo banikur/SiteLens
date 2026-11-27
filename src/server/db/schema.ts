@@ -253,6 +253,20 @@ export const notificationSettings = pgTable('notification_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const companySettings = pgTable('company_settings', {
+  id: text('id').primaryKey().default('default'),
+  companyName: text('company_name').notNull().default('SiteLens Construction Nusantara'),
+  companyAddress: text('company_address').default('Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta 12950'),
+  companyPhone: text('company_phone').default('+62 21 5290 8800'),
+  companyEmail: text('company_email').default('corsec@sitelens-construct.id'),
+  companyWebsite: text('company_website').default('www.sitelens-construct.id'),
+  companyLogo: text('company_logo').default(''),
+  letterheadHeader: text('letterhead_header').default('KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU'),
+  letterheadSubheader: text('letterhead_subheader').default('Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001 / ISO 45001 / SMK3 PP 50/2012)'),
+  documentRegistrationNo: text('document_registration_no').default('DOC-REF-SL/2026/01'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const tenantProfiles = pgTable('tenant_profiles', {
   id: uuid('id').primaryKey().defaultRandom(),
   companyName: text('company_name').notNull().default('SiteLens Enterprise Facilities'),

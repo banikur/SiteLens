@@ -25,6 +25,7 @@ import {
   flowPresets,
   flowPresetSteps,
   wbsProgressLogs,
+  companySettings,
 } from '../db/schema.ts';
 import { hashSecret } from '../auth/crypto.ts';
 import {
@@ -5020,25 +5021,155 @@ apiRouter.post('/users', requirePermission(PERMISSIONS.ADMIN_USERS), async (req:
 apiRouter.get(
   '/audit-logs',
   requirePermission(PERMISSIONS.ADMIN_AUDIT),
-  async (_req: Request, res: Response) => {
+  async (req: Request, res: Response) => {
     const db = getDb();
     if (!db) {
       res.status(503).json({ error: 'Database not configured.' });
       return;
     }
 
-    const rows = await db
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 100));
+    const offset = (page - 1) * limit;
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().toLowerCase() : '';
+
+    let rows = await db
       .select()
       .from(auditLogs)
       .orderBy(desc(auditLogs.createdAt))
-      .limit(100);
+      .limit(limit)
+      .offset(offset);
+
+    if (search) {
+      rows = rows.filter((l) =>
+        (l.actorName && l.actorName.toLowerCase().includes(search)) ||
+        (l.action && l.action.toLowerCase().includes(search)) ||
+        (l.entityType && l.entityType.toLowerCase().includes(search)) ||
+        (l.entityId && l.entityId.toLowerCase().includes(search))
+      );
+    }
 
     res.json({
       auditLogs: rows.map((l) => ({
         ...l,
         createdAt: l.createdAt.toISOString(),
       })),
+      page,
+      limit,
     });
+  }
+);
+
+apiRouter.get('/company-settings', async (_req: Request, res: Response) => {
+  const db = getDb();
+  if (!db) {
+    res.json({
+      settings: {
+        id: 'default',
+        companyName: 'PT SITELENS KONSTRUKSI NUSANTARA',
+        companyAddress: 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta Selatan 12950',
+        companyPhone: '+62 21 5290 8800',
+        companyEmail: 'corsec@sitelens-construct.id',
+        companyWebsite: 'www.sitelens-construct.id',
+        companyLogo: '',
+        letterheadHeader: 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
+        letterheadSubheader: 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001:2015 / ISO 45001:2018 / SMK3 PP 50/2012)',
+        documentRegistrationNo: 'DOC-REF-SL/2026/01',
+      },
+    });
+    return;
+  }
+
+  try {
+    const [row] = await db.select().from(companySettings).where(eq(companySettings.id, 'default')).limit(1);
+    if (!row) {
+      const [created] = await db
+        .insert(companySettings)
+        .values({
+          id: 'default',
+          companyName: 'PT SITELENS KONSTRUKSI NUSANTARA',
+          companyAddress: 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta Selatan 12950',
+          companyPhone: '+62 21 5290 8800',
+          companyEmail: 'corsec@sitelens-construct.id',
+          companyWebsite: 'www.sitelens-construct.id',
+          companyLogo: '',
+          letterheadHeader: 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
+          letterheadSubheader: 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001:2015 / ISO 45001:2018 / SMK3 PP 50/2012)',
+          documentRegistrationNo: 'DOC-REF-SL/2026/01',
+        })
+        .onConflictDoNothing()
+        .returning();
+      res.json({ settings: created || row });
+      return;
+    }
+    res.json({ settings: row });
+  } catch (err) {
+    res.json({
+      settings: {
+        id: 'default',
+        companyName: 'PT SITELENS KONSTRUKSI NUSANTARA',
+        companyAddress: 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta Selatan 12950',
+        companyPhone: '+62 21 5290 8800',
+        companyEmail: 'corsec@sitelens-construct.id',
+        companyWebsite: 'www.sitelens-construct.id',
+        companyLogo: '',
+        letterheadHeader: 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
+        letterheadSubheader: 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001:2015 / ISO 45001:2018 / SMK3 PP 50/2012)',
+        documentRegistrationNo: 'DOC-REF-SL/2026/01',
+      },
+    });
+  }
+});
+
+apiRouter.put(
+  '/company-settings',
+  requirePermission([PERMISSIONS.ADMIN_SETTINGS, PERMISSIONS.ADMIN_ROLES]),
+  async (req: Request, res: Response) => {
+    const db = getDb();
+    if (!db || !req.authUser) {
+      res.status(503).json({ error: 'Database not configured.' });
+      return;
+    }
+
+    const b = req.body ?? {};
+    const [saved] = await db
+      .insert(companySettings)
+      .values({
+        id: 'default',
+        companyName: b.companyName || 'PT SITELENS KONSTRUKSI NUSANTARA',
+        companyAddress: b.companyAddress || '',
+        companyPhone: b.companyPhone || '',
+        companyEmail: b.companyEmail || '',
+        companyWebsite: b.companyWebsite || '',
+        companyLogo: b.companyLogo || '',
+        letterheadHeader: b.letterheadHeader || 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
+        letterheadSubheader: b.letterheadSubheader || 'Sistem Manajemen Mutu, K3 & Lingkungan',
+        documentRegistrationNo: b.documentRegistrationNo || 'DOC-REF-SL/2026/01',
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: companySettings.id,
+        set: {
+          companyName: b.companyName || 'PT SITELENS KONSTRUKSI NUSANTARA',
+          companyAddress: b.companyAddress ?? '',
+          companyPhone: b.companyPhone ?? '',
+          companyEmail: b.companyEmail ?? '',
+          companyWebsite: b.companyWebsite ?? '',
+          companyLogo: b.companyLogo ?? '',
+          letterheadHeader: b.letterheadHeader ?? '',
+          letterheadSubheader: b.letterheadSubheader ?? '',
+          documentRegistrationNo: b.documentRegistrationNo ?? '',
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+
+    await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_COMPANY_SETTINGS', 'company_settings', 'default', {
+      companyName: saved.companyName,
+      hasLogo: Boolean(saved.companyLogo),
+    });
+
+    res.json({ settings: saved });
   }
 );
 

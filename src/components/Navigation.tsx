@@ -87,8 +87,21 @@ export const Navigation: React.FC<NavigationProps> = ({
 
   const isFocusMode = (activeUser as any)?.focusMode === 'setup-flow';
 
+  const allowedTabs: ActiveTab[] = [
+    'dashboard',
+    'projects',
+    'team',
+    'settings',
+    'builder',
+    'templates',
+    'inspections',
+    'actions',
+    'compliance',
+    'analytics',
+  ];
+
   React.useEffect(() => {
-    if (currentTab !== 'dashboard' && currentTab !== 'projects') {
+    if (!allowedTabs.includes(currentTab)) {
       onSelectTab('dashboard');
     }
   }, [currentTab, onSelectTab]);
@@ -102,8 +115,6 @@ export const Navigation: React.FC<NavigationProps> = ({
     badgeAlert?: boolean;
   };
 
-  // Focused verified menus: Dashboard first, Master Project directly below.
-  // Secondary/unverified modules are hidden from sidebar until their flows are perfected.
   const navItems: NavItem[] = [
     {
       id: 'dashboard' as ActiveTab,
@@ -114,6 +125,16 @@ export const Navigation: React.FC<NavigationProps> = ({
       id: 'projects' as ActiveTab,
       label: lang === 'id' ? 'Master Project' : 'Master Projects',
       icon: Building2,
+    },
+    {
+      id: 'team' as ActiveTab,
+      label: lang === 'id' ? 'Manajemen Tim' : 'Team Management',
+      icon: Users,
+    },
+    {
+      id: 'settings' as ActiveTab,
+      label: lang === 'id' ? 'Pengaturan' : 'Settings',
+      icon: Settings,
     },
   ];
 

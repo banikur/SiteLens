@@ -17,6 +17,7 @@ import type {
   PlannedCurveOverride,
   FlowPreset,
   FlowPresetStep,
+  CompanySettings,
 } from '../types';
 
 export class ApiHttpError extends Error {
@@ -974,6 +975,19 @@ export async function apiBatchUpdateWbsNodes(
   return apiJson(`/api/projects/${encodeURIComponent(projectId)}/wbs/nodes-batch`, {
     method: 'PUT',
     body: JSON.stringify({ updates }),
+  });
+}
+
+export async function apiGetCompanySettings(): Promise<{ settings: CompanySettings }> {
+  return apiJson('/api/company-settings');
+}
+
+export async function apiUpdateCompanySettings(
+  settings: Partial<CompanySettings>
+): Promise<{ settings: CompanySettings }> {
+  return apiJson('/api/company-settings', {
+    method: 'PUT',
+    body: JSON.stringify(settings),
   });
 }
 

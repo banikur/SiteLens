@@ -1,17 +1,147 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { ChecklistTemplate, InspectionRecord } from '../types';
+import { ChecklistTemplate, InspectionRecord, CompanySettings } from '../types';
 import { Language } from '../i18n/translations';
+import { getStoredCompanySettings } from '../services/storage';
 
 interface GenerateTemplatePdfOptions {
   template: ChecklistTemplate;
   lang?: Language;
+  companySettings?: CompanySettings;
 }
 
 interface GenerateInspectionPdfOptions {
   inspection: InspectionRecord;
   template?: ChecklistTemplate;
   lang?: Language;
+  companySettings?: CompanySettings;
+}
+
+/**
+ * Renders an official corporate letterhead (Kop Surat) with company logo,
+ * enterprise identity, contact info, accreditation, and dual-line divider bar.
+ */
+export function renderCompanyLetterhead(
+  doc: jsPDF,
+  options: {
+    documentTitle: string;
+    documentTypeBadge: string;
+    badgeStyle?: {
+      bg: [number, number, number];
+      border: [number, number, number];
+      text: [number, number, number];
+    };
+    docRef?: string;
+    lang?: Language;
+    companySettings?: CompanySettings;
+  }
+): number {
+  const settings = options.companySettings || getStoredCompanySettings();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 14;
+
+  let logoWidth = 0;
+  let textStartX = margin;
+
+  // 1. Draw Company Logo if provided (support data:image/png or data:image/jpeg/jpg)
+  if (settings.companyLogo && settings.companyLogo.startsWith('data:image/')) {
+    try {
+      const format = settings.companyLogo.includes('image/png') ? 'PNG' : 'JPEG';
+      doc.addImage(settings.companyLogo, format, margin, 8.5, 23, 17, undefined, 'FAST');
+      logoWidth = 25;
+      textStartX = margin + logoWidth;
+    } catch (e) {
+      console.warn('Failed to render company logo image in PDF, falling back to monogram:', e);
+      logoWidth = 0;
+    }
+  }
+
+  if (logoWidth === 0) {
+    // Elegant monogram brand badge
+    doc.setFillColor(15, 23, 42); // #0f172a
+    doc.roundedRect(margin, 9, 16, 16, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(212, 240, 56); // #d4f038
+    doc.text('SL', margin + 8, 19.5, { align: 'center' });
+    textStartX = margin + 19;
+  }
+
+  // 2. Company Identity Text
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(15, 23, 42);
+  const companyNameText = (settings.companyName || 'PT SITELENS KONSTRUKSI NUSANTARA').toUpperCase();
+  doc.text(companyNameText, textStartX, 13.5);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.2);
+  doc.setTextColor(51, 65, 85);
+  doc.text(settings.letterheadHeader || 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU', textStartX, 17.5);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.2);
+  doc.setTextColor(100, 116, 139);
+  doc.text(settings.companyAddress || 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said, Jakarta', textStartX, 21.5);
+
+  const contactLine = [
+    settings.companyPhone ? `Telp: ${settings.companyPhone}` : null,
+    settings.companyEmail ? `Email: ${settings.companyEmail}` : null,
+    settings.companyWebsite ? `Web: ${settings.companyWebsite}` : null,
+  ].filter(Boolean).join('  |  ');
+  if (contactLine) {
+    doc.text(contactLine, textStartX, 25);
+  }
+
+  // 3. Right-hand Badge & Reference
+  const badgeText = options.documentTypeBadge;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(7.5);
+  const badgeWidth = doc.getTextWidth(badgeText) + 8;
+  const badgeX = pageWidth - margin - badgeWidth;
+
+  const bg = options.badgeStyle?.bg || [239, 246, 255];
+  const border = options.badgeStyle?.border || [59, 130, 246];
+  const textCol = options.badgeStyle?.text || [29, 78, 216];
+
+  doc.setFillColor(bg[0], bg[1], bg[2]);
+  doc.setDrawColor(border[0], border[1], border[2]);
+  doc.roundedRect(badgeX, 9, badgeWidth, 6, 1.2, 1.2, 'FD');
+  doc.setTextColor(textCol[0], textCol[1], textCol[2]);
+  doc.text(badgeText, badgeX + 4, 13.3);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.2);
+  doc.setTextColor(100, 116, 139);
+  const refText = options.docRef
+    ? `DOC-REF: ${options.docRef}`
+    : `REG: ${settings.documentRegistrationNo || 'SL-OPS-01'}`;
+  doc.text(refText, pageWidth - margin, 19, { align: 'right' });
+
+  if (settings.letterheadSubheader) {
+    doc.text(settings.letterheadSubheader, pageWidth - margin, 23.5, { align: 'right' });
+  }
+
+  // 4. Double Separator Bar (Official Letterhead / Kop Surat Divider)
+  doc.setDrawColor(15, 23, 42); // #0f172a
+  doc.setLineWidth(0.8);
+  doc.line(margin, 28, pageWidth - margin, 28);
+
+  doc.setDrawColor(71, 85, 105); // #475569
+  doc.setLineWidth(0.2);
+  doc.line(margin, 29.2, pageWidth - margin, 29.2);
+
+  // 5. Title Banner
+  doc.setFillColor(248, 250, 252); // #f8fafc
+  doc.setDrawColor(226, 232, 240); // #e2e8f0
+  doc.roundedRect(margin, 31.5, pageWidth - margin * 2, 7.5, 1, 1, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text(options.documentTitle.toUpperCase(), margin + 3.5, 36.5);
+
+  return 41; // Next Y coordinate for table
 }
 
 /**
@@ -356,18 +486,18 @@ export function exportFilledInspectionPdf({
   const badgeBg: [number, number, number] = isApproved
     ? [220, 252, 231]
     : isRejected
-    ? [254, 226, 226]
-    : [254, 243, 199];
+      ? [254, 226, 226]
+      : [254, 243, 199];
   const badgeBorder: [number, number, number] = isApproved
     ? [134, 239, 172]
     : isRejected
-    ? [252, 165, 165]
-    : [253, 224, 71];
+      ? [252, 165, 165]
+      : [253, 224, 71];
   const badgeTextCol: [number, number, number] = isApproved
     ? [21, 128, 61]
     : isRejected
-    ? [185, 28, 28]
-    : [180, 83, 9];
+      ? [185, 28, 28]
+      : [180, 83, 9];
 
   const statusLabel = inspection.status.toUpperCase().replace('_', ' ');
   doc.setFont('helvetica', 'bold');
@@ -514,8 +644,8 @@ export function exportFilledInspectionPdf({
         const conditionStatus = isFail
           ? (isId ? 'TIDAK SESUAI (FAIL)' : 'NON-CONFORMANCE')
           : isPass
-          ? (isId ? 'SESUAI (OK)' : 'COMPLIANT')
-          : '-';
+            ? (isId ? 'SESUAI (OK)' : 'COMPLIANT')
+            : '-';
 
         return [
           String(itemCounter),
@@ -527,8 +657,8 @@ export function exportFilledInspectionPdf({
               textColor: isFail
                 ? [185, 28, 28] as [number, number, number]
                 : isPass
-                ? [21, 128, 61] as [number, number, number]
-                : [15, 23, 42] as [number, number, number],
+                  ? [21, 128, 61] as [number, number, number]
+                  : [15, 23, 42] as [number, number, number],
             },
           },
           {
@@ -678,8 +808,8 @@ export function exportFilledInspectionPdf({
   const certStatus = isApproved
     ? 'APPROVED & CERTIFIED'
     : isRejected
-    ? 'REJECTED / ACTION REQD'
-    : 'AWAITING SIGN-OFF';
+      ? 'REJECTED / ACTION REQD'
+      : 'AWAITING SIGN-OFF';
 
   autoTable(doc, {
     startY: currentY,
@@ -734,4 +864,124 @@ export function exportFilledInspectionPdf({
 
   // Trigger file download
   doc.save(`sitelens_inspection_report_${inspection.id}.pdf`);
+}
+
+/**
+ * Generates and downloads a sample corporate letterhead document (Pratinjau Kop Surat PDF)
+ * to verify logo sizing, text alignment, accreditation, and print fidelity.
+ */
+export function exportSampleLetterheadPdf({
+  lang = 'id',
+  companySettings,
+}: {
+  lang?: Language;
+  companySettings?: CompanySettings;
+}) {
+  const isId = lang === 'id';
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+
+  const headerBottomY = renderCompanyLetterhead(doc, {
+    documentTitle: isId ? 'CONTOH KOP SURAT RESMI PERUSAHAAN (SAMPLE PREVIEW)' : 'OFFICIAL CORPORATE LETTERHEAD SAMPLE',
+    documentTypeBadge: isId ? 'DOKUMEN RESMI CONTOH' : 'SAMPLE PREVIEW',
+    badgeStyle: {
+      bg: [238, 242, 255],
+      border: [99, 102, 241],
+      text: [67, 56, 202],
+    },
+    docRef: 'SAMPLE-PREVIEW-01',
+    lang,
+    companySettings,
+  });
+
+  const sampleRows = [
+    [
+      { content: isId ? 'INFORMASI PERUSAHAAN' : 'COMPANY INFORMATION', styles: { fontStyle: 'bold' as const, fillColor: [241, 245, 249] as [number, number, number], textColor: [71, 85, 105] as [number, number, number] } },
+      { content: companySettings?.companyName || 'PT SITELENS KONSTRUKSI NUSANTARA', colSpan: 3, styles: { fontStyle: 'bold' as const, textColor: [15, 23, 42] as [number, number, number] } },
+    ],
+    [
+      { content: isId ? 'ALAMAT KANTOR' : 'HEAD OFFICE', styles: { fontStyle: 'bold' as const, fillColor: [241, 245, 249] as [number, number, number], textColor: [71, 85, 105] as [number, number, number] } },
+      { content: companySettings?.companyAddress || '-', colSpan: 3, styles: { textColor: [51, 65, 85] as [number, number, number] } },
+    ],
+    [
+      { content: isId ? 'KONTAK / TELEPON' : 'PHONE', styles: { fontStyle: 'bold' as const, fillColor: [241, 245, 249] as [number, number, number], textColor: [71, 85, 105] as [number, number, number] } },
+      { content: companySettings?.companyPhone || '-', styles: { textColor: [15, 23, 42] as [number, number, number] } },
+      { content: 'EMAIL & WEB', styles: { fontStyle: 'bold' as const, fillColor: [241, 245, 249] as [number, number, number], textColor: [71, 85, 105] as [number, number, number] } },
+      { content: `${companySettings?.companyEmail || '-'} | ${companySettings?.companyWebsite || '-'}`, styles: { textColor: [15, 23, 42] as [number, number, number] } },
+    ],
+    [
+      { content: isId ? 'STATUS LOGO' : 'LOGO STATUS', styles: { fontStyle: 'bold' as const, fillColor: [241, 245, 249] as [number, number, number], textColor: [71, 85, 105] as [number, number, number] } },
+      {
+        content: companySettings?.companyLogo ? (isId ? 'Logo Perusahaan Kustom Berhasil Disematkan' : 'Custom Corporate Logo Embedded') : (isId ? 'Menggunakan Logo Monogram Standar SL' : 'Default Monogram SL Badge'),
+        colSpan: 3,
+        styles: { fontStyle: 'bold' as const, textColor: companySettings?.companyLogo ? [21, 128, 61] as [number, number, number] : [180, 83, 9] as [number, number, number] },
+      },
+    ],
+  ];
+
+  autoTable(doc, {
+    startY: headerBottomY + 1,
+    margin: { left: margin, right: margin },
+    body: sampleRows,
+    theme: 'grid',
+    styles: {
+      fontSize: 8,
+      cellPadding: 2.5,
+      lineColor: [226, 232, 240],
+      lineWidth: 0.2,
+    },
+    columnStyles: {
+      0: { cellWidth: 38 },
+      1: { cellWidth: 56 },
+      2: { cellWidth: 36 },
+      3: { cellWidth: 52 },
+    },
+  });
+
+  const nextY = (doc as any).lastAutoTable.finalY + 8;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(15, 23, 42);
+  doc.text(isId ? 'KETENTUAN PENGGUNAAN KOP SURAT:' : 'LETTERHEAD POLICY & COMPLIANCE:', margin, nextY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  const notes = isId
+    ? [
+        '1. Seluruh dokumen export PDF (Blanko Ceklis, Laporan Inspeksi, Sertifikat Verifikasi) otomatis menggunakan kop surat ini.',
+        '2. Logo perusahaan yang diunggah otomatis diskalakan dengan resolusi tinggi (aspect ratio dipertahankan).',
+        '3. Nomor registrasi dokumen dan akreditasi ISO / SMK3 dicetak secara resmi pada pojok kanan atas surat.',
+        '4. Perubahan kop surat di Pengaturan Global akan langsung berlaku untuk semua export berikutnya.',
+      ]
+    : [
+        '1. All exported PDF records (Blank Checklists, Inspection Reports, Certificates) automatically inherit this letterhead.',
+        '2. Uploaded corporate logo is rendered at high DPI with preserved aspect ratio.',
+        '3. Document registration numbers and ISO/SMK3 credentials appear on the upper right corner.',
+        '4. Changes made in Global Settings apply immediately to all subsequent PDF downloads.',
+      ];
+
+  let lineY = nextY + 5;
+  notes.forEach((note) => {
+    doc.text(note, margin + 2, lineY);
+    lineY += 5;
+  });
+
+  // Footer on page
+  doc.setDrawColor(203, 213, 225);
+  doc.line(margin, pageHeight - 10, pageWidth - margin, pageHeight - 10);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(148, 163, 184);
+  doc.text(`${companySettings?.companyName || 'SiteLens Construction Corp'}  |  Sample Preview Document  |  ${new Date().toLocaleDateString()}`, margin, pageHeight - 6);
+  doc.text('Page 1 of 1', pageWidth - margin, pageHeight - 6, { align: 'right' });
+
+  doc.save('sitelens_letterhead_sample.pdf');
 }

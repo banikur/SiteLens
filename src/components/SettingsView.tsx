@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   Bell,
   History,
@@ -11,8 +11,17 @@ import {
   Trash2,
   X,
   Lock,
+  FileText,
+  Upload,
+  Image as ImageIcon,
+  Printer,
+  Download,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
 } from 'lucide-react';
-import { User } from '../types';
+import { User, CompanySettings } from '../types';
 import { useLanguage } from '../i18n/LanguageContext';
 import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 import {
@@ -21,9 +30,13 @@ import {
   apiUpdateRole,
   apiDeleteRole,
   apiGetPermissionsCatalog,
+  apiGetCompanySettings,
+  apiUpdateCompanySettings,
   type RoleWithPermissions,
   type PermissionItem,
 } from '../services/api';
+import { getStoredCompanySettings, saveStoredCompanySettings } from '../services/storage';
+import { exportSampleLetterheadPdf } from '../utils/pdfGenerator';
 
 interface SettingsViewProps {
   currentUser: User;
@@ -97,9 +110,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
   const canManageSettings = !isLoadingPerms && can(PERMISSIONS.ADMIN_SETTINGS);
   const canViewAudit = !isLoadingPerms && can(PERMISSIONS.ADMIN_AUDIT);
 
-  const [activeTab, setActiveTab] = useState<'roles' | 'notifications' | 'audit'>(
-    canManageRoles ? 'roles' : 'notifications'
+  const [activeTab, setActiveTab] = useState<'roles' | 'notifications' | 'letterhead' | 'audit'>(
+    canManageRoles ? 'roles' : 'letterhead'
   );
+
+  // Corporate Letterhead & Logo State
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(() => getStoredCompanySettings());
+  const [logoPreview, setLogoPreview] = useState<string>(() => getStoredCompanySettings().companyLogo || '');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Notifications State
   const [config, setConfig] = useState<NotificationConfig>({
@@ -116,6 +134,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
 
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [auditSearch, setAuditSearch] = useState('');
+  const [auditPage, setAuditPage] = useState(1);
+  const AUDIT_PAGE_SIZE = 15;
 
   // Roles & Permissions State
   const [rolesList, setRolesList] = useState<RoleWithPermissions[]>([]);
@@ -163,6 +184,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
       void loadRolesAndPermissions();
     }
 
+    // Always fetch latest company settings
+    apiGetCompanySettings()
+      .then((res) => {
+        if (res?.settings) {
+          setCompanySettings(res.settings);
+          setLogoPreview(res.settings.companyLogo || '');
+          saveStoredCompanySettings(res.settings);
+        }
+      })
+      .catch(() => {});
+
     if (canManageSettings) {
       fetch('/api/notifications/settings', { credentials: 'include' })
         .then((r) => (r.ok ? r.json() : null))
@@ -195,6 +227,71 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
         .catch(() => {});
     }
   }, [canManageRoles, canManageSettings, canViewAudit]);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setErrorMsg(isId ? 'Ukuran file logo maksimal 2 MB.' : 'Logo file size must be under 2 MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setLogoPreview(dataUrl);
+      setCompanySettings((prev) => ({ ...prev, companyLogo: dataUrl }));
+      setStatusMsg(isId ? 'Logo dipilih. Klik "Simpan Kop Surat" untuk menyimpan permanen.' : 'Logo selected. Click "Save Letterhead" to persist.');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoPreview('');
+    setCompanySettings((prev) => ({ ...prev, companyLogo: '' }));
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setStatusMsg(isId ? 'Logo dihapus dari pratinjau. Klik "Simpan Kop Surat" untuk menyimpan perubahan.' : 'Logo removed from preview. Click "Save Letterhead" to persist.');
+  };
+
+  const handleSaveCompanySettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    setStatusMsg(null);
+    setErrorMsg(null);
+    try {
+      const payload: Partial<CompanySettings> = {
+        ...companySettings,
+        companyLogo: logoPreview,
+      };
+      const res = await apiUpdateCompanySettings(payload);
+      if (res?.settings) {
+        setCompanySettings(res.settings);
+        setLogoPreview(res.settings.companyLogo || '');
+        saveStoredCompanySettings(res.settings);
+      } else {
+        saveStoredCompanySettings(payload);
+      }
+      setStatusMsg(isId ? 'Profil perusahaan & Kop Surat berhasil disimpan. Semua ekspor PDF otomatis menggunakan kop surat ini!' : 'Company letterhead saved successfully. All PDF exports will use this letterhead!');
+    } catch (err: any) {
+      saveStoredCompanySettings({ ...companySettings, companyLogo: logoPreview });
+      setStatusMsg(isId ? 'Kop Surat tersimpan di perangkat lokal.' : 'Letterhead saved to local storage.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDownloadSamplePdf = () => {
+    try {
+      exportSampleLetterheadPdf({
+        lang,
+        companySettings: {
+          ...companySettings,
+          companyLogo: logoPreview,
+        },
+      });
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Gagal membuat file PDF contoh.');
+    }
+  };
 
   const handleSelectRole = (r: RoleWithPermissions) => {
     setSelectedRole(r);
@@ -386,6 +483,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
             >
               <Shield className="w-3.5 h-3.5 text-amber-500" />
               <span>{isId ? 'Peran & Izin' : 'Roles & Permissions'}</span>
+            </button>
+          )}
+
+          {canManageSettings && (
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('letterhead');
+                setStatusMsg(null);
+                setErrorMsg(null);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                activeTab === 'letterhead'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-600" />
+              <span>{isId ? 'Kop Surat & Logo' : 'Letterhead & Logo'}</span>
             </button>
           )}
 
@@ -820,47 +936,466 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
         </form>
       )}
 
-      {/* TAB 3: AUDIT TRAIL */}
+      {/* TAB 3: CORPORATE LETTERHEAD & LOGO KOP SURAT */}
+      {activeTab === 'letterhead' && canManageSettings && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Form Configuration Column */}
+          <form onSubmit={handleSaveCompanySettings} className="lg:col-span-7 bg-white p-6 rounded-xl border border-slate-200 space-y-5 text-xs shadow-xs">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-5 h-5 text-blue-600" />
+                <h2 className="text-sm font-bold text-slate-900">
+                  {isId ? 'Identitas Perusahaan & Kop Surat Resmi' : 'Corporate Identity & Official Letterhead'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={handleDownloadSamplePdf}
+                className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-[11px] flex items-center space-x-1.5 transition-colors border border-blue-200"
+                title={isId ? 'Unduh contoh dokumen PDF dengan kop surat saat ini' : 'Download sample PDF with current letterhead'}
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>{isId ? 'Cetak Contoh PDF' : 'Sample PDF'}</span>
+              </button>
+            </div>
+
+            {/* Logo Upload Section */}
+            <div className="space-y-2">
+              <label className="block font-bold text-slate-800">
+                {isId ? 'Logo Perusahaan (Untuk Kop Surat Seluruh PDF)' : 'Company Logo (Used in All PDF Letterheads)'}
+              </label>
+
+              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 rounded-xl border border-dashed border-slate-300 bg-slate-50/70">
+                {/* Logo Preview Box */}
+                <div className="w-28 h-20 bg-white rounded-lg border border-slate-200 flex items-center justify-center p-2 shrink-0 shadow-2xs overflow-hidden">
+                  {logoPreview ? (
+                    <img
+                      src={logoPreview}
+                      alt="Company Logo Preview"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-slate-400 text-center">
+                      <ImageIcon className="w-6 h-6 mb-1 text-slate-300" />
+                      <span className="text-[9px] font-medium leading-tight">Belum Ada Logo</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex-1 space-y-2 text-center sm:text-left">
+                  <div className="text-[11px] text-slate-600">
+                    {isId
+                      ? 'Format yang didukung: PNG (transparan disarankan), JPEG, WebP. Maksimal 2 MB.'
+                      : 'Supported formats: PNG (transparent recommended), JPEG, WebP. Max 2 MB.'}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleLogoUpload}
+                      accept="image/png,image/jpeg,image/webp"
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] flex items-center space-x-1.5 shadow-2xs transition-colors cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>{logoPreview ? (isId ? 'Ganti Logo' : 'Change Logo') : (isId ? 'Upload Logo' : 'Upload Logo')}</span>
+                    </button>
+                    {logoPreview && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveLogo}
+                        className="px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] flex items-center space-x-1 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{isId ? 'Hapus' : 'Remove'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Input Details */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="sm:col-span-2">
+                <label className="block font-bold text-slate-700 mb-1">
+                  {isId ? 'Nama Lengkap Perusahaan / Badan Usaha *' : 'Company / Legal Entity Name *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={companySettings.companyName}
+                  onChange={(e) => setCompanySettings({ ...companySettings, companyName: e.target.value })}
+                  placeholder="PT ADHI JAYA KONSTRUKSI TBK"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-900 font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {isId ? 'Header Lini Usaha (Baris 1)' : 'Business Line Header'}
+                </label>
+                <input
+                  type="text"
+                  value={companySettings.letterheadHeader}
+                  onChange={(e) => setCompanySettings({ ...companySettings, letterheadHeader: e.target.value })}
+                  placeholder="KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {isId ? 'Akreditasi / Sertifikasi (Baris 2)' : 'Accreditation / Subtitle'}
+                </label>
+                <input
+                  type="text"
+                  value={companySettings.letterheadSubheader}
+                  onChange={(e) => setCompanySettings({ ...companySettings, letterheadSubheader: e.target.value })}
+                  placeholder="Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001 / ISO 45001 / SMK3 PP 50/2012)"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {isId ? 'Alamat Kantor Pusat / Head Office' : 'Company Address'}
+                </label>
+                <input
+                  type="text"
+                  value={companySettings.companyAddress}
+                  onChange={(e) => setCompanySettings({ ...companySettings, companyAddress: e.target.value })}
+                  placeholder="Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta 12950"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {isId ? 'Telepon / Call Center' : 'Phone Number'}
+                </label>
+                <input
+                  type="text"
+                  value={companySettings.companyPhone}
+                  onChange={(e) => setCompanySettings({ ...companySettings, companyPhone: e.target.value })}
+                  placeholder="+62 21 5290 8800"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {isId ? 'Email Resmi Perusahaan' : 'Official Email'}
+                </label>
+                <input
+                  type="email"
+                  value={companySettings.companyEmail}
+                  onChange={(e) => setCompanySettings({ ...companySettings, companyEmail: e.target.value })}
+                  placeholder="corsec@perusahaan.co.id"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {isId ? 'Situs Web Resmi' : 'Company Website'}
+                </label>
+                <input
+                  type="text"
+                  value={companySettings.companyWebsite}
+                  onChange={(e) => setCompanySettings({ ...companySettings, companyWebsite: e.target.value })}
+                  placeholder="www.perusahaan.co.id"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  {isId ? 'Format No. Registrasi SOP / Dokumen' : 'Document Registration No.'}
+                </label>
+                <input
+                  type="text"
+                  value={companySettings.documentRegistrationNo}
+                  onChange={(e) => setCompanySettings({ ...companySettings, documentRegistrationNo: e.target.value })}
+                  placeholder="DOC-REF-SL/2026/01"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+              <span className="text-[11px] text-slate-500 italic">
+                {isId ? '✓ Otomatis disematkan pada Blanko Ceklis & Laporan Inspeksi PDF' : '✓ Automatically applied to all Blank Checklists & Inspection PDFs'}
+              </span>
+              <button
+                type="submit"
+                disabled={saving}
+                className="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5" />
+                <span>{saving ? '...' : isId ? 'Simpan Kop Surat' : 'Save Letterhead'}</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Live Preview Column */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="bg-slate-900 text-white px-4 py-3 rounded-xl flex items-center justify-between shadow-xs">
+              <div className="flex items-center space-x-2">
+                <FileText className="w-4 h-4 text-[#d4f038]" />
+                <span className="text-xs font-bold">{isId ? 'Live Pratinjau Kop Surat PDF' : 'Live Letterhead PDF Preview'}</span>
+              </div>
+              <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
+                A4 Standard
+              </span>
+            </div>
+
+            {/* Simulated Paper Sheet */}
+            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-md space-y-4 text-slate-900 select-none">
+              {/* Paper Kop Surat */}
+              <div className="pb-3 border-b-2 border-slate-900 space-y-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start space-x-3">
+                    {/* Logo display */}
+                    <div className="w-14 h-12 bg-slate-50 rounded border border-slate-200 flex items-center justify-center p-1 shrink-0 overflow-hidden">
+                      {logoPreview ? (
+                        <img src={logoPreview} alt="Logo" className="max-h-full max-w-full object-contain" />
+                      ) : (
+                        <div className="w-9 h-9 rounded bg-slate-900 text-[#d4f038] font-bold text-xs flex items-center justify-center">
+                          SL
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-xs text-slate-950 uppercase tracking-tight leading-tight">
+                        {companySettings.companyName || 'PT SITELENS KONSTRUKSI NUSANTARA'}
+                      </h3>
+                      <div className="text-[10px] font-bold text-slate-700 leading-tight mt-0.5">
+                        {companySettings.letterheadHeader || 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU'}
+                      </div>
+                      <div className="text-[9px] text-slate-500 leading-tight mt-0.5 line-clamp-1">
+                        {companySettings.companyAddress || 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said, Jakarta'}
+                      </div>
+                      <div className="text-[8.5px] text-slate-500 font-mono mt-0.5">
+                        Telp: {companySettings.companyPhone || '-'} | Email: {companySettings.companyEmail || '-'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="inline-block px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold">
+                      {isId ? 'DOKUMEN RESMI' : 'OFFICIAL DOC'}
+                    </span>
+                    <div className="text-[8px] font-mono text-slate-400 mt-1">
+                      {companySettings.documentRegistrationNo || 'DOC-REF-SL/01'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subheader / ISO line */}
+                <div className="text-[8.5px] text-slate-500 text-right italic font-serif pt-1 border-t border-slate-200">
+                  {companySettings.letterheadSubheader || 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001 / ISO 45001 / SMK3 PP 50/2012)'}
+                </div>
+              </div>
+
+              {/* Sample Document Body Content */}
+              <div className="space-y-2 pt-1">
+                <div className="p-2 rounded bg-slate-50 border border-slate-200 flex items-center justify-between">
+                  <span className="font-bold text-[11px] text-slate-800 uppercase">
+                    {isId ? 'LAPORAN INSPEKSI MUTU & K3 LAPANGAN' : 'QUALITY & HSE FIELD INSPECTION REPORT'}
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    PASS / APPROVED
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-50/50 p-2.5 rounded border border-slate-100">
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold">Proyek</span>
+                    <span className="font-semibold text-slate-800">Menara Sudirman Tower Phase 2</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold">Site / Zona</span>
+                    <span className="font-semibold text-slate-800">Zone A - Level 14 Rebar Inspection</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold">Inspektur</span>
+                    <span className="font-semibold text-slate-800">Budi Santoso (Field QC)</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[9px] uppercase font-bold">Verifikator</span>
+                    <span className="font-semibold text-slate-800">Ir. Hendra Gunawan (QA/QC Lead)</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-blue-50/80 border border-blue-200 text-blue-900 text-[10px] leading-relaxed">
+                  💡 <strong>Informasi Sistem:</strong> Kop surat ini telah aktif terintegrasi dengan modul pembuatan blanko ceklis kosong ([pdfGenerator](file:///c:/Users/Programer/Documents/SiteLens/src/utils/pdfGenerator.ts)) dan laporan resmi inspeksi lapangan.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: ENHANCED AUDIT TRAIL WITH SEARCH & PAGINATION */}
       {activeTab === 'audit' && canViewAudit && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="px-5 py-3.5 border-b border-slate-200 flex items-center space-x-2 text-sm font-bold text-slate-900">
-            <History className="w-4 h-4 text-slate-500" />
-            <span>{isId ? 'Log Audit Aktivitas (100 Terbaru)' : 'Activity Audit Trail (Latest 100)'}</span>
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+          {/* Header & Search Bar */}
+          <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50/60 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center space-x-2 text-sm font-bold text-slate-900">
+              <History className="w-4 h-4 text-slate-600" />
+              <span>{isId ? 'Log Audit Aktivitas & Tata Kelola Keamanan' : 'Activity Audit Trail & Security Governance'}</span>
+              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                {auditLogs.length} total
+              </span>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <div className="relative w-64">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={auditSearch}
+                  onChange={(e) => {
+                    setAuditSearch(e.target.value);
+                    setAuditPage(1);
+                  }}
+                  placeholder={isId ? 'Cari aktor, aksi, atau entitas...' : 'Search actor, action, or entity...'}
+                  className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-slate-800"
+                />
+              </div>
+            </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px]">
-                <tr>
-                  <th className="px-4 py-2.5">Time</th>
-                  <th className="px-4 py-2.5">Actor</th>
-                  <th className="px-4 py-2.5">Action</th>
-                  <th className="px-4 py-2.5">Entity</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {auditLogs.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
-                      {isId ? 'Belum ada catatan audit.' : 'No audit entries yet.'}
-                    </td>
-                  </tr>
-                ) : (
-                  auditLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-2 font-mono text-[11px] text-slate-500 whitespace-nowrap">
-                        {new Date(log.createdAt).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-2 font-semibold text-slate-800">{log.actorName}</td>
-                      <td className="px-4 py-2 font-mono text-[11px] text-amber-700">{log.action}</td>
-                      <td className="px-4 py-2 text-slate-600">
-                        {log.entityType} ({log.entityId})
-                      </td>
-                    </tr>
-                  ))
+
+          {/* Audit Logs Table */}
+          {(() => {
+            const filtered = auditLogs.filter((log) => {
+              if (!auditSearch) return true;
+              const q = auditSearch.toLowerCase();
+              return (
+                (log.actorName && log.actorName.toLowerCase().includes(q)) ||
+                (log.action && log.action.toLowerCase().includes(q)) ||
+                (log.entityType && log.entityType.toLowerCase().includes(q)) ||
+                (log.entityId && log.entityId.toLowerCase().includes(q))
+              );
+            });
+
+            const totalPages = Math.max(1, Math.ceil(filtered.length / AUDIT_PAGE_SIZE));
+            const currentPage = Math.min(auditPage, totalPages);
+            const startIdx = (currentPage - 1) * AUDIT_PAGE_SIZE;
+            const pageLogs = filtered.slice(startIdx, startIdx + AUDIT_PAGE_SIZE);
+
+            return (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-[10px]">
+                      <tr>
+                        <th className="px-4 py-2.5">Waktu</th>
+                        <th className="px-4 py-2.5">Aktor / Pengguna</th>
+                        <th className="px-4 py-2.5">Aksi Keamanan</th>
+                        <th className="px-4 py-2.5">Entitas Terkait</th>
+                        <th className="px-4 py-2.5">Metadata Perubahan</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {pageLogs.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                            {auditSearch
+                              ? (isId ? 'Tidak ada catatan audit yang cocok dengan pencarian.' : 'No audit entries match search.')
+                              : (isId ? 'Belum ada catatan audit.' : 'No audit entries recorded yet.')}
+                          </td>
+                        </tr>
+                      ) : (
+                        pageLogs.map((log) => {
+                          const isCreate = log.action.includes('CREATE') || log.action.includes('ADD');
+                          const isDelete = log.action.includes('DELETE') || log.action.includes('REMOVE');
+                          const isUpdate = log.action.includes('UPDATE') || log.action.includes('PATCH');
+                          return (
+                            <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-4 py-2.5 font-mono text-[11px] text-slate-500 whitespace-nowrap">
+                                {new Date(log.createdAt).toLocaleString('id-ID', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </td>
+                              <td className="px-4 py-2.5 font-bold text-slate-900 whitespace-nowrap">
+                                {log.actorName}
+                              </td>
+                              <td className="px-4 py-2.5 whitespace-nowrap">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                    isCreate
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                      : isDelete
+                                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                      : isUpdate
+                                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                      : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                  }`}
+                                >
+                                  {log.action}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-slate-700 font-medium whitespace-nowrap">
+                                <span className="font-semibold text-slate-900">{log.entityType}</span>
+                                <span className="text-[10px] font-mono text-slate-400 ml-1.5 truncate max-w-[120px] inline-block align-bottom">
+                                  ({log.entityId})
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-slate-500 font-mono text-[10px] max-w-xs truncate">
+                                {log.metadata ? JSON.stringify(log.metadata) : '-'}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Controls */}
+                {filtered.length > AUDIT_PAGE_SIZE && (
+                  <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/50 flex items-center justify-between text-xs text-slate-600">
+                    <div>
+                      Menampilkan <span className="font-bold">{startIdx + 1}</span> s/d{' '}
+                      <span className="font-bold">{Math.min(startIdx + AUDIT_PAGE_SIZE, filtered.length)}</span> dari{' '}
+                      <span className="font-bold">{filtered.length}</span> log
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setAuditPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="p-1.5 rounded-lg border border-slate-300 hover:bg-white disabled:opacity-40 cursor-pointer"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      <span className="font-bold text-slate-800">
+                        {currentPage} / {totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAuditPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        className="p-1.5 rounded-lg border border-slate-300 hover:bg-white disabled:opacity-40 cursor-pointer"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </tbody>
-            </table>
-          </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>

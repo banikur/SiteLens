@@ -557,3 +557,17 @@ export interface BottleneckItem {
   scheduleImpactDays: number;
 }
 
+export interface CompanySettings {
+  id?: string;
+  companyName: string;
+  companyAddress: string;
+  companyPhone: string;
+  companyEmail: string;
+  companyWebsite: string;
+  companyLogo: string;
+  letterheadHeader: string;
+  letterheadSubheader: string;
+  documentRegistrationNo: string;
+  updatedAt?: string;
+}
+

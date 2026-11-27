@@ -4,6 +4,7 @@ import {
   CorrectiveAction,
   Project,
   User,
+  CompanySettings,
 } from '../types';
 import {
   MOCK_USERS,
@@ -19,6 +20,43 @@ const STORAGE_KEYS = {
   USERS: 'sitelens_users_v2',
   ACTIVE_USER_ID: 'sitelens_active_user_v2',
   LANG: 'sitelens_lang_v1',
+  COMPANY_SETTINGS: 'sitelens_company_settings_v1',
+};
+
+export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
+  companyName: 'PT SITELENS KONSTRUKSI NUSANTARA',
+  companyAddress: 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said Blok X-5 No. 13, Jakarta Selatan 12950',
+  companyPhone: '+62 21 5290 8800',
+  companyEmail: 'corsec@sitelens-construct.id',
+  companyWebsite: 'www.sitelens-construct.id',
+  companyLogo: '',
+  letterheadHeader: 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU',
+  letterheadSubheader: 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001:2015 / ISO 45001:2018 / SMK3 PP 50/2012)',
+  documentRegistrationNo: 'DOC-REF-SL/2026/01',
+};
+
+export const getStoredCompanySettings = (): CompanySettings => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.COMPANY_SETTINGS);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify(DEFAULT_COMPANY_SETTINGS));
+      return DEFAULT_COMPANY_SETTINGS;
+    }
+    return { ...DEFAULT_COMPANY_SETTINGS, ...JSON.parse(raw) };
+  } catch {
+    return DEFAULT_COMPANY_SETTINGS;
+  }
+};
+
+export const saveStoredCompanySettings = (settings: Partial<CompanySettings>): CompanySettings => {
+  const current = getStoredCompanySettings();
+  const updated: CompanySettings = {
+    ...current,
+    ...settings,
+    updatedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify(updated));
+  return updated;
 };
 
 const getCurrentLang = (): Language => {
