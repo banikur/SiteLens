@@ -59,6 +59,10 @@ projectControlRouter.post(
       return;
     }
     const year = Number(req.body?.year) || new Date().getFullYear();
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      res.status(400).json({ error: 'Invalid year (must be between 2000 and 2100).' });
+      return;
+    }
     try {
       const holidays = await syncNationalHolidaysFromTanggalans(year);
       await writeAuditLog(req.authUser.id, req.authUser.name, 'HOLIDAYS_SYNCED', 'national_holidays', String(year), {
@@ -122,6 +126,25 @@ projectControlRouter.put(
       holidayOverrides = {},
     } = req.body ?? {};
 
+    const ALLOWED_WEEKEND_MODES = new Set(['non_working', 'half_day', 'full_working']);
+    const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!TIME_RE.test(String(workStartHour)) || !TIME_RE.test(String(workEndHour))) {
+      res.status(400).json({ error: 'workStartHour and workEndHour must be HH:MM.' });
+      return;
+    }
+    if (!ALLOWED_WEEKEND_MODES.has(String(saturdayMode)) || !ALLOWED_WEEKEND_MODES.has(String(sundayMode))) {
+      res.status(400).json({ error: 'Invalid saturdayMode or sundayMode.' });
+      return;
+    }
+    const sanitizedOverrides: Record<string, 'working' | 'non_working'> = {};
+    if (holidayOverrides && typeof holidayOverrides === 'object' && !Array.isArray(holidayOverrides)) {
+      for (const [k, v] of Object.entries(holidayOverrides)) {
+        if (/^\d{4}-\d{2}-\d{2}$/.test(k) && (v === 'working' || v === 'non_working')) {
+          sanitizedOverrides[k] = v;
+        }
+      }
+    }
+
     const [calendar] = await db
       .insert(projectCalendars)
       .values({
@@ -130,7 +153,7 @@ projectControlRouter.put(
         workEndHour: String(workEndHour),
         saturdayMode,
         sundayMode,
-        holidayOverrides,
+        holidayOverrides: sanitizedOverrides,
       })
       .onConflictDoUpdate({
         target: projectCalendars.projectId,
@@ -139,7 +162,7 @@ projectControlRouter.put(
           workEndHour: String(workEndHour),
           saturdayMode,
           sundayMode,
-          holidayOverrides,
+          holidayOverrides: sanitizedOverrides,
           updatedAt: new Date(),
         },
       })
@@ -266,6 +289,22 @@ projectControlRouter.post(
       res.status(400).json({ error: 'title and description are required.' });
       return;
     }
+    const ALLOWED_VO_TYPES = new Set(['scope_addition', 'scope_reduction', 'schedule_revision', 'weight_rebalance']);
+    if (!ALLOWED_VO_TYPES.has(String(voType))) {
+      res.status(400).json({ error: 'Invalid voType.' });
+      return;
+    }
+    if (targetNodeId) {
+      const [targetNode] = await db
+        .select({ id: workNodes.id })
+        .from(workNodes)
+        .where(and(eq(workNodes.id, targetNodeId as any), eq(workNodes.projectId, projectId as any)))
+        .limit(1);
+      if (!targetNode) {
+        res.status(404).json({ error: 'Target WBS node not found in this project.' });
+        return;
+      }
+    }
 
     const existingCount = await db
       .select({ id: variationOrders.id })
@@ -334,6 +373,11 @@ projectControlRouter.post(
 
     if (!vo) {
       res.status(404).json({ error: 'Variation order not found.' });
+      return;
+    }
+
+    if (vo.status !== 'pending_approval') {
+      res.status(409).json({ error: `Variation order sudah berstatus '${vo.status}' dan tidak dapat diputuskan ulang.` });
       return;
     }
 

@@ -174,7 +174,8 @@ export function calculateSCurveData(params: {
       for (const node of leafNodes) {
         const weight = Number(node.weightPercent) || 0;
         const claimed = node.claimedProgressPercent || 0;
-        let verified = node.verifiedProgressPercent || 0;
+        // Provisional work (pending VO approval) is tracked in claimed, excluded from official verified
+        let verified = node.provisionalStatus === 'pending_vo' ? 0 : (node.verifiedProgressPercent || 0);
 
         // Zero-Tolerance Punchlist Lockout:
         // If node has open punchlist items, verified cannot reach 100%!
