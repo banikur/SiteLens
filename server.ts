@@ -60,7 +60,7 @@ function getAiClient(): GoogleGenAI | null {
     apiKey,
     httpOptions: {
       headers: {
-        'User-Agent': 'aistudio-build',
+        'User-Agent': 'SiteLens/1.0',
       },
     },
   });
