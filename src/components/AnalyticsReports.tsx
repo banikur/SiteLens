@@ -67,15 +67,15 @@ export const AnalyticsReports: React.FC<AnalyticsReportsProps> = ({
       </div>
 
       {/* Top 3 Analytical Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span className="font-semibold uppercase tracking-wider">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+            <span className="font-medium">
               {t.analytics.overallCompliance}
             </span>
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <ShieldCheck className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900 font-mono tabular-nums">
+          <div className="text-3xl font-semibold text-slate-900 font-mono tabular-nums">
             {avgCompliance}%
           </div>
           <p className="text-xs text-slate-500 mt-2">
@@ -83,14 +83,14 @@ export const AnalyticsReports: React.FC<AnalyticsReportsProps> = ({
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span className="font-semibold uppercase tracking-wider">
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+            <span className="font-medium">
               {t.analytics.verificationPipeline}
             </span>
-            <TrendingUp className="w-4 h-4 text-amber-500" />
+            <TrendingUp className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900 font-mono tabular-nums">
+          <div className="text-3xl font-semibold text-slate-900 font-mono tabular-nums">
             {approved} / {total}
           </div>
           <p className="text-xs text-slate-500 mt-2">
@@ -101,14 +101,14 @@ export const AnalyticsReports: React.FC<AnalyticsReportsProps> = ({
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
-          <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
-            <span className="font-semibold uppercase tracking-wider">
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+          <div className="flex items-center justify-between text-xs text-slate-600 mb-2">
+            <span className="font-medium">
               {t.analytics.remediationRate}
             </span>
-            <AlertTriangle className="w-4 h-4 text-rose-500" />
+            <AlertTriangle className="w-4 h-4 text-slate-400" strokeWidth={1.75} />
           </div>
-          <div className="text-3xl font-extrabold text-slate-900 font-mono tabular-nums">
+          <div className="text-3xl font-semibold text-slate-900 font-mono tabular-nums">
             {actionResolutionRate}%
           </div>
           <p className="text-xs text-slate-500 mt-2">
@@ -120,13 +120,13 @@ export const AnalyticsReports: React.FC<AnalyticsReportsProps> = ({
       </div>
 
       {/* Project Comparison Matrix */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs">
-        <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4">
+      <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs">
+        <h2 className="text-sm font-semibold text-slate-900 mb-4">
           {t.analytics.benchmarkMatrix}
         </h2>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-medium">
               <tr>
                 <th className="py-3 px-4">{t.analytics.colProject}</th>
                 <th className="py-3 px-4">{t.analytics.colLocation}</th>

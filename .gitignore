@@ -19,4 +19,6 @@ data/
 # DB backup dumps — contain credentials/data, never commit
 tests/backup_*
 docs/
-*.sql
+*.sqlpdf
+*.txt
+/.*
