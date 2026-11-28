@@ -55,6 +55,7 @@ import {
   flattenWbsTree,
   validateWbsWeights,
   calculateRollupProgress,
+  computeWbsCriticalPath,
   WbsTreeNode,
 } from '../utils/wbs';
 import { canProceedToStage, validateFourEyesDetails } from '../utils/workflow';
@@ -166,6 +167,10 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
   const [inlineEngineerName, setInlineEngineerName] = useState('');
   const [inlineQcName, setInlineQcName] = useState('');
   const [inlineAllowDetailing, setInlineAllowDetailing] = useState(false);
+  const [inlineIsMilestone, setInlineIsMilestone] = useState(false);
+  const [inlineIsUnplanned, setInlineIsUnplanned] = useState(false);
+  const [inlinePredecessorId, setInlinePredecessorId] = useState('');
+  const [inlineLagDays, setInlineLagDays] = useState('0');
   const [inlineSaving, setInlineSaving] = useState(false);
   const [inlineSaveSuccess, setInlineSaveSuccess] = useState(false);
   const [approvingDetailsLoading, setApprovingDetailsLoading] = useState(false);
@@ -546,8 +551,9 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
 
   // Build tree & flat list
   const treeNodes = useMemo(() => buildWbsTree(nodes), [nodes]);
-  const flatNodes = useMemo(() => flattenWbsTree(treeNodes), [treeNodes]);
+  const flatNodes = useMemo(() => flattenWbsTree(treeNodes), [nodes]);
   const weightValidation = useMemo(() => validateWbsWeights(nodes), [nodes]);
+  const cpmResult = useMemo(() => computeWbsCriticalPath(nodes), [nodes]);
 
   // Keep selection valid when nodes are added, edited, or deleted
   useEffect(() => {
@@ -580,6 +586,11 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       setInlineEngineerName(selectedNode.assignedEngineerName || 'Dave Kowalski (Site Engineer)');
       setInlineQcName(selectedNode.assignedQcName || 'Elena Rostova (QA/QC Lead)');
       setInlineAllowDetailing(Boolean(selectedNode.allowDetailing));
+      setInlineIsMilestone(Boolean(selectedNode.isMilestone));
+      setInlineIsUnplanned(Boolean(selectedNode.isUnplanned));
+      const firstPred = selectedNode.predecessorIds?.[0];
+      setInlinePredecessorId(firstPred?.nodeId || '');
+      setInlineLagDays(String(firstPred?.lagDays ?? 0));
       setClaimProgressDraft(Number(selectedNode.claimedProgressPercent) || 0);
       setInlineSaveSuccess(false);
 
@@ -774,10 +785,21 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
         documentReferenceNo: inlineDocRef.trim() || null,
         activeRevision: inlineRevision.trim() || null,
         plannedStartDate: inlineStartDate || null,
-        plannedEndDate: inlineEndDate || null,
+        plannedEndDate: inlineIsMilestone ? (inlineStartDate || null) : (inlineEndDate || null),
         assignedEngineerName: inlineEngineerName || null,
         assignedQcName: inlineQcName || null,
+        isMilestone: inlineIsMilestone,
+        isUnplanned: inlineIsUnplanned,
+        predecessorIds: inlinePredecessorId
+          ? [{ nodeId: inlinePredecessorId, lagDays: Number(inlineLagDays) || 0 }]
+          : [],
       };
+
+      const simulated = nodes.map((n) => (n.id === selectedNode.id ? { ...n, predecessorIds: payload.predecessorIds } : n));
+      if (computeWbsCriticalPath(simulated).hasCycle) {
+        alert('Dependensi membentuk siklus (A → B → A). Pilih predecessor lain.');
+        return;
+      }
 
       if (canEditStructure) {
         payload.allowDetailing = inlineAllowDetailing;
@@ -1116,6 +1138,21 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                         title="Menunggu persetujuan PM sebelum aktif di Kurva-S"
                       >
                         Pending PM
+                      </span>
+                    )}
+                    {node.isMilestone && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+                        Milestone
+                      </span>
+                    )}
+                    {node.isUnplanned && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-sky-100 text-sky-900 border border-sky-300 shrink-0">
+                        {node.provisionalStatus === 'pending_vo' ? 'Provisional' : 'Unplanned'}
+                      </span>
+                    )}
+                    {cpmResult.criticalNodeIds.has(node.id) && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold bg-purple-100 text-purple-900 border border-purple-300 shrink-0">
+                        Critical
                       </span>
                     )}
 
@@ -2206,6 +2243,51 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                         value={inlineEndDate}
                         onChange={(e) => setInlineEndDate(e.target.value)}
                         className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Milestone, Unplanned & CPM Predecessor */}
+                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-3">
+                    <div className="flex flex-wrap items-center gap-4 text-xs">
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={inlineIsMilestone}
+                          onChange={(e) => setInlineIsMilestone(e.target.checked)}
+                        />
+                        <span className="font-medium text-slate-800">Milestone (0 hari)</span>
+                      </label>
+                      <label className="flex items-center space-x-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={inlineIsUnplanned}
+                          onChange={(e) => setInlineIsUnplanned(e.target.checked)}
+                        />
+                        <span className="font-medium text-slate-800">Pekerjaan Tambahan (Unplanned)</span>
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                      <select
+                        value={inlinePredecessorId}
+                        onChange={(e) => setInlinePredecessorId(e.target.value)}
+                        className="sm:col-span-2 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                      >
+                        <option value="">-- Tanpa Predecessor (CPM) --</option>
+                        {flatNodes
+                          .filter((n) => n.id !== selectedNode.id)
+                          .map((n) => (
+                            <option key={n.id} value={n.id}>
+                              {n.wbsCode} - {n.name}
+                            </option>
+                          ))}
+                      </select>
+                      <input
+                        type="number"
+                        value={inlineLagDays}
+                        onChange={(e) => setInlineLagDays(e.target.value)}
+                        placeholder="Lag (hari)"
+                        className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white font-mono"
                       />
                     </div>
                   </div>

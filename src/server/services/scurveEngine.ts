@@ -41,6 +41,7 @@ export interface SSOTNodeData {
   verifiedProgressPercent?: number;
   requiresChecklist?: boolean;
   detailingStatus?: 'active' | 'pending_pm_approval' | 'rejected' | string;
+  provisionalStatus?: 'confirmed' | 'pending_vo' | string;
   updatedAt?: Date | string | null;
 }
 
@@ -321,6 +322,11 @@ export function calculateSSOTSCurveData(params: SSOTSCurveParams): SCurveSummary
 
         if (isLockedByCapa && leafVerifiedPercent >= 100) {
           leafVerifiedPercent = 99;
+        }
+
+        // Provisional work (pending VO approval) stays in Claimed only, excluded from official Verified
+        if (node.provisionalStatus === 'pending_vo') {
+          leafVerifiedPercent = 0;
         }
 
         totalVerifiedEarned += (leafVerifiedPercent * absoluteWeight) / 100;

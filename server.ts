@@ -216,7 +216,7 @@ Rules for structuring the checklist:
 5. Include realistic engineering standard references in 'helpStandard' (e.g., 'SNI 2847:2019', 'OSHA 1926.1412', 'ISO 9001', 'ACI 318', 'Permenaker No. 8 Tahun 2020').`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
+        model: 'gemini-2.5-flash',
         contents: `Target Category: ${category}\nTarget Inspector Role: ${targetRole}\n\nUser Specification / SOP Input:\n${prompt}`,
         config: {
           systemInstruction,

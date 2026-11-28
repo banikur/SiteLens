@@ -583,7 +583,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
 
           {/* Canvas Box */}
           <div
-            className={`mx-auto bg-white rounded-xl border border-slate-300 shadow-sm transition-all duration-300 ${
+            className={`mx-auto bg-white rounded-xl border border-slate-300 shadow-sm transition-colors duration-300 ${
               previewViewport === 'mobile'
                 ? 'max-w-sm p-4'
                 : 'max-w-3xl p-6 md:p-8'
@@ -953,7 +953,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
             {activeTab === 'content' ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  <span className="text-xs font-bold text-slate-700">
                     {t.builder.sectionsCount.replace(
                       '{count}',
                       String(template.sections.length)
@@ -993,7 +993,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                 </div>
 
                 <div className="pt-4 border-t border-slate-200">
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
                     {t.builder.categoryClassification}
                   </label>
                   <select
@@ -1024,7 +1024,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                  <label className="text-xs font-bold text-slate-700 block mb-1.5">
                     {t.builder.descriptionObjective}
                   </label>
                   <textarea
@@ -1041,7 +1041,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
             ) : (
               /* Governance & Approval Rules */
               <div className="space-y-4">
-                <div className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                <div className="text-xs font-bold text-slate-700">
                   {t.builder.verificationSignoff}
                 </div>
                 <div className="bg-white p-3.5 rounded-lg border border-slate-200 space-y-3">
@@ -1163,7 +1163,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                 {/* Active Section Info Card */}
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    <span className="text-xs font-bold text-slate-500">
                       {t.builder.sectionHeaderLabel}
                     </span>
                     <button
@@ -1220,7 +1220,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                     currentSection.fields.map((field, fIdx) => (
                       <div
                         key={field.id}
-                        className={`bg-white border rounded-lg p-4 transition-all ${
+                        className={`bg-white border rounded-lg p-4 transition-colors ${
                           selectedFieldId === field.id
                             ? 'border-amber-500 shadow-xs'
                             : 'border-slate-200 hover:border-slate-300'
@@ -1477,7 +1477,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
           {/* Right Column: Visual Palette Tooling (3 cols) */}
           <div className="lg:col-span-3 p-5 bg-slate-50/50 space-y-4 overflow-y-auto">
             <div>
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+              <h3 className="text-xs font-bold text-slate-800">
                 {t.builder.componentPalette}
               </h3>
               <p className="text-[11px] text-slate-500 mt-0.5">
@@ -1499,7 +1499,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                   lang === 'id' ? items[0]?.categoryId || cat : cat;
                 return (
                   <div key={cat} className="space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block px-1">
+                    <span className="text-[10px] font-bold text-slate-400 block px-1">
                       {catLabel}
                     </span>
                     <div className="space-y-1.5">
@@ -1509,7 +1509,7 @@ export const ChecklistBuilder: React.FC<ChecklistBuilderProps> = ({
                           onClick={() =>
                             handleAddField(activeSectionId, item.type)
                           }
-                          className="w-full text-left p-2 rounded-lg border border-slate-200 bg-white hover:border-amber-500 hover:shadow-xs transition-all flex items-start space-x-2.5 group"
+                          className="w-full text-left p-2 rounded-lg border border-slate-200 bg-white hover:border-amber-500 hover:shadow-xs transition-colors flex items-start space-x-2.5 group"
                         >
                           <span className="w-8 h-8 rounded bg-slate-100 flex items-center justify-center font-mono text-xs font-bold text-slate-700 group-hover:bg-amber-100 group-hover:text-amber-800 shrink-0">
                             {item.iconText}

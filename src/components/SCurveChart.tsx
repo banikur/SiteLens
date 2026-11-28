@@ -1,4 +1,4 @@
-import React, { useState, useId, useMemo } from 'react';
+import React, { useState, useId, useMemo, useEffect } from 'react';
 import {
   TrendingUp,
   AlertTriangle,
@@ -13,8 +13,8 @@ import {
   ChevronRight,
   FileSpreadsheet,
 } from 'lucide-react';
-import type { SCurveSummary, User, WorkNode } from '../types';
-import { apiOverrideSCurve } from '../services/api';
+import type { BaselineSnapshot, SCurveSummary, User, WorkNode } from '../types';
+import { apiCreateBaseline, apiGetBaselines, apiOverrideSCurve } from '../services/api';
 import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 
 interface SCurveChartProps {
@@ -40,6 +40,20 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
   const [overrideValue, setOverrideValue] = useState<string>('50.00');
   const [overrideReason, setOverrideReason] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const [baselines, setBaselines] = useState<BaselineSnapshot[]>([]);
+  const [selectedBaselineId, setSelectedBaselineId] = useState<string>('');
+  const [savingBaseline, setSavingBaseline] = useState(false);
+
+  useEffect(() => {
+    if (!scurve.projectId) return;
+    apiGetBaselines(scurve.projectId).then((res) => {
+      const list = res.baselines || [];
+      setBaselines(list);
+      if (list.length > 0 && !selectedBaselineId) {
+        setSelectedBaselineId(list[0].id);
+      }
+    });
+  }, [scurve.projectId]);
 
   const { can, isLoading: isLoadingPerms } = usePermission();
   const canOverride =
@@ -78,6 +92,34 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
   const verifiedPath = points
     .map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${getX(idx)} ${getY(p.verifiedCumulative)}`)
     .join(' ');
+
+  const activeBaseline = baselines.find((b) => b.id === selectedBaselineId) || null;
+  const baselinePath = activeBaseline
+    ? points
+        .map((p, idx) => {
+          const bp = activeBaseline.curvePoints.find((c) => c.weekIndex === p.weekIndex);
+          const val = bp ? bp.targetCumulative : p.targetCumulative;
+          return `${idx === 0 ? 'M' : 'L'} ${getX(idx)} ${getY(val)}`;
+        })
+        .join(' ')
+    : '';
+
+  const handleSaveBaseline = async () => {
+    try {
+      setSavingBaseline(true);
+      const curvePoints = points.map((p) => ({
+        weekIndex: p.weekIndex,
+        targetCumulative: p.targetCumulative,
+      }));
+      const res = await apiCreateBaseline(scurve.projectId, `Baseline v${baselines.length + 1}`, curvePoints);
+      setBaselines((prev) => [res.baseline, ...prev]);
+      setSelectedBaselineId(res.baseline.id);
+    } catch (err: any) {
+      alert(err?.message || 'Gagal menyimpan snapshot baseline.');
+    } finally {
+      setSavingBaseline(false);
+    }
+  };
 
   const handleOpenOverride = (weekIdx: number, currentTarget: number) => {
     if (!canOverride) return;
@@ -414,12 +456,42 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
               </p>
             </div>
 
-            {/* Legend */}
-            <div className="flex items-center space-x-4 text-[11px] font-medium text-slate-600">
+            {/* Legend & Baseline Controls */}
+            <div className="flex flex-wrap items-center gap-3 text-[11px] font-medium text-slate-600">
+              {baselines.length > 0 && (
+                <select
+                  value={selectedBaselineId}
+                  onChange={(e) => setSelectedBaselineId(e.target.value)}
+                  className="px-2 py-1 rounded border border-slate-200 bg-slate-50 text-slate-700 text-[11px]"
+                >
+                  <option value="">-- Tanpa Baseline --</option>
+                  {baselines.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.label} (v{b.version})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {canOverride && (
+                <button
+                  type="button"
+                  onClick={handleSaveBaseline}
+                  disabled={savingBaseline}
+                  className="px-2.5 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-800 font-semibold transition-colors disabled:opacity-50"
+                >
+                  {savingBaseline ? 'Menyimpan...' : '+ Simpan Baseline'}
+                </button>
+              )}
               <div className="flex items-center space-x-1.5">
                 <span className="w-3 h-0.5 bg-sky-500 inline-block border-t border-dashed border-sky-600" />
                 <span>Target rencana</span>
               </div>
+              {activeBaseline && (
+                <div className="flex items-center space-x-1.5">
+                  <span className="w-3 h-0.5 bg-amber-500 inline-block border-t border-dotted border-amber-600" />
+                  <span>Baseline v{activeBaseline.version}</span>
+                </div>
+              )}
               <div className="flex items-center space-x-1.5">
                 <span className="w-3 h-0.5 bg-slate-400 inline-block" />
                 <span>Klaim lapangan</span>
@@ -518,6 +590,17 @@ export const SCurveChart: React.FC<SCurveChartProps> = ({
                 strokeWidth="2"
                 strokeDasharray="4 4"
               />
+
+              {/* Saved Baseline Snapshot Line (Dotted Amber) */}
+              {baselinePath && (
+                <path
+                  d={baselinePath}
+                  fill="none"
+                  stroke="#d97706"
+                  strokeWidth="1.75"
+                  strokeDasharray="2 3"
+                />
+              )}
 
               {/* Claimed Line (Quiet Slate 400) */}
               <path

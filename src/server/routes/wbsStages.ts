@@ -352,6 +352,9 @@ router.put(
         detailingStatus: updatedDetailingStatus,
         volume: body.volume !== undefined ? (body.volume != null && String(body.volume).trim() !== '' ? String(body.volume) : null) : existingNode.volume,
         unit: body.unit !== undefined ? (body.unit ? String(body.unit).trim() : null) : existingNode.unit,
+        isMilestone: body.isMilestone !== undefined ? Boolean(body.isMilestone) : existingNode.isMilestone,
+        isUnplanned: body.isUnplanned !== undefined ? Boolean(body.isUnplanned) : existingNode.isUnplanned,
+        predecessorIds: Array.isArray(body.predecessorIds) ? body.predecessorIds : existingNode.predecessorIds,
         sortOrder: body.sortOrder !== undefined ? Number(body.sortOrder) : existingNode.sortOrder,
         updatedAt: new Date(),
       })

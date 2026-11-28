@@ -175,7 +175,7 @@ export const AITemplateGeneratorModal: React.FC<AITemplateGeneratorModalProps> =
             <>
               {/* Quick-Fill Sample Engineering Specifications */}
               <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 block mb-2">
+                <span className="text-xs font-bold text-slate-500 block mb-2">
                   {t.aiGenerator.samplePromptsLabel}
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -188,7 +188,7 @@ export const AITemplateGeneratorModal: React.FC<AITemplateGeneratorModalProps> =
                         setCategory(sample.category);
                         setErrorMessage(null);
                       }}
-                      className="text-left p-3 rounded-lg border border-slate-200 hover:border-amber-500 hover:bg-amber-50/30 transition-all group"
+                      className="text-left p-3 rounded-lg border border-slate-200 hover:border-amber-500 hover:bg-amber-50/30 transition-colors group"
                     >
                       <div className="text-xs font-bold text-slate-900 group-hover:text-amber-700 flex items-center justify-between">
                         <span className="truncate">{sample.title}</span>
@@ -205,7 +205,7 @@ export const AITemplateGeneratorModal: React.FC<AITemplateGeneratorModalProps> =
               {/* Long Textarea Input for SOP / Work Method Statement */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  <label className="text-xs font-bold text-slate-700">
                     {t.aiGenerator.textareaLabel}
                   </label>
                   <span className="text-[11px] font-mono text-slate-400">
@@ -228,7 +228,7 @@ export const AITemplateGeneratorModal: React.FC<AITemplateGeneratorModalProps> =
               {/* Configuration Controls Row */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">
                     {t.aiGenerator.targetCategoryLabel}
                   </label>
                   <select
@@ -246,7 +246,7 @@ export const AITemplateGeneratorModal: React.FC<AITemplateGeneratorModalProps> =
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">
                     {t.aiGenerator.outputLanguageLabel}
                   </label>
                   <div className="flex border border-slate-300 rounded-lg p-0.5 bg-slate-100">
@@ -320,7 +320,7 @@ export const AITemplateGeneratorModal: React.FC<AITemplateGeneratorModalProps> =
               <div className="space-y-5">
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <div className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                    <div className="text-xs font-bold text-amber-950">
                       {t.aiGenerator.previewBannerTitle}
                     </div>
                     <p className="text-xs text-amber-900 mt-0.5">

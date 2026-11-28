@@ -188,7 +188,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
                   <div
                     key={act.id}
                     onClick={() => setSelectedActionId(act.id)}
-                    className={`p-3 cursor-pointer transition-all ${
+                    className={`p-3 cursor-pointer transition-colors ${
                       isSelected
                         ? 'bg-white border-l-4 border-l-amber-500 shadow-xs'
                         : 'hover:bg-slate-100/70 border-l-4 border-l-transparent'
@@ -312,7 +312,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
               <div className="flex-1 min-h-0 overflow-auto p-4 space-y-3.5">
                 {/* Issue Description */}
                 <div>
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  <label className="text-[10px] font-bold text-slate-400 block mb-1">
                     Deskripsi Defisiensi / Temuan
                   </label>
                   <p className="text-xs text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-200 leading-relaxed font-sans">
@@ -323,7 +323,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
                 {/* Photo Evidence if any */}
                 {activeAction.evidencePhotoUrl && (
                   <div>
-                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                    <label className="text-[10px] font-bold text-slate-400 block mb-1">
                       Bukti Foto Lapangan
                     </label>
                     <img
@@ -419,7 +419,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
 
             <form onSubmit={handleCreate} className="p-6 space-y-4 text-xs">
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block font-bold text-slate-700 mb-1">
                   {t.actions.deficiencyTitleLabel}
                 </label>
                 <input
@@ -433,7 +433,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block font-bold text-slate-700 mb-1">
                   {t.actions.defectDescLabel}
                 </label>
                 <textarea
@@ -447,7 +447,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                <label className="block font-bold text-slate-700 mb-1">
                   Tautkan ke Simpul WBS (99% Progress Lockout Gate)
                 </label>
                 <select
@@ -471,7 +471,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     {t.actions.severityTierLabel}
                   </label>
                   <select
@@ -488,7 +488,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     {t.actions.dueDateLabel}
                   </label>
                   <input
@@ -502,7 +502,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     {t.actions.projectLabel}
                   </label>
                   <select
@@ -518,7 +518,7 @@ export const CorrectiveActions: React.FC<CorrectiveActionsProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  <label className="block font-bold text-slate-700 mb-1">
                     {t.actions.assignedLeadLabel}
                   </label>
                   <input

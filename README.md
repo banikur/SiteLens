@@ -39,7 +39,6 @@ Berdasarkan audit menyeluruh pada codebase (November 2026), berikut adalah statu
 | **Manajemen Tim Organisasi Global** | **AKTIF (PRODUKSI)** | Menu permanen navigasi sidebar (`TeamManagement.tsx`), standardisasi role konstruksi sipil & EPC, kontrol status akun aktif/nonaktif, opsi reset sandi, dan pembatasan switch user aman. |
 | **Log Audit Keamanan & Server Pagination** | **AKTIF (PRODUKSI)** | Pencatatan mutasi keamanan terpadu (`audit_logs`), filtering pencarian SQL (`ilike`), dan pagination server-side berbasis database di tab Audit Pengaturan. |
 | **Ekspor Laporan Resmi** | **AKTIF (PRODUKSI)** | Ekspor blanko checklist kosong lapangan, ekspor laporan hasil inspeksi bersertifikat (dilengkapi tanda tangan & foto bukti) dengan kop surat resmi korporat, ekspor laporan mingguan PDF, dan ekspor CSV. |
-| **BAPP Generator & 2D Drawing Defect Pinning** | **BELUM ADA** | Direncanakan pada roadmap fase lanjutan pasca-konsolidasi database. |
 
 ---
 
