@@ -395,7 +395,7 @@ export async function apiDeleteWbsNode(
 
 export async function apiApplyWbsPreset(
   projectId: string,
-  preset: 'general_epc' | 'civil_building' | 'blank'
+  preset: 'general_epc' | 'civil_building' | 'it_spektek' | 'blank'
 ): Promise<{ message: string; nodes: WorkNode[] }> {
   try {
     return await apiJson<{ message: string; nodes: WorkNode[] }>(

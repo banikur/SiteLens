@@ -578,7 +578,7 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
       setInlineName(selectedNode.name || '');
       setInlineWeight(String(selectedNode.weightPercent ?? '0.00'));
       setInlineVolume(selectedNode.volume != null ? String(selectedNode.volume) : '');
-      setInlineUnit(selectedNode.unit || 'm3');
+      setInlineUnit(selectedNode.unit || 'Paket');
       setInlineDocRef(selectedNode.documentReferenceNo || '');
       setInlineRevision(selectedNode.activeRevision || 'Rev A');
       setInlineStartDate(selectedNode.plannedStartDate ? String(selectedNode.plannedStartDate).slice(0, 10) : '');

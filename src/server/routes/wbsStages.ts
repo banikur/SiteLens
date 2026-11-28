@@ -1020,6 +1020,85 @@ router.post(
         sortOrder: 4,
       }).returning();
       createdNodes.push(n1, n2, n3, n4);
+    } else if (preset === 'it_spektek') {
+      const [n1] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '1.0',
+        name: 'Software & Sistem Informasi (LMS / AI / Portal)',
+        weightPercent: '35.00',
+        unit: 'Paket',
+        documentReferenceNo: 'SPEKTEK-SW-01',
+        activeRevision: 'Rev 1',
+        allowDetailing: true,
+        sortOrder: 1,
+      }).returning();
+      const [n1a] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        parentId: n1.id,
+        wbsCode: '1.1',
+        name: 'Integrated LMS & Front/Back Office Module',
+        weightPercent: '60.00',
+        unit: 'Paket',
+        sortOrder: 1,
+      }).returning();
+      const [n1b] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        parentId: n1.id,
+        wbsCode: '1.2',
+        name: 'Sistem Informasi Akademik & Integrasi AI',
+        weightPercent: '40.00',
+        unit: 'Modul',
+        sortOrder: 2,
+      }).returning();
+      const [n2] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '2.0',
+        name: 'Hardware, Jaringan & Perangkat Lab',
+        weightPercent: '45.00',
+        unit: 'Set',
+        documentReferenceNo: 'SPEKTEK-HW-01',
+        activeRevision: 'Rev 1',
+        allowDetailing: true,
+        sortOrder: 2,
+      }).returning();
+      const [n2a] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        parentId: n2.id,
+        wbsCode: '2.1',
+        name: 'Server, Rack & Infrastruktur Jaringan',
+        weightPercent: '45.00',
+        unit: 'Set',
+        sortOrder: 1,
+      }).returning();
+      const [n2b] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        parentId: n2.id,
+        wbsCode: '2.2',
+        name: 'Interactive Flat Panel & Perangkat Kelas',
+        weightPercent: '35.00',
+        unit: 'Unit',
+        sortOrder: 2,
+      }).returning();
+      const [n2c] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        parentId: n2.id,
+        wbsCode: '2.3',
+        name: 'Peralatan Lab Elektronika & Simulator',
+        weightPercent: '20.00',
+        unit: 'Set',
+        sortOrder: 3,
+      }).returning();
+      const [n3] = await db.insert(workNodes).values({
+        projectId: targetProject.id,
+        wbsCode: '3.0',
+        name: 'Pekerjaan Pendukung, Instalasi & Uji Terima (FAT/UAT)',
+        weightPercent: '20.00',
+        unit: 'Lot',
+        documentReferenceNo: 'SPEKTEK-UAT-01',
+        activeRevision: 'Rev 1',
+        sortOrder: 3,
+      }).returning();
+      createdNodes.push(n1, n1a, n1b, n2, n2a, n2b, n2c, n3);
     } else {
       // Default: 'general_epc'
       const [n1] = await db.insert(workNodes).values({

@@ -354,7 +354,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
     setFormName('');
     setFormWeight('10.00');
     setFormVolume('');
-    setFormUnit('m3');
+    setFormUnit('Paket');
     setFormDocRef('');
     setFormRevision('Rev A');
     setFormStartDate('');
@@ -455,7 +455,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
     }
   };
 
-  const handleApplyPreset = async (preset: 'general_epc' | 'civil_building' | 'blank') => {
+  const handleApplyPreset = async (preset: 'general_epc' | 'civil_building' | 'it_spektek' | 'blank') => {
     try {
       setPresetSubmitting(true);
       const res = await apiApplyWbsPreset(project.id, preset);
@@ -1218,7 +1218,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               <div className="flex items-center space-x-2">
                 <Sparkles className="w-4 h-4 text-indigo-600" />
                 <h3 className="text-sm font-bold text-slate-900">
-                  Pilih Preset Starter WBS Pack
+                  Pilih Template Struktur Pekerjaan
                 </h3>
               </div>
               <button
@@ -1275,13 +1275,34 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                   </div>
                 </div>
 
-                {/* Preset 3: Blank Canvas */}
+                {/* Preset 3: IT & Pengadaan Terpadu (SPEKTEK) */}
+                <div
+                  onClick={() => !presetSubmitting && handleApplyPreset('it_spektek')}
+                  className="p-4 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 cursor-pointer transition-colors flex items-start space-x-3.5"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
+                    3
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-slate-900">IT &amp; Pengadaan Terpadu (SPEKTEK Pack)</h4>
+                      <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold text-[10px]">
+                        IT / Hardware
+                      </span>
+                    </div>
+                    <p className="text-slate-500 mt-1 text-[11px] leading-snug">
+                      Untuk proyek IT, Smart Classroom &amp; pengadaan sistem: Software/LMS (35%), Hardware &amp; Lab (45%), Instalasi &amp; Uji Terima FAT/UAT (20%).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Preset 4: Blank Canvas */}
                 <div
                   onClick={() => !presetSubmitting && handleApplyPreset('blank')}
-                  className="p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 cursor-pointer transition-all flex items-start space-x-3.5"
+                  className="p-4 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 cursor-pointer transition-colors flex items-start space-x-3.5"
                 >
                   <div className="w-8 h-8 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0 mt-0.5 font-bold">
-                    3
+                    4
                   </div>
                   <div className="flex-1">
                     <h4 className="font-bold text-slate-900">Blank Canvas</h4>
@@ -1309,7 +1330,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
           <div className="bg-white rounded-xl max-w-lg w-full shadow-xl border border-slate-200 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
               <h3 className="text-sm font-bold text-slate-900">
-                {editingNode ? `Edit WBS Node: ${editingNode.wbsCode}` : 'Tambah item WBS baru'}
+                {editingNode ? `Edit Item Pekerjaan: ${editingNode.wbsCode}` : 'Tambah Item Pekerjaan Baru'}
               </h3>
               <button
                 onClick={() => setNodeModalOpen(false)}
@@ -1345,7 +1366,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block font-medium text-slate-700 text-xs mb-1">
-                    WBS code *
+                    Kode item (WBS) *
                   </label>
                   <input
                     type="text"
@@ -1384,7 +1405,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                   required
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="Contoh: Civil & Structural Construction"
+                  placeholder="Contoh: Modul LMS / Pekerjaan Pondasi"
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:border-slate-800"
                 />
               </div>
@@ -1409,11 +1430,26 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                   </label>
                   <input
                     type="text"
+                    list="unit-suggestions"
                     value={formUnit}
                     onChange={(e) => setFormUnit(e.target.value)}
-                    placeholder="Contoh: m3, titik, kg, ls"
+                    placeholder="Contoh: Paket, Unit, Set, Modul, m3"
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-800"
                   />
+                  <datalist id="unit-suggestions">
+                    <option value="Paket" />
+                    <option value="Unit" />
+                    <option value="Set" />
+                    <option value="Modul" />
+                    <option value="Lisensi" />
+                    <option value="Lot" />
+                    <option value="Pasang" />
+                    <option value="Bulan" />
+                    <option value="Man-Days" />
+                    <option value="ls" />
+                    <option value="m3" />
+                    <option value="titik" />
+                  </datalist>
                 </div>
               </div>
 
@@ -1427,7 +1463,7 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                     type="text"
                     value={formDocRef}
                     onChange={(e) => setFormDocRef(e.target.value)}
-                    placeholder="Contoh: DWG-STR-104"
+                    placeholder="Contoh: SPEKTEK-200 / DWG-STR-104"
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono focus:outline-none focus:border-slate-800"
                   />
                 </div>

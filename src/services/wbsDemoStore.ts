@@ -248,7 +248,7 @@ export function deleteDemoWbsNode(projectId: string, nodeId: string): void {
 
 export function applyDemoWbsPreset(
   projectId: string,
-  preset: 'general_epc' | 'civil_building' | 'blank'
+  preset: 'general_epc' | 'civil_building' | 'it_spektek' | 'blank'
 ): { message: string; nodes: WorkNode[] } {
   const allNodes = loadJson<WorkNode[]>(WBS_NODES_KEY, []).filter((n) => n.projectId !== projectId);
 
@@ -258,7 +258,59 @@ export function applyDemoWbsPreset(
   }
 
   let presetNodes: WorkNode[] = [];
-  if (preset === 'general_epc') {
+  if (preset === 'it_spektek') {
+    const now = new Date().toISOString();
+    presetNodes = [
+      {
+        id: `it-${Date.now()}-1`,
+        projectId,
+        parentId: null,
+        wbsCode: '1.0',
+        name: 'Software & Sistem Informasi (LMS / AI / Portal)',
+        weightPercent: '35.00',
+        unit: 'Paket',
+        claimedProgressPercent: 0,
+        verifiedProgressPercent: 0,
+        sortOrder: 1,
+        documentReferenceNo: 'SPEKTEK-SW-01',
+        activeRevision: 'Rev 1',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `it-${Date.now()}-2`,
+        projectId,
+        parentId: null,
+        wbsCode: '2.0',
+        name: 'Hardware, Jaringan & Perangkat Lab',
+        weightPercent: '45.00',
+        unit: 'Set',
+        claimedProgressPercent: 0,
+        verifiedProgressPercent: 0,
+        sortOrder: 2,
+        documentReferenceNo: 'SPEKTEK-HW-01',
+        activeRevision: 'Rev 1',
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: `it-${Date.now()}-3`,
+        projectId,
+        parentId: null,
+        wbsCode: '3.0',
+        name: 'Pekerjaan Pendukung, Instalasi & Uji Terima (FAT/UAT)',
+        weightPercent: '20.00',
+        unit: 'Lot',
+        claimedProgressPercent: 0,
+        verifiedProgressPercent: 0,
+        sortOrder: 3,
+        documentReferenceNo: 'SPEKTEK-UAT-01',
+        activeRevision: 'Rev 1',
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+  } else if (preset === 'general_epc') {
     presetNodes = [
       {
         id: `epc-${Date.now()}-1`,

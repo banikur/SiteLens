@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Building2,
   MapPin,
@@ -21,12 +21,15 @@ import {
   MasterProject,
   WorkNode,
   User,
+  NationalHoliday,
 } from '../types';
 import {
   apiGetMasterProjects,
   apiGetMasterProjectSites,
   apiGetProjectWbs,
+  apiGetHolidays,
 } from '../services/api';
+import { ProjectMiniCalendar, type CalendarAgendaItem } from './ProjectMiniCalendar';
 import { buildWbsTree, calculateRollupProgress } from '../utils/wbs';
 import { usePermission, PERMISSIONS } from '../hooks/usePermission';
 import { useLanguage } from '../i18n/LanguageContext';
@@ -50,6 +53,7 @@ interface DashboardProps {
 
 interface SiteProgressSnapshot {
   site: Project;
+  nodes: WorkNode[];
   nodesCount: number;
   strictCount: number;
   claimedPercent: number;
@@ -123,6 +127,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'all'>('active');
   const [lastUpdated, setLastUpdated] = useState<string>('');
+  const [holidays, setHolidays] = useState<NationalHoliday[]>([]);
 
   const loadPortfolioProgress = useCallback(async () => {
     try {
@@ -145,11 +150,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
             sites.map(async (site) => {
               try {
                 const wbsRes = await apiGetProjectWbs(site.id);
-                const stats = computeSiteProgress(wbsRes.nodes || []);
-                return { site, ...stats };
+                const siteNodes = wbsRes.nodes || [];
+                const stats = computeSiteProgress(siteNodes);
+                return { site, nodes: siteNodes, ...stats };
               } catch {
                 return {
                   site,
+                  nodes: [],
                   nodesCount: 0,
                   strictCount: 0,
                   claimedPercent: 0,
@@ -198,7 +205,68 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   useEffect(() => {
     void loadPortfolioProgress();
+    apiGetHolidays(new Date().getFullYear()).then((res) => setHolidays(res.holidays || []));
   }, [loadPortfolioProgress]);
+
+  const calendarAgendas = useMemo<CalendarAgendaItem[]>(() => {
+    const items: CalendarAgendaItem[] = [];
+    for (const { master, sites } of snapshots) {
+      if (master.startDate) {
+        items.push({
+          id: `mp-start-${master.id}`,
+          date: String(master.startDate).slice(0, 10),
+          title: `Mulai Project: ${master.name}`,
+          subtitle: `${master.code} • ${master.ownerClient}`,
+          kind: 'project_period',
+        });
+      }
+      if (master.endDate) {
+        items.push({
+          id: `mp-end-${master.id}`,
+          date: String(master.endDate).slice(0, 10),
+          title: `Target Selesai: ${master.name}`,
+          subtitle: `${master.code} • ${master.ownerClient}`,
+          kind: 'project_period',
+        });
+      }
+      for (const { site, nodes } of sites) {
+        for (const n of nodes) {
+          if (n.isMilestone && (n.plannedEndDate || n.plannedStartDate)) {
+            items.push({
+              id: `ms-${n.id}`,
+              date: String(n.plannedEndDate || n.plannedStartDate).slice(0, 10),
+              title: `[Milestone] ${n.wbsCode} ${n.name}`,
+              subtitle: `${site.code} • ${site.name}`,
+              kind: 'milestone',
+              site,
+            });
+          } else {
+            if (n.plannedStartDate) {
+              items.push({
+                id: `start-${n.id}`,
+                date: String(n.plannedStartDate).slice(0, 10),
+                title: `Mulai: ${n.wbsCode} ${n.name}`,
+                subtitle: `${site.code} • ${site.name}`,
+                kind: 'start',
+                site,
+              });
+            }
+            if (n.plannedEndDate) {
+              items.push({
+                id: `end-${n.id}`,
+                date: String(n.plannedEndDate).slice(0, 10),
+                title: `Target: ${n.wbsCode} ${n.name}`,
+                subtitle: `${site.code} • ${site.name}`,
+                kind: 'deadline',
+                site,
+              });
+            }
+          }
+        }
+      }
+    }
+    return items;
+  }, [snapshots]);
 
   const filteredSnapshots = snapshots.filter((item) => {
     const matchesStatus =
@@ -378,8 +446,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       )}
 
-      {/* Main Monitoring List: Project -> Site Progress Breakdown */}
-      <div className="flex-1 min-h-0 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col overflow-hidden">
+      {/* Main Monitoring Grid: Project List + Mini Calendar */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-4 gap-4">
+        <div className="xl:col-span-3 min-h-0 bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col overflow-hidden">
         {/* Filter & Search Bar */}
         <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex items-center space-x-2">
@@ -602,6 +671,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
             ))
           )}
+        </div>
+        </div>
+        <div className="xl:col-span-1 min-h-0 overflow-y-auto">
+          <ProjectMiniCalendar
+            agendas={calendarAgendas}
+            holidays={holidays}
+            onOpenSiteWbs={onOpenSiteWbs}
+          />
         </div>
       </div>
     </div>
