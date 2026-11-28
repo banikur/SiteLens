@@ -125,7 +125,8 @@ export const BottleneckRadar: React.FC<BottleneckRadarProps> = ({
           <button
             type="button"
             onClick={loadRadar}
-            className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors"
+            aria-label="Refresh Bottleneck Radar"
+            className="min-w-[36px] min-h-[36px] p-2 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition-colors flex items-center justify-center"
             title="Refresh Radar"
           >
             <RefreshCw className="w-3.5 h-3.5" />
