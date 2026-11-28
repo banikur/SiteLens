@@ -211,7 +211,6 @@ function sanitizeUser(u: typeof users.$inferSelect, passkeysCount = 0) {
     title: u.title,
     avatar: u.avatar,
     assignedProjects: u.assignedProjects,
-    certifications: u.certifications,
     hasPin: Boolean(u.pinHash),
     passkeysCount,
   };

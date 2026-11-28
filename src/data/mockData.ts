@@ -16,7 +16,6 @@ export const MOCK_USERS: User[] = [
     email: 'pmo@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102', 'prj-103'],
-    certifications: ['Enterprise Management', 'ISO 9001 Lead Auditor', 'WBS Master'],
   },
   {
     id: 'pm',
@@ -26,7 +25,6 @@ export const MOCK_USERS: User[] = [
     email: 'pm@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102', 'prj-103'],
-    certifications: ['PMP', 'Civil Engineering'],
   },
   {
     id: 'se',
@@ -36,7 +34,6 @@ export const MOCK_USERS: User[] = [
     email: 'se@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102'],
-    certifications: ['Site Safety Supervisor', 'Field Detailing Lead'],
   },
   {
     id: 'client',
@@ -46,7 +43,6 @@ export const MOCK_USERS: User[] = [
     email: 'client@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102', 'prj-103'],
-    certifications: ['Owner Representative'],
   },
   {
     id: 'budi',
@@ -56,7 +52,6 @@ export const MOCK_USERS: User[] = [
     email: 'budi@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101'],
-    certifications: ['Contextual RBAC Specialist'],
   },
   {
     id: 'usr-admin-1',
@@ -66,7 +61,6 @@ export const MOCK_USERS: User[] = [
     email: 'admin@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102', 'prj-103'],
-    certifications: ['ISO 45001 Lead Auditor', 'SMK3 Auditor', 'Enterprise Management'],
   },
   {
     id: 'usr-pm-1',
@@ -76,7 +70,6 @@ export const MOCK_USERS: User[] = [
     email: 'pm@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102', 'prj-103'],
-    certifications: ['PMP', 'WBS Specialist', 'Civil Engineering'],
   },
   {
     id: 'usr-sup-1',
@@ -86,7 +79,6 @@ export const MOCK_USERS: User[] = [
     email: 'se@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102'],
-    certifications: ['Site Safety Supervisor Certificate', 'Rigging & Lifting Level 2'],
   },
   {
     id: 'usr-hse-1',
@@ -96,7 +88,6 @@ export const MOCK_USERS: User[] = [
     email: 'qaqc@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102', 'prj-103'],
-    certifications: ['API 510', 'API 570', 'NEBOSH Diploma', 'ISO 9001 Lead Auditor'],
   },
   {
     id: 'usr-op-1',
@@ -106,7 +97,6 @@ export const MOCK_USERS: User[] = [
     email: 'inspector@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101'],
-    certifications: ['SIO Tower Crane Kelas A', 'Ahli K3 Spesialis PAA'],
   },
   {
     id: 'usr-sub-1',
@@ -116,7 +106,6 @@ export const MOCK_USERS: User[] = [
     email: 'subcon@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101'],
-    certifications: ['Civil Contractor License', 'Structural Steelwork'],
   },
   {
     id: 'usr-view-1',
@@ -126,7 +115,6 @@ export const MOCK_USERS: User[] = [
     email: 'viewer@sitelens-demo.internal',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102'],
-    certifications: ['Client Representative'],
   },
   {
     id: 'usr-qc-1',
@@ -136,7 +124,6 @@ export const MOCK_USERS: User[] = [
     email: 'm.chen@sitelens-ops.net',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-103'],
-    certifications: ['API 510', 'API 570', 'AWS CWI (Welding)', 'ISO 9001 Lead Auditor'],
   },
 ];
 

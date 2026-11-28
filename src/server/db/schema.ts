@@ -50,9 +50,12 @@ export const users = pgTable('users', {
   pinHash: text('pin_hash'),
   role: text('role').$type<UserRole>().notNull(),
   title: text('title').notNull(),
+  userCategory: text('user_category').$type<'internal' | 'external'>(),
+  employeeCode: text('employee_code'),
+  phone: text('phone'),
+  organizationName: text('organization_name'),
   avatar: text('avatar').notNull().default(''),
   assignedProjects: jsonb('assigned_projects').$type<string[]>().notNull().default([]),
-  certifications: jsonb('certifications').$type<string[]>().notNull().default([]),
   isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -287,19 +290,6 @@ export const tenantProfiles = pgTable('tenant_profiles', {
 });
 
 // ---------------- PILOTING WBS & CORE RBAC SCHEMAS (v1.0-PILOT) ----------------
-
-export const projectMembers = pgTable('project_members', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  projectId: uuid('project_id')
-    .notNull()
-    .references(() => projects.id, { onDelete: 'cascade' }),
-  userId: uuid('user_id')
-    .notNull()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  projectRole: text('project_role').$type<UserRole>().notNull(),
-  isActive: boolean('is_active').notNull().default(true),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
 
 export const workNodes = pgTable('work_nodes', {
   id: uuid('id').primaryKey().defaultRandom(),

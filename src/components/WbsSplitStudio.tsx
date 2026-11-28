@@ -1488,13 +1488,15 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                       />
                       <div className="flex items-center space-x-1">
                         <input
-                          type="number"
-                          min={0}
-                          max={100}
+                          type="text"
+                          inputMode="numeric"
                           value={claimProgressDraft}
-                          onChange={(e) =>
-                            setClaimProgressDraft(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
-                          }
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const stripped = e.target.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+                            const num = stripped === '' ? 0 : Math.min(100, Number(stripped));
+                            setClaimProgressDraft(num);
+                          }}
                           className="w-14 px-2 py-1 rounded border border-slate-300 text-xs font-bold text-right"
                         />
                         <span className="text-slate-500 font-semibold">%</span>
@@ -2145,10 +2147,19 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                         Bobot Relatif Sibling (%) *
                       </label>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={inlineWeight}
-                        onChange={(e) => setInlineWeight(e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          let cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                          const dotIdx = cleaned.indexOf('.');
+                          if (dotIdx !== -1) {
+                            cleaned = cleaned.slice(0, dotIdx + 1) + cleaned.slice(dotIdx + 1).replace(/\./g, '');
+                          }
+                          if (cleaned !== '' && Number(cleaned) > 100) cleaned = '100';
+                          setInlineWeight(cleaned);
+                        }}
                         className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900 font-mono"
                         required
                       />
@@ -2434,14 +2445,16 @@ export const WbsSplitStudio: React.FC<WbsSplitStudioProps> = ({
                   />
                   <div className="flex items-center space-x-1">
                     <input
-                      type="number"
-                      min={0}
-                      max={100}
+                      type="text"
+                      inputMode="numeric"
                       required
                       value={claimProgressDraft}
-                      onChange={(e) =>
-                        setClaimProgressDraft(Math.max(0, Math.min(100, Number(e.target.value) || 0)))
-                      }
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const stripped = e.target.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+                        const num = stripped === '' ? 0 : Math.min(100, Number(stripped));
+                        setClaimProgressDraft(num);
+                      }}
                       className="w-16 px-2 py-1.5 rounded-lg border border-slate-300 text-xs font-bold text-right tabular-nums"
                     />
                     <span className="text-slate-500 font-semibold">%</span>

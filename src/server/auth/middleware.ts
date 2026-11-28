@@ -4,7 +4,8 @@ import { getDb } from '../db/index.ts';
 import {
   sessions,
   users,
-  projectMembers,
+  roleAssignments,
+  roles,
   workStages,
   workWorkflows,
   workNodes,
@@ -83,7 +84,6 @@ export async function attachSessionUser(
         title: u.title,
         avatar: u.avatar,
         assignedProjects: u.assignedProjects,
-        certifications: u.certifications,
         hasPin: Boolean(u.pinHash),
         hasBreakGlass: perms.hasBreakGlass,
         hasOrgScope: perms.hasOrgScope,
@@ -268,16 +268,23 @@ export async function getEffectiveProjectRole(
 
   try {
     const rows = await db
-      .select({ projectRole: projectMembers.projectRole, isActive: projectMembers.isActive })
-      .from(projectMembers)
-      .where(and(eq(projectMembers.userId, userId as any), eq(projectMembers.projectId, projectId as any)))
+      .select({ roleName: roles.name, isActive: roleAssignments.isActive })
+      .from(roleAssignments)
+      .innerJoin(roles, eq(roleAssignments.roleId, roles.id))
+      .where(
+        and(
+          eq(roleAssignments.userId, userId as any),
+          eq(roleAssignments.projectId, projectId as any),
+          eq(roleAssignments.scopeType, 'project')
+        )
+      )
       .limit(1);
 
     if (rows.length > 0 && rows[0].isActive) {
-      return rows[0].projectRole;
+      return rows[0].roleName as UserRole;
     }
   } catch (err) {
-    console.error('Error fetching project member role:', err);
+    console.error('Error fetching project role assignment:', err);
   }
 
   return defaultRole;

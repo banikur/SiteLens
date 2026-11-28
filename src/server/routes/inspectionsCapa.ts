@@ -5,7 +5,7 @@ import { getDb } from "../db/index.ts";
 import {
   auditLogs, checklistTemplates, correctiveActions, inspections, projects,
   masterProjects, users, workNodes, workWorkflows, workStages, inspectionAttempts,
-  evidenceAttachments, plannedCurveOverrides, dailyWeatherLogs, projectMembers,
+  evidenceAttachments, plannedCurveOverrides, dailyWeatherLogs,
   roleAssignments, roles, permissions, rolePermissions, flowPresets, flowPresetSteps,
   wbsProgressLogs, companySettings, nationalHolidays, projectCalendars,
 } from "../db/schema.ts";

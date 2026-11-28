@@ -117,6 +117,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
   // Corporate Letterhead & Logo State
   const [companySettings, setCompanySettings] = useState<CompanySettings>(() => getStoredCompanySettings());
   const [logoPreview, setLogoPreview] = useState<string>(() => getStoredCompanySettings().companyLogo || '');
+  const [copyWatermark, setCopyWatermark] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Notifications State
@@ -292,6 +293,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
           ...companySettings,
           companyLogo: logoPreview,
         },
+        copyWatermark,
       });
     } catch (err: any) {
       setErrorMsg(err?.message || 'Gagal membuat file PDF contoh.');
@@ -1154,13 +1156,31 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
                 <FileText className="w-4 h-4 text-[#d4f038]" />
                 <span className="text-xs font-bold">{isId ? 'Live Pratinjau Kop Surat PDF' : 'Live Letterhead PDF Preview'}</span>
               </div>
-              <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
-                A4 Standard
-              </span>
+              <div className="flex items-center space-x-2">
+                <label className="flex items-center space-x-1.5 text-[11px] text-slate-200 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={copyWatermark}
+                    onChange={(e) => setCopyWatermark(e.target.checked)}
+                    className="rounded border-slate-600"
+                  />
+                  <span>Watermark COPY</span>
+                </label>
+                <span className="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">
+                  A4 Standard
+                </span>
+              </div>
             </div>
 
             {/* Simulated Paper Sheet */}
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-md space-y-4 text-slate-900 select-none">
+            <div className="relative bg-white p-5 rounded-xl border border-slate-200 shadow-md space-y-4 text-slate-900 select-none overflow-hidden">
+              {copyWatermark && (
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-10">
+                  <span className="text-6xl font-bold tracking-widest text-slate-300/45 -rotate-30 select-none">
+                    COPY
+                  </span>
+                </div>
+              )}
               {/* Paper Kop Surat */}
               <div className="pb-3 border-b-2 border-slate-900 space-y-2">
                 <div className="flex items-start justify-between gap-3">
@@ -1179,32 +1199,38 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
                       <h3 className="font-extrabold text-xs text-slate-950 uppercase tracking-tight leading-tight">
                         {companySettings.companyName || 'PT SITELENS KONSTRUKSI NUSANTARA'}
                       </h3>
-                      <div className="text-[10px] font-bold text-slate-700 leading-tight mt-0.5">
-                        {companySettings.letterheadHeader || 'KONTRAKTOR UTAMA & MANAJEMEN KONSTRUKSI TERPADU'}
-                      </div>
-                      <div className="text-[9px] text-slate-500 leading-tight mt-0.5 line-clamp-1">
-                        {companySettings.companyAddress || 'Gedung Cyber 2 Tower Lt. 18, Jl. H.R. Rasuna Said, Jakarta'}
-                      </div>
+                      {companySettings.letterheadHeader && (
+                        <div className="text-[10px] font-bold text-slate-700 leading-tight mt-0.5">
+                          {companySettings.letterheadHeader}
+                        </div>
+                      )}
+                      {companySettings.companyAddress && (
+                        <div className="text-[9px] text-slate-500 leading-tight mt-0.5 line-clamp-1">
+                          {companySettings.companyAddress}
+                        </div>
+                      )}
                       <div className="text-[8.5px] text-slate-500 font-mono mt-0.5">
                         Telp: {companySettings.companyPhone || '-'} | Email: {companySettings.companyEmail || '-'}
+                        {companySettings.companyWebsite ? ` | Web: ${companySettings.companyWebsite}` : ''}
                       </div>
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <span className="inline-block px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold">
-                      {isId ? 'DOKUMEN RESMI' : 'OFFICIAL DOC'}
-                    </span>
-                    <div className="text-[8px] font-mono text-slate-400 mt-1">
-                      {companySettings.documentRegistrationNo || 'DOC-REF-SL/01'}
+                  {companySettings.documentRegistrationNo && (
+                    <div className="text-right shrink-0">
+                      <div className="text-[8px] font-mono text-slate-400">
+                        {companySettings.documentRegistrationNo}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Subheader / ISO line */}
-                <div className="text-[8.5px] text-slate-500 text-right italic font-serif pt-1 border-t border-slate-200">
-                  {companySettings.letterheadSubheader || 'Sistem Manajemen Mutu, K3 & Lingkungan (ISO 9001 / ISO 45001 / SMK3 PP 50/2012)'}
-                </div>
+                {companySettings.letterheadSubheader && (
+                  <div className="text-[8.5px] text-slate-500 text-right italic font-serif pt-1 border-t border-slate-200">
+                    {companySettings.letterheadSubheader}
+                  </div>
+                )}
               </div>
 
               {/* Sample Document Body Content */}
@@ -1237,8 +1263,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ currentUser: _curren
                   </div>
                 </div>
 
-                <div className="p-3 rounded-lg bg-blue-50/80 border border-blue-200 text-blue-900 text-[10px] leading-relaxed">
-                  💡 <strong>Informasi Sistem:</strong> Kop surat ini telah aktif terintegrasi dengan modul pembuatan blanko ceklis kosong ([pdfGenerator](file:///c:/Users/Programer/Documents/SiteLens/src/utils/pdfGenerator.ts)) dan laporan resmi inspeksi lapangan.
+                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 text-[11px] leading-relaxed">
+                  <strong>Informasi Sistem:</strong>{' '}
+                  {isId
+                    ? 'Kop surat ini otomatis diterapkan pada seluruh ekspor PDF (blanko ceklis lapangan dan laporan hasil inspeksi resmi).'
+                    : 'This letterhead is automatically applied to all PDF exports (blank field checklists and official inspection reports).'}
                 </div>
               </div>
             </div>

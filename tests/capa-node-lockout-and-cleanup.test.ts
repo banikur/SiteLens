@@ -28,7 +28,6 @@ import { getDb } from '../src/server/db/index.ts';
 import {
   users,
   projects,
-  projectMembers,
   workNodes,
   workWorkflows,
   workStages,

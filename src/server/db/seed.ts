@@ -7,7 +7,6 @@ import {
   projects,
   checklistTemplates,
   notificationSettings,
-  projectMembers,
   workNodes,
   workWorkflows,
   workStages,
@@ -50,7 +49,6 @@ async function seed() {
         role: 'Project Director & Tenant Admin' as const,
         title: 'Project Director / Tenant Admin',
         assignedProjects: ['prj-101', 'prj-102'].map(toUuid),
-        certifications: ['Project Management Professional (PMP)', 'ISO 9001 Lead Auditor'],
         isActive: true,
       },
       {
@@ -62,7 +60,6 @@ async function seed() {
         role: 'Project / Site Engineer' as const,
         title: 'Lead Site & Planning Engineer',
         assignedProjects: ['prj-101', 'prj-102'].map(toUuid),
-        certifications: ['PE Civil', 'Primavera P6 Certified'],
         isActive: true,
       },
       {
@@ -74,7 +71,6 @@ async function seed() {
         role: 'Field / QC Inspector' as const,
         title: 'Field QC & Structural Inspector',
         assignedProjects: ['prj-101'].map(toUuid),
-        certifications: ['CSWIP 3.1 Welding Inspector', 'ACI Concrete Field Testing'],
         isActive: true,
       },
       {
@@ -86,7 +82,6 @@ async function seed() {
         role: 'Action Owner / Subcontractor' as const,
         title: 'Site Execution & Remediation Supervisor',
         assignedProjects: ['prj-101'].map(toUuid),
-        certifications: ['Site Safety Supervisor', 'Scaffolding Inspector'],
         isActive: true,
       },
       {
@@ -98,7 +93,6 @@ async function seed() {
         role: 'QA/QC Lead / Owner Inspector' as const,
         title: 'QA/QC Lead / Owner Inspection Authority',
         assignedProjects: ['prj-101', 'prj-102'].map(toUuid),
-        certifications: ['AWS CWI Senior Welding Inspector', 'ISO 9001 Lead Auditor'],
         isActive: true,
       },
       {
@@ -110,7 +104,6 @@ async function seed() {
         role: 'Client / Vendor Viewer' as const,
         title: 'Client Project Oversight Representative',
         assignedProjects: ['prj-101'].map(toUuid),
-        certifications: ['Client Representative Credentials'],
         isActive: true,
       },
     ];
@@ -202,70 +195,7 @@ async function seed() {
     });
   }
 
-  // ---------------- PROJECT MEMBERS & WBS NODES SEEDING ----------------
-  const [{ value: memberCount }] = await db
-    .select({ value: count() })
-    .from(projectMembers);
-  if (memberCount === 0) {
-    const prj101Id = toUuid('prj-101');
-    const prj102Id = toUuid('prj-102');
-
-    const MEMBERS = [
-      {
-        id: toUuid('pm-1'),
-        projectId: prj101Id,
-        userId: toUuid('usr-admin-1'),
-        projectRole: 'Project Director & Tenant Admin' as const,
-        isActive: true,
-      },
-      {
-        id: toUuid('pm-2'),
-        projectId: prj101Id,
-        userId: toUuid('usr-eng-1'),
-        projectRole: 'Project / Site Engineer' as const,
-        isActive: true,
-      },
-      {
-        id: toUuid('pm-3'),
-        projectId: prj101Id,
-        userId: toUuid('usr-op-1'),
-        projectRole: 'Field / QC Inspector' as const,
-        isActive: true,
-      },
-      {
-        id: toUuid('pm-4'),
-        projectId: prj101Id,
-        userId: toUuid('usr-sup-1'),
-        projectRole: 'Action Owner / Subcontractor' as const,
-        isActive: true,
-      },
-      {
-        id: toUuid('pm-5'),
-        projectId: prj101Id,
-        userId: toUuid('usr-qc-1'),
-        projectRole: 'QA/QC Lead / Owner Inspector' as const,
-        isActive: true,
-      },
-      {
-        id: toUuid('pm-6'),
-        projectId: prj101Id,
-        userId: toUuid('usr-view-1'),
-        projectRole: 'Client / Vendor Viewer' as const,
-        isActive: true,
-      },
-      // User can have a different role on Project 102
-      {
-        id: toUuid('pm-7'),
-        projectId: prj102Id,
-        userId: toUuid('usr-eng-1'),
-        projectRole: 'QA/QC Lead / Owner Inspector' as const,
-        isActive: true,
-      },
-    ];
-
-    await db.insert(projectMembers).values(MEMBERS);
-    console.log(`Seeded ${MEMBERS.length} project member role assignments`);
-  }
+  // ---------------- WBS NODES SEEDING ----------------
 
   const [{ value: nodeCount }] = await db
     .select({ value: count() })

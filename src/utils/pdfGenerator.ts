@@ -842,9 +842,11 @@ export function exportFilledInspectionPdf({
 export function exportSampleLetterheadPdf({
   lang = 'id',
   companySettings,
+  copyWatermark = false,
 }: {
   lang?: Language;
   companySettings?: CompanySettings;
+  copyWatermark?: boolean;
 }) {
   const isId = lang === 'id';
   const doc = new jsPDF({
@@ -858,17 +860,26 @@ export function exportSampleLetterheadPdf({
   const margin = 14;
 
   const headerBottomY = renderCompanyLetterhead(doc, {
-    documentTitle: isId ? 'CONTOH KOP SURAT RESMI PERUSAHAAN (SAMPLE PREVIEW)' : 'OFFICIAL CORPORATE LETTERHEAD SAMPLE',
-    documentTypeBadge: isId ? 'DOKUMEN RESMI CONTOH' : 'SAMPLE PREVIEW',
+    documentTitle: isId ? 'CONTOH KOP SURAT PERUSAHAAN' : 'CORPORATE LETTERHEAD SAMPLE',
+    documentTypeBadge: copyWatermark ? 'COPY' : 'PREVIEW',
     badgeStyle: {
-      bg: [238, 242, 255],
-      border: [99, 102, 241],
-      text: [67, 56, 202],
+      bg: [241, 245, 249],
+      border: [148, 163, 184],
+      text: [71, 85, 105],
     },
     docRef: 'SAMPLE-PREVIEW-01',
     lang,
     companySettings,
   });
+
+  if (copyWatermark) {
+    doc.saveGraphicsState?.();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(64);
+    doc.setTextColor(226, 232, 240);
+    doc.text('COPY', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 35 });
+    doc.restoreGraphicsState?.();
+  }
 
   const sampleRows = [
     [

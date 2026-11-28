@@ -5,9 +5,9 @@ import { getDb } from "../db/index.ts";
 import {
   auditLogs, checklistTemplates, correctiveActions, inspections, projects,
   masterProjects, users, workNodes, workWorkflows, workStages, inspectionAttempts,
-  evidenceAttachments, plannedCurveOverrides, dailyWeatherLogs, projectMembers,
+  evidenceAttachments, plannedCurveOverrides, dailyWeatherLogs,
   roleAssignments, roles, permissions, rolePermissions, flowPresets, flowPresetSteps,
-  wbsProgressLogs, companySettings, nationalHolidays, projectCalendars,
+  wbsProgressLogs, companySettings, nationalHolidays, projectCalendars, webauthnCredentials,
 } from "../db/schema.ts";
 import { hashSecret } from "../auth/crypto.ts";
 import { requireAuth, requireProjectAccess, assertProjectAccess, getProjectIdByStageId } from "../auth/middleware.ts";
@@ -20,6 +20,18 @@ import { calculateSSOTSCurveData } from "../services/scurveEngine.ts";
 import { computeWbsCriticalPath } from "../../utils/wbs.ts";
 import type { ApprovalDecision, ChecklistTemplate, InspectionEvidence, InspectionStatus, UserRole, WorkflowStep } from "../../types/index.ts";
 import { VALID_ROLES, resolveClientTimestamp, resolveUuid, logAudit, resolveApplicableWorkflowSteps, computeInspectionScore, applyEvidenceIntegrity } from "./shared.ts";
+
+const EXTERNAL_DEFAULT_ROLES = new Set<string>([
+  'Action Owner / Subcontractor',
+  'Action Owner / Pelaksana Perbaikan',
+  'Client / Vendor Viewer',
+]);
+
+function resolveUserCategory(category: unknown, role: string): 'internal' | 'external' {
+  if (EXTERNAL_DEFAULT_ROLES.has(role)) return 'external';
+  if (category === 'internal' || category === 'external') return category;
+  return 'internal';
+}
 
 export function registerAdminRoutes(router: Router) {
 router.get('/users', async (_req: Request, res: Response) => {
@@ -38,13 +50,31 @@ router.get('/users', async (_req: Request, res: Response) => {
       email: u.email,
       role: u.role,
       title: u.title,
+      userCategory: resolveUserCategory(u.userCategory, u.role),
+      employeeCode: u.employeeCode,
+      phone: u.phone,
+      organizationName: u.organizationName,
       avatar: u.avatar,
       assignedProjects: u.assignedProjects,
-      certifications: u.certifications,
       isActive: u.isActive,
     })),
   });
 });
+
+const USERNAME_REGEX = /^[a-zA-Z0-9._-]{3,40}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_REGEX = /^\+?[0-9\s-]{8,18}$/;
+const EMPLOYEE_CODE_REGEX = /^[A-Za-z0-9._/-]{2,40}$/;
+
+function isValidAvatarValue(val: unknown): val is string {
+  if (typeof val !== 'string') return false;
+  if (val === '') return true;
+  if (val.length > 2_500_000) return false;
+  return (
+    /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/i.test(val) ||
+    /^https?:\/\/\S+$/i.test(val)
+  );
+}
 
 router.patch(
   '/users/:id',
@@ -56,7 +86,22 @@ router.patch(
       return;
     }
 
-    const { name, role, title, isActive, assignedProjects, certifications, password } = req.body ?? {};
+    const {
+      name,
+      role,
+      title,
+      avatar,
+      isActive,
+      assignedProjects,
+      password,
+      pin,
+      resetPin,
+      resetBiometrics,
+      userCategory,
+      employeeCode,
+      phone,
+      organizationName,
+    } = req.body ?? {};
     const updates: Record<string, any> = {};
 
     if (role !== undefined && (typeof role !== 'string' || !VALID_ROLES.includes(role as UserRole))) {
@@ -97,9 +142,33 @@ router.patch(
     if (typeof name === 'string' && name.trim()) updates.name = name.trim();
     if (role) updates.role = nextRole;
     if (typeof title === 'string') updates.title = title.slice(0, 120);
+    if (avatar !== undefined) {
+      if (!isValidAvatarValue(avatar)) {
+        res.status(400).json({ error: 'Invalid avatar image format or size (max ~1.8MB PNG/JPG/WEBP).' });
+        return;
+      }
+      updates.avatar = avatar;
+    }
     if (typeof isActive === 'boolean') updates.isActive = isActive;
     if (Array.isArray(assignedProjects)) updates.assignedProjects = assignedProjects;
-    if (Array.isArray(certifications)) updates.certifications = certifications;
+    if (userCategory === 'internal' || userCategory === 'external') updates.userCategory = userCategory;
+    if (employeeCode !== undefined) {
+      const trimmedCode = employeeCode ? String(employeeCode).trim() : '';
+      if (trimmedCode && !EMPLOYEE_CODE_REGEX.test(trimmedCode)) {
+        res.status(400).json({ error: 'Invalid employee/vendor code format (2-40 chars: letters, numbers, . _ / -).' });
+        return;
+      }
+      updates.employeeCode = trimmedCode ? trimmedCode.slice(0, 60) : null;
+    }
+    if (phone !== undefined) {
+      const trimmedPhone = phone ? String(phone).trim() : '';
+      if (trimmedPhone && !PHONE_REGEX.test(trimmedPhone)) {
+        res.status(400).json({ error: 'Invalid phone number format (8-18 digits, optional +, spaces, or -).' });
+        return;
+      }
+      updates.phone = trimmedPhone ? trimmedPhone.slice(0, 40) : null;
+    }
+    if (organizationName !== undefined) updates.organizationName = organizationName ? String(organizationName).trim().slice(0, 120) : null;
     if (typeof password === 'string' && password.trim()) {
       if (password.trim().length < 8) {
         res.status(400).json({ error: 'Password must be at least 8 characters.' });
@@ -107,20 +176,44 @@ router.patch(
       }
       updates.passwordHash = hashSecret(password.trim());
     }
+    if (resetPin === true) {
+      updates.pinHash = null;
+    } else if (typeof pin === 'string' && pin.trim()) {
+      if (!/^\d{4,6}$/.test(pin.trim())) {
+        res.status(400).json({ error: 'PIN must be 4 to 6 numeric digits.' });
+        return;
+      }
+      updates.pinHash = hashSecret(pin.trim());
+    }
 
-    const [updated] = await db
-      .update(users)
-      .set(updates)
-      .where(eq(users.id, req.params.id))
-      .returning();
+    let revokedPasskeys = 0;
+    if (resetBiometrics === true) {
+      const deleted = await db
+        .delete(webauthnCredentials)
+        .where(eq(webauthnCredentials.userId, target.id))
+        .returning({ id: webauthnCredentials.id });
+      revokedPasskeys = deleted.length;
+    }
 
-    if (!updated) {
-      res.status(404).json({ error: 'User not found.' });
-      return;
+    let updated = target;
+    if (Object.keys(updates).length > 0) {
+      const [row] = await db
+        .update(users)
+        .set(updates)
+        .where(eq(users.id, req.params.id))
+        .returning();
+      if (!row) {
+        res.status(404).json({ error: 'User not found.' });
+        return;
+      }
+      updated = row;
     }
 
     await logAudit(req.authUser.id, req.authUser.name, 'UPDATE_USER', 'user', updated.id, {
-      updatedFields: Object.keys(updates),
+      updatedFields: [
+        ...Object.keys(updates),
+        ...(resetBiometrics === true ? [`resetBiometrics(${revokedPasskeys})`] : []),
+      ],
     });
 
     // Tahap 2a item 3: sync per-user legacy role_assignments when role, assignedProjects, or isActive changed
@@ -138,9 +231,12 @@ router.patch(
         email: updated.email,
         role: updated.role,
         title: updated.title,
+        userCategory: resolveUserCategory(updated.userCategory, updated.role),
+        employeeCode: updated.employeeCode,
+        phone: updated.phone,
+        organizationName: updated.organizationName,
         avatar: updated.avatar,
         assignedProjects: updated.assignedProjects,
-        certifications: updated.certifications,
         isActive: updated.isActive,
       },
     });
@@ -154,10 +250,47 @@ router.post('/users', requirePermission(PERMISSIONS.ADMIN_USERS), async (req: Re
     return;
   }
 
-  const { username, name, email, password, role, title, assignedProjects, certifications } =
-    req.body ?? {};
+  const {
+    username,
+    name,
+    email,
+    password,
+    role,
+    title,
+    avatar,
+    assignedProjects,
+    userCategory,
+    employeeCode,
+    phone,
+    organizationName,
+  } = req.body ?? {};
   if (!username || !name || !email || !password || !role) {
     res.status(400).json({ error: 'username, name, email, password, and role are required.' });
+    return;
+  }
+  const trimmedUsername = String(username).trim();
+  const trimmedEmail = String(email).trim();
+  const trimmedCode = employeeCode ? String(employeeCode).trim() : '';
+  const trimmedPhone = phone ? String(phone).trim() : '';
+
+  if (!USERNAME_REGEX.test(trimmedUsername)) {
+    res.status(400).json({ error: 'Username must be 3-40 characters (letters, numbers, ., _, -).' });
+    return;
+  }
+  if (!EMAIL_REGEX.test(trimmedEmail)) {
+    res.status(400).json({ error: 'Invalid email address format.' });
+    return;
+  }
+  if (trimmedCode && !EMPLOYEE_CODE_REGEX.test(trimmedCode)) {
+    res.status(400).json({ error: 'Invalid employee/vendor code format.' });
+    return;
+  }
+  if (trimmedPhone && !PHONE_REGEX.test(trimmedPhone)) {
+    res.status(400).json({ error: 'Invalid phone number format.' });
+    return;
+  }
+  if (avatar !== undefined && !isValidAvatarValue(avatar)) {
+    res.status(400).json({ error: 'Invalid avatar image format or size (max ~1.8MB PNG/JPG/WEBP).' });
     return;
   }
   if (typeof role !== 'string' || !VALID_ROLES.includes(role as UserRole)) {
@@ -173,15 +306,18 @@ router.post('/users', requirePermission(PERMISSIONS.ADMIN_USERS), async (req: Re
     .insert(users)
     .values({
       id: crypto.randomUUID(),
-      username: String(username).trim(),
+      username: trimmedUsername,
       name: String(name).trim(),
-      email: String(email).trim(),
+      email: trimmedEmail,
       passwordHash: hashSecret(String(password)),
       role: role as UserRole,
       title: title || role,
-      avatar: '',
+      userCategory: resolveUserCategory(userCategory, role),
+      employeeCode: trimmedCode ? trimmedCode.slice(0, 60) : null,
+      phone: trimmedPhone ? trimmedPhone.slice(0, 40) : null,
+      organizationName: organizationName ? String(organizationName).trim().slice(0, 120) : null,
+      avatar: typeof avatar === 'string' ? avatar : '',
       assignedProjects: Array.isArray(assignedProjects) ? assignedProjects : [],
-      certifications: Array.isArray(certifications) ? certifications : [],
       isActive: true,
     })
     .returning();
@@ -204,11 +340,91 @@ router.post('/users', requirePermission(PERMISSIONS.ADMIN_USERS), async (req: Re
       email: created.email,
       role: created.role,
       title: created.title,
+      userCategory: resolveUserCategory(created.userCategory, created.role),
+      employeeCode: created.employeeCode,
+      phone: created.phone,
+      organizationName: created.organizationName,
       avatar: created.avatar,
       assignedProjects: created.assignedProjects,
-      certifications: created.certifications,
     },
   });
+});
+
+router.post('/users/import', requirePermission(PERMISSIONS.ADMIN_USERS), async (req: Request, res: Response) => {
+  const db = getDb();
+  if (!db || !req.authUser) {
+    res.status(503).json({ error: 'Database not configured.' });
+    return;
+  }
+
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (rows.length === 0) {
+    res.status(400).json({ error: 'rows array is required.' });
+    return;
+  }
+
+  const existing = await db.select({ username: users.username, email: users.email }).from(users);
+  const existingUsernames = new Set(existing.map((u) => u.username.toLowerCase()));
+  const existingEmails = new Set(existing.map((u) => u.email.toLowerCase()));
+
+  let importedCount = 0;
+  let skippedCount = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i] || {};
+    const username = String(r.username || '').trim();
+    const name = String(r.name || '').trim();
+    const email = String(r.email || '').trim();
+    const role = String(r.role || '').trim();
+
+    if (!username || !name || !email || !VALID_ROLES.includes(role as UserRole)) {
+      skippedCount++;
+      errors.push(`Baris ${i + 1}: data wajib atau role tidak valid.`);
+      continue;
+    }
+    if (existingUsernames.has(username.toLowerCase()) || existingEmails.has(email.toLowerCase())) {
+      skippedCount++;
+      errors.push(`Baris ${i + 1}: username/email '${username}' sudah terdaftar.`);
+      continue;
+    }
+
+    const rawPwd = typeof r.password === 'string' && r.password.trim().length >= 8
+      ? r.password.trim()
+      : 'SiteLens#2026';
+
+    const [created] = await db
+      .insert(users)
+      .values({
+        id: crypto.randomUUID(),
+        username,
+        name,
+        email,
+        passwordHash: hashSecret(rawPwd),
+        role: role as UserRole,
+        title: String(r.title || role).trim().slice(0, 120),
+        userCategory: resolveUserCategory(r.userCategory, role),
+        employeeCode: r.employeeCode ? String(r.employeeCode).trim().slice(0, 60) : null,
+        phone: r.phone ? String(r.phone).trim().slice(0, 40) : null,
+        organizationName: r.organizationName ? String(r.organizationName).trim().slice(0, 120) : null,
+        avatar: '',
+        assignedProjects: [],
+        isActive: true,
+      })
+      .returning();
+
+    existingUsernames.add(username.toLowerCase());
+    existingEmails.add(email.toLowerCase());
+    await syncUserLegacyAssignments(created.id);
+    importedCount++;
+  }
+
+  await logAudit(req.authUser.id, req.authUser.name, 'IMPORT_USERS', 'user', 'batch', {
+    importedCount,
+    skippedCount,
+  });
+
+  res.status(201).json({ importedCount, skippedCount, errors });
 });
 
 const DEFAULT_COMPANY_FALLBACK = {

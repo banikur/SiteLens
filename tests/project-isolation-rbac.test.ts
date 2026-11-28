@@ -126,7 +126,6 @@ test('Core RBAC Hybrid: User can hold different project-specific roles per proje
     title: 'Planning Engineer',
     avatar: '',
     assignedProjects: ['prj-101', 'prj-102'],
-    certifications: [],
   };
 
   const memberships: ProjectMember[] = [

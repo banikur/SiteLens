@@ -1382,13 +1382,20 @@ export const ProjectSetupStudio: React.FC<ProjectSetupStudioProps> = ({
                     Bobot relatif (%) *
                   </label>
                   <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="100"
+                    type="text"
+                    inputMode="decimal"
                     required
                     value={formWeight}
-                    onChange={(e) => setFormWeight(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => {
+                      let cleaned = e.target.value.replace(/[^0-9.]/g, '').replace(/^0+(?=\d)/, '');
+                      const dotIdx = cleaned.indexOf('.');
+                      if (dotIdx !== -1) {
+                        cleaned = cleaned.slice(0, dotIdx + 1) + cleaned.slice(dotIdx + 1).replace(/\./g, '');
+                      }
+                      if (cleaned !== '' && Number(cleaned) > 100) cleaned = '100';
+                      setFormWeight(cleaned);
+                    }}
                     placeholder="15.00"
                     className="w-full border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono tabular-nums focus:outline-none focus:border-slate-800"
                   />

@@ -98,6 +98,14 @@ export async function ensureTestDatabaseSchema() {
     END $$;
 
     DO $$ BEGIN
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "user_category" text DEFAULT 'internal' NOT NULL;
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "employee_code" text;
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "phone" text;
+      ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "organization_name" text;
+    EXCEPTION WHEN duplicate_column THEN null;
+    END $$;
+
+    DO $$ BEGIN
       ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "unit" text;
       ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "is_milestone" boolean DEFAULT false NOT NULL;
       ALTER TABLE "work_nodes" ADD COLUMN IF NOT EXISTS "is_unplanned" boolean DEFAULT false NOT NULL;
@@ -234,7 +242,6 @@ export async function ensureTestDatabaseSchema() {
         "title" text NOT NULL,
         "avatar" text DEFAULT '' NOT NULL,
         "assigned_projects" jsonb DEFAULT '[]'::jsonb NOT NULL,
-        "certifications" jsonb DEFAULT '[]'::jsonb NOT NULL,
         "is_active" boolean DEFAULT true NOT NULL,
         "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
@@ -443,15 +450,6 @@ export async function ensureTestDatabaseSchema() {
         "expiry_alert_days" integer DEFAULT 60 NOT NULL,
         "smk3_elements_map" jsonb DEFAULT '[]'::jsonb NOT NULL,
         "updated_at" timestamp with time zone DEFAULT now() NOT NULL
-      );
-
-      CREATE TABLE "project_members" (
-        "id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        "project_id" uuid NOT NULL REFERENCES "projects"("id") ON DELETE CASCADE,
-        "user_id" uuid NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
-        "project_role" text NOT NULL,
-        "is_active" boolean DEFAULT true NOT NULL,
-        "created_at" timestamp with time zone DEFAULT now() NOT NULL
       );
 
       CREATE TABLE "work_nodes" (

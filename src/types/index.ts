@@ -16,14 +16,18 @@ export type UserRole =
 
 export interface User {
   id: string;
+  username?: string;
   name: string;
   role: UserRole;
   title: string;
   email: string;
   avatar: string;
   assignedProjects: string[];
-  certifications: string[];
   isActive?: boolean;
+  userCategory?: 'internal' | 'external';
+  employeeCode?: string | null;
+  phone?: string | null;
+  organizationName?: string | null;
 }
 
 export type FieldType =
